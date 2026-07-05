@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kebijakan Privasi - Asisten Pendamping (Aspend)</title>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #1557b0;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #202124;
+            --text-secondary: #5f6368;
+            --border: #dadce0;
+            --accent: #e8f0fe;
+            --success: #34a853;
+            --warning: #fbbc04;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #fff;
+            padding: 3rem 1.5rem;
+            text-align: center;
+        }
+
+        .header-icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .header .app-package {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+            font-family: monospace;
+        }
+
+        .container {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        .effective-date {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--primary);
+            padding: 0.5rem 1.25rem;
+            border-radius: 2rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+        }
+
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .section h2 {
+            font-size: 1.35rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .section h2 .icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .section h3 {
+            font-size: 1.05rem;
+            color: var(--text);
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .section p {
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .section ul {
+            margin: 0.5rem 0 1rem 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .section ul li {
+            margin-bottom: 0.4rem;
+        }
+
+        .section ul li strong {
+            color: var(--text);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+
+        .data-table thead th {
+            background: var(--accent);
+            color: var(--primary);
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .data-table tbody td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f1f3f4;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 1rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .badge-local {
+            background: #e6f4ea;
+            color: #137333;
+        }
+
+        .badge-google {
+            background: #e8f0fe;
+            color: #1a73e8;
+        }
+
+        .highlight-box {
+            background: #e6f4ea;
+            border-left: 4px solid var(--success);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+
+        .highlight-box p {
+            color: #137333;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .warning-box {
+            background: #fef7e0;
+            border-left: 4px solid var(--warning);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        }
+
+        .warning-box p {
+            color: #7c6700;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .contact-card {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem 1rem;
+            margin-top: 1rem;
+        }
+
+        .contact-card .label {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .contact-card .value {
+            color: var(--text-secondary);
+        }
+
+        .contact-card a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .contact-card a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .toc {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .toc h2 {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 0.75rem;
+        }
+
+        .toc ol {
+            margin-left: 1.25rem;
+            color: var(--text-secondary);
+        }
+
+        .toc ol li {
+            margin-bottom: 0.3rem;
+        }
+
+        .toc a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .header {
+                padding: 2rem 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .container {
+                padding: 1.25rem 1rem 3rem;
+            }
+
+            .section {
+                padding: 1.25rem;
+            }
+
+            .data-table {
+                font-size: 0.85rem;
+            }
+
+            .data-table thead th,
+            .data-table tbody td {
+                padding: 0.5rem 0.6rem;
+            }
+
+            .contact-card {
+                grid-template-columns: 1fr;
+                gap: 0.15rem;
+            }
+
+            .contact-card .label {
+                margin-top: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-icon">🛡️</div>
+        <h1>Kebijakan Privasi</h1>
+        <p class="subtitle">Asisten Pendamping (Aspend)</p>
+        <p class="app-package">com.aspend.mobile</p>
+    </header>
+
+    <main class="container">
+
+        <p class="effective-date">📅 Berlaku sejak: 11 Juni 2026</p>
+
+        <!-- Pendahuluan -->
+        <section class="section" id="pendahuluan">
+            <h2><span class="icon">👋</span> Pendahuluan</h2>
+            <p>
+                Selamat datang di <strong>Asisten Pendamping (Aspend)</strong>. Aplikasi ini dikembangkan oleh
+                <strong>hihang hoheng</strong> sebagai alat bantu bagi para Pendamping Program Keluarga Harapan (PKH)
+                dalam melaksanakan tugas pendampingan sosial di lapangan.
+            </p>
+            <p>
+                Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi
+                informasi Anda saat menggunakan aplikasi Aspend. Kami berkomitmen untuk melindungi privasi dan keamanan
+                data Anda sesuai dengan peraturan yang berlaku.
+            </p>
+            <p>
+                Dengan mengunduh, menginstal, dan menggunakan aplikasi ini, Anda dianggap telah membaca, memahami,
+                dan menyetujui seluruh ketentuan dalam Kebijakan Privasi ini.
+            </p>
+        </section>
+
+        <!-- Daftar Isi -->
+        <nav class="toc">
+            <h2>📑 Daftar Isi</h2>
+            <ol>
+                <li><a href="#data-dikumpulkan">Data yang Dikumpulkan</a></li>
+                <li><a href="#penggunaan-data">Penggunaan Data</a></li>
+                <li><a href="#penyimpanan-data">Penyimpanan Data</a></li>
+                <li><a href="#berbagi-data">Berbagi Data dengan Pihak Ketiga</a></li>
+                <li><a href="#keamanan-data">Keamanan Data</a></li>
+                <li><a href="#izin-aplikasi">Izin Aplikasi (Permissions)</a></li>
+                <li><a href="#hak-pengguna">Hak-Hak Pengguna</a></li>
+                <li><a href="#perlindungan-anak">Perlindungan Anak</a></li>
+                <li><a href="#perubahan-kebijakan">Perubahan Kebijakan Privasi</a></li>
+                <li><a href="#hubungi-kami">Hubungi Kami</a></li>
+            </ol>
+        </nav>
+
+        <!-- 1. Data yang Dikumpulkan -->
+        <section class="section" id="data-dikumpulkan">
+            <h2><span class="icon">📋</span> 1. Data yang Dikumpulkan</h2>
+            <p>
+                Aplikasi Aspend mengumpulkan dan memproses beberapa jenis data untuk menjalankan fungsinya
+                sebagai alat bantu pendampingan. Berikut adalah rincian data yang dikumpulkan:
+            </p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Jenis Data</th>
+                        <th>Detail</th>
+                        <th>Penyimpanan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Akun Google</strong></td>
+                        <td>Nama, alamat email, dan foto profil yang diperoleh melalui proses masuk (login) menggunakan Google Sign-In</td>
+                        <td><span class="badge badge-google">Google</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Lokasi GPS</strong></td>
+                        <td>Koordinat lokasi perangkat untuk keperluan geotagging (penandaan lokasi) pada laporan kunjungan</td>
+                        <td><span class="badge badge-google">Google Sheets</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Foto & Gambar</strong></td>
+                        <td>Foto yang diambil melalui kamera atau dipilih dari galeri sebagai bukti dokumentasi dalam laporan</td>
+                        <td><span class="badge badge-google">Google Drive</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Rekaman Suara</strong></td>
+                        <td>Input suara yang digunakan untuk fitur speech-to-text (konversi suara ke teks); audio tidak disimpan secara permanen</td>
+                        <td><span class="badge badge-local">Lokal (sementara)</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Dokumen PDF</strong></td>
+                        <td>Laporan dalam format PDF yang dihasilkan oleh aplikasi</td>
+                        <td><span class="badge badge-google">Google Drive</span> <span class="badge badge-local">Lokal</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Data Laporan</strong></td>
+                        <td>Data kunjungan, catatan pendampingan, dan informasi laporan yang diinput oleh pengguna</td>
+                        <td><span class="badge badge-google">Google Sheets</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>File CSV</strong></td>
+                        <td>File data yang diimpor oleh pengguna dari Google Drive untuk keperluan pengolahan data</td>
+                        <td><span class="badge badge-google">Google Drive</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>API Key AI</strong></td>
+                        <td>Kunci API layanan AI (Groq/OpenRouter) yang dimasukkan secara mandiri oleh pengguna untuk mengakses fitur kecerdasan buatan</td>
+                        <td><span class="badge badge-local">Lokal (perangkat)</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 2. Penggunaan Data -->
+        <section class="section" id="penggunaan-data">
+            <h2><span class="icon">🎯</span> 2. Penggunaan Data</h2>
+            <p>Data yang dikumpulkan digunakan secara eksklusif untuk tujuan berikut:</p>
+            <ul>
+                <li><strong>Autentikasi Pengguna:</strong> Data akun Google digunakan untuk proses masuk (login) dan identifikasi pengguna dalam aplikasi.</li>
+                <li><strong>Pembuatan Laporan:</strong> Data lokasi GPS, foto, dan input teks/suara digunakan untuk menyusun laporan kunjungan pendampingan PKH.</li>
+                <li><strong>Geotagging:</strong> Koordinat lokasi GPS ditambahkan ke laporan sebagai bukti kehadiran di lokasi kunjungan.</li>
+                <li><strong>Dokumentasi Visual:</strong> Foto dari kamera atau galeri digunakan sebagai bukti pendukung dalam laporan.</li>
+                <li><strong>Input Teks Melalui Suara:</strong> Mikrofon digunakan untuk fitur speech-to-text guna mempermudah penginputan data di lapangan.</li>
+                <li><strong>Penyimpanan & Pengelolaan Dokumen:</strong> Google Drive digunakan untuk menyimpan laporan PDF dan mengimpor file CSV.</li>
+                <li><strong>Pencatatan Data:</strong> Google Sheets digunakan untuk menyimpan dan mengelola data laporan pendampingan.</li>
+                <li><strong>Fitur AI:</strong> API key yang disediakan pengguna digunakan untuk mengakses layanan AI pihak ketiga (Groq/OpenRouter) guna mendukung fitur kecerdasan buatan dalam aplikasi.</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p>✅ Kami TIDAK menggunakan data Anda untuk keperluan iklan, pemasaran, pembuatan profil, atau tujuan komersial lainnya.</p>
+            </div>
+        </section>
+
+        <!-- 3. Penyimpanan Data -->
+        <section class="section" id="penyimpanan-data">
+            <h2><span class="icon">💾</span> 3. Penyimpanan Data</h2>
+            <p>Aspend dirancang dengan prinsip <strong>privasi berdasarkan desain (privacy by design)</strong>. Aplikasi ini <strong>tidak memiliki server eksternal</strong> milik pengembang. Seluruh data disimpan di:</p>
+
+            <h3>📱 Penyimpanan Lokal (Perangkat Pengguna)</h3>
+            <ul>
+                <li>API key AI (Groq/OpenRouter) disimpan secara terenkripsi di penyimpanan lokal perangkat.</li>
+                <li>File PDF laporan dapat disimpan di penyimpanan internal perangkat.</li>
+                <li>Data sementara (cache) dari proses speech-to-text disimpan sementara dan dihapus setelah proses selesai.</li>
+            </ul>
+
+            <h3>☁️ Penyimpanan Cloud (Akun Google Pengguna)</h3>
+            <ul>
+                <li>Dokumen PDF laporan disimpan di <strong>Google Drive milik pengguna sendiri</strong>.</li>
+                <li>Data laporan dan catatan pendampingan disimpan di <strong>Google Sheets milik pengguna sendiri</strong>.</li>
+                <li>Foto dokumentasi diunggah ke <strong>Google Drive milik pengguna sendiri</strong>.</li>
+            </ul>
+
+            <div class="highlight-box">
+                <p>✅ Pengembang TIDAK memiliki akses ke data yang tersimpan di akun Google Drive atau Google Sheets milik pengguna. Semua data sepenuhnya berada di bawah kendali pengguna.</p>
+            </div>
+        </section>
+
+        <!-- 4. Berbagi Data dengan Pihak Ketiga -->
+        <section class="section" id="berbagi-data">
+            <h2><span class="icon">🤝</span> 4. Berbagi Data dengan Pihak Ketiga</h2>
+            <p>Aspend <strong>tidak menjual, memperdagangkan, atau membagikan</strong> data pribadi pengguna kepada pihak ketiga mana pun, kecuali interaksi yang diperlukan dengan layanan berikut:</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Layanan</th>
+                        <th>Tujuan Penggunaan</th>
+                        <th>Data yang Dibagikan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Google Sign-In</strong></td>
+                        <td>Autentikasi dan proses masuk pengguna</td>
+                        <td>Nama, email, foto profil</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Google Drive API</strong></td>
+                        <td>Penyimpanan dokumen PDF dan impor file CSV</td>
+                        <td>File dokumen pengguna</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Google Sheets API</strong></td>
+                        <td>Penyimpanan dan pengelolaan data laporan</td>
+                        <td>Data laporan pendampingan</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Groq / OpenRouter</strong></td>
+                        <td>Pemrosesan fitur kecerdasan buatan (AI)</td>
+                        <td>Teks input pengguna (menggunakan API key milik pengguna sendiri)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="warning-box">
+                <p>⚠️ Penggunaan layanan Google tunduk pada <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: #7c6700;">Kebijakan Privasi Google</a>. Penggunaan layanan Groq/OpenRouter tunduk pada kebijakan privasi masing-masing penyedia layanan tersebut.</p>
+            </div>
+        </section>
+
+        <!-- 5. Keamanan Data -->
+        <section class="section" id="keamanan-data">
+            <h2><span class="icon">🔒</span> 5. Keamanan Data</h2>
+            <p>Kami menerapkan langkah-langkah keamanan berikut untuk melindungi data Anda:</p>
+            <ul>
+                <li><strong>Autentikasi Aman:</strong> Proses login menggunakan protokol OAuth 2.0 melalui Google Sign-In, sehingga aplikasi tidak pernah menyimpan kata sandi pengguna.</li>
+                <li><strong>Penyimpanan Lokal Terenkripsi:</strong> API key AI disimpan secara terenkripsi di penyimpanan lokal perangkat dan tidak dapat diakses oleh aplikasi lain.</li>
+                <li><strong>Tanpa Server Eksternal:</strong> Aplikasi tidak mengirimkan data ke server milik pengembang. Semua data tersimpan di perangkat pengguna atau akun Google milik pengguna sendiri.</li>
+                <li><strong>Koneksi Terenkripsi:</strong> Seluruh komunikasi dengan layanan Google dan penyedia AI menggunakan protokol HTTPS yang terenkripsi.</li>
+                <li><strong>Izin Minimal:</strong> Aplikasi hanya meminta izin (permission) yang benar-benar diperlukan untuk menjalankan fungsinya.</li>
+            </ul>
+
+            <div class="warning-box">
+                <p>⚠️ Meskipun kami berupaya maksimal untuk melindungi data Anda, tidak ada metode transmisi melalui internet atau penyimpanan elektronik yang 100% aman. Kami menyarankan pengguna untuk menjaga keamanan akun Google dan perangkat masing-masing.</p>
+            </div>
+        </section>
+
+        <!-- 6. Izin Aplikasi -->
+        <section class="section" id="izin-aplikasi">
+            <h2><span class="icon">⚙️</span> 6. Izin Aplikasi (Permissions)</h2>
+            <p>Aplikasi Aspend memerlukan beberapa izin perangkat untuk dapat berfungsi dengan baik. Berikut penjelasan untuk setiap izin yang diminta:</p>
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Izin</th>
+                        <th>Alasan Penggunaan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Kamera</strong></td>
+                        <td>Mengambil foto sebagai bukti dokumentasi dalam laporan kunjungan pendampingan.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Lokasi (GPS)</strong></td>
+                        <td>Memperoleh koordinat lokasi untuk geotagging pada laporan sebagai bukti kehadiran di lokasi.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Mikrofon</strong></td>
+                        <td>Merekam suara untuk fitur speech-to-text (konversi suara ke teks) guna mempermudah penginputan data.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Penyimpanan / Media</strong></td>
+                        <td>Menyimpan file PDF laporan ke penyimpanan internal perangkat dan mengakses foto dari galeri.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Internet</strong></td>
+                        <td>Berkomunikasi dengan layanan Google (Drive, Sheets, Sign-In) dan layanan AI (Groq/OpenRouter).</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p>Anda dapat mencabut izin-izin di atas kapan saja melalui menu <strong>Pengaturan &gt; Aplikasi &gt; Aspend &gt; Izin</strong> pada perangkat Anda. Namun, pencabutan izin tertentu dapat menyebabkan beberapa fitur aplikasi tidak berfungsi sebagaimana mestinya.</p>
+        </section>
+
+        <!-- 7. Hak-Hak Pengguna -->
+        <section class="section" id="hak-pengguna">
+            <h2><span class="icon">✊</span> 7. Hak-Hak Pengguna</h2>
+            <p>Sebagai pengguna aplikasi Aspend, Anda memiliki hak-hak berikut:</p>
+            <ul>
+                <li><strong>Hak Akses:</strong> Anda berhak mengetahui data apa saja yang dikumpulkan dan bagaimana data tersebut digunakan.</li>
+                <li><strong>Hak Penghapusan:</strong> Anda dapat menghapus seluruh data Anda kapan saja. Karena data disimpan di akun Google dan perangkat Anda sendiri, Anda memiliki kendali penuh untuk menghapusnya:
+                    <ul>
+                        <li>Hapus file di Google Drive Anda</li>
+                        <li>Hapus spreadsheet di Google Sheets Anda</li>
+                        <li>Hapus data lokal melalui pengaturan aplikasi atau dengan menghapus instalasi (uninstall) aplikasi</li>
+                    </ul>
+                </li>
+                <li><strong>Hak Penarikan Persetujuan:</strong> Anda dapat mencabut izin aplikasi atau menghapus akses aplikasi ke akun Google Anda kapan saja melalui <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener" style="color: var(--primary);">pengaturan keamanan akun Google</a>.</li>
+                <li><strong>Hak Portabilitas:</strong> Data Anda yang tersimpan di Google Drive dan Google Sheets sudah dalam format standar (PDF, CSV, Spreadsheet) yang dapat diunduh dan dipindahkan kapan saja.</li>
+                <li><strong>Hak Pembatasan:</strong> Anda berhak membatasi pengolahan data dengan cara mencabut izin tertentu pada perangkat Anda.</li>
+            </ul>
+        </section>
+
+        <!-- 8. Perlindungan Anak -->
+        <section class="section" id="perlindungan-anak">
+            <h2><span class="icon">👶</span> 8. Perlindungan Anak</h2>
+            <p>
+                Aplikasi Aspend <strong>tidak ditujukan untuk anak-anak di bawah usia 13 tahun</strong>.
+                Kami tidak secara sengaja mengumpulkan informasi pribadi dari anak-anak di bawah 13 tahun.
+            </p>
+            <p>
+                Aplikasi ini dirancang khusus untuk digunakan oleh tenaga Pendamping PKH yang merupakan
+                orang dewasa dalam kapasitas profesional mereka. Jika kami mengetahui bahwa kami telah
+                mengumpulkan data pribadi dari anak di bawah 13 tahun, kami akan segera mengambil langkah
+                untuk menghapus informasi tersebut.
+            </p>
+        </section>
+
+        <!-- 9. Perubahan Kebijakan Privasi -->
+        <section class="section" id="perubahan-kebijakan">
+            <h2><span class="icon">📝</span> 9. Perubahan Kebijakan Privasi</h2>
+            <p>
+                Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu. Setiap perubahan akan
+                dipublikasikan pada halaman ini dengan tanggal efektif yang diperbarui.
+            </p>
+            <p>
+                Kami menyarankan pengguna untuk meninjau halaman ini secara berkala agar tetap mengetahui
+                informasi terbaru mengenai praktik privasi kami. Perubahan pada Kebijakan Privasi ini
+                berlaku efektif segera setelah dipublikasikan pada halaman ini.
+            </p>
+            <p>
+                Jika terdapat perubahan signifikan pada cara kami memperlakukan data pribadi pengguna,
+                kami akan memberikan pemberitahuan melalui pembaruan aplikasi atau notifikasi di dalam aplikasi.
+            </p>
+        </section>
+
+        <!-- 10. Hubungi Kami -->
+        <section class="section" id="hubungi-kami">
+            <h2><span class="icon">📧</span> 10. Hubungi Kami</h2>
+            <p>
+                Jika Anda memiliki pertanyaan, masukan, atau keluhan mengenai Kebijakan Privasi ini
+                atau praktik privasi kami, silakan hubungi kami melalui:
+            </p>
+
+            <div class="contact-card">
+                <span class="label">👤 Pengembang:</span>
+                <span class="value">hihang hoheng</span>
+
+                <span class="label">📧 Email:</span>
+                <span class="value"><a href="mailto:syaifulkhalifah@gmail.com">syaifulkhalifah@gmail.com</a></span>
+
+                <span class="label">📦 Paket Aplikasi:</span>
+                <span class="value" style="font-family: monospace;">com.aspend.mobile</span>
+
+                <span class="label">📱 Nama Aplikasi:</span>
+                <span class="value">Asisten Pendamping (Aspend)</span>
+            </div>
+
+            <p style="margin-top: 1.25rem;">
+                Kami akan berusaha merespons setiap pertanyaan atau permintaan Anda dalam waktu
+                <strong>7 (tujuh) hari kerja</strong> sejak email diterima.
+            </p>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 <strong>hihang hoheng</strong> — Seluruh hak cipta dilindungi.</p>
+        <p style="margin-top: 0.5rem;">
+            Asisten Pendamping (Aspend) &middot;
+            <a href="mailto:syaifulkhalifah@gmail.com">syaifulkhalifah@gmail.com</a>
+        </p>
+        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #9aa0a6;">
+            Terakhir diperbarui: 11 Juni 2026
+        </p>
+    </footer>
+
+</body>
+</html>

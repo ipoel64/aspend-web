@@ -1,0 +1,83 @@
+name: aspend_mobile
+description: Aspend - Asisten Pendamping Laporan PKH
+publish_to: 'none'
+version: 1.0.2+16
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Google Auth & APIs
+  google_sign_in: ^6.2.2
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.6.0
+  extension_google_sign_in_as_googleapis_auth: ^2.0.12
+
+  # HTTP & Networking
+  http: ^1.3.0
+
+  # State Management
+  provider: ^6.1.2
+
+  # Local Storage
+  shared_preferences: ^2.5.3
+
+  # UI & Design
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # Media & Voice
+  image_picker: ^1.1.2
+  camera: ^0.10.5+9
+  speech_to_text: ^7.0.0
+  image: ^4.3.0
+
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
+  # PDF
+  pdf: ^3.11.1
+  printing: ^5.14.0
+
+  # In-App Purchase / Subscription
+  in_app_purchase: ^3.2.0
+
+  # Ads
+  google_mobile_ads: ^9.0.0
+
+  # Utilities
+  url_launcher: ^6.3.1
+  path_provider: ^2.1.5
+  intl: ^0.20.2
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
+  csv: ^5.1.1
+  excel: ^4.0.0
+  file_picker: ^8.1.2
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  signature: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/app_icon.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
