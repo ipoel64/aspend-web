@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:csv/csv.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -60,116 +61,24 @@ class _VerkomToolsScreenState extends State<VerkomToolsScreen> {
   }
 
 
-  Future<void> _pickFromGoogleDrive() async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (auth.driveService == null) {
-      _showSnackBar('Layanan Google Drive belum siap.', Colors.orange);
-      return;
-    }
-
+  Future<void> _pickCsvFile() async {
     setState(() => _isProcessing = true);
     try {
-      List<google_drive.File> files;
-      try {
-        files = await auth.driveService!.listCsvFiles();
-      } catch (e) {
-        if (e.toString().contains('401') || e.toString().contains('403') || e.toString().contains('Credentials') || e.toString().contains('unauthorized')) {
-          debugPrint('Drive API 401/403 error, attempting to refresh session...');
-          final refreshed = await auth.refreshSession();
-          if (refreshed && auth.driveService != null) {
-            files = await auth.driveService!.listCsvFiles();
-          } else {
-            throw Exception('Sesi login Google Drive kedaluwarsa. Silakan lakukan logout lalu login kembali untuk memperbarui akses.');
-          }
-        } else {
-          rethrow;
-        }
-      }
-
-      debugPrint('Found ${files.length} CSV files in Drive');
-      for (var f in files) {
-        debugPrint('Drive File: ${f.name} (ID: ${f.id}, Size: ${f.size}, Mime: ${f.mimeType})');
-      }
-
-      if (files.isEmpty) {
-        throw 'Tidak ditemukan berkas CSV di Google Drive Anda.';
-      }
-
-      if (!mounted) return;
-
-      final selectedFile = await showModalBottomSheet<google_drive.File>(
-        context: context,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (context) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Pilih CSV dari Google Drive',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navyDark),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: files.length,
-                    separatorBuilder: (_, __) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final f = files[index];
-                      return ListTile(
-                        leading: const Icon(Icons.insert_drive_file_rounded, color: AppColors.gold),
-                        title: Text(f.name ?? 'Tanpa Nama', style: const TextStyle(fontSize: 13)),
-                        subtitle: f.size != null
-                            ? Text('${(int.parse(f.size!) / 1024).toStringAsFixed(1)} KB', style: const TextStyle(fontSize: 11))
-                            : null,
-                        onTap: () => Navigator.pop(context, f),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
       );
 
-      if (selectedFile != null && selectedFile.id != null) {
-        setState(() => _isProcessing = true);
-        Uint8List? bytes;
-        try {
-          bytes = await auth.driveService!.downloadFile(selectedFile.id!);
-        } catch (e) {
-          if (e.toString().contains('401') || e.toString().contains('403') || e.toString().contains('Credentials') || e.toString().contains('unauthorized')) {
-            debugPrint('Drive download 401/403 error, refreshing session...');
-            final refreshed = await auth.refreshSession();
-            if (refreshed && auth.driveService != null) {
-              bytes = await auth.driveService!.downloadFile(selectedFile.id!);
-            } else {
-              throw Exception('Sesi login Google Drive kedaluwarsa. Silakan lakukan logout lalu login kembali untuk memperbarui akses.');
-            }
-          } else {
-            rethrow;
-          }
-        }
-
-        if (bytes != null) {
-          _loadCSVFromBytes(bytes, selectedFile.name ?? 'Drive_CSV');
-        } else {
-          throw 'Gagal mengunduh berkas dari Google Drive.';
-        }
+      if (result != null && result.files.single.bytes != null) {
+        _loadCSVFromBytes(result.files.single.bytes!, result.files.single.name);
+      } else {
+        if (mounted) setState(() => _isProcessing = false);
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('Failed host lookup')) {
-        _showSnackBar('Koneksi Gagal: Perangkat Anda tidak terhubung ke internet. Silakan periksa koneksi internet Anda.', Colors.red);
-      } else {
-        _showSnackBar('Gagal: $e', Colors.red);
-      }
+      _showSnackBar('Gagal memilih berkas: $e', Colors.red);
     } finally {
-      setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -676,9 +585,9 @@ class _VerkomToolsScreenState extends State<VerkomToolsScreen> {
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: _pickFromGoogleDrive,
-            icon: const Icon(Icons.cloud_download_rounded),
-            label: const Text('Google Drive'),
+            onPressed: _pickCsvFile,
+            icon: const Icon(Icons.file_upload_rounded),
+            label: const Text('Pilih Berkas CSV'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: Colors.white,

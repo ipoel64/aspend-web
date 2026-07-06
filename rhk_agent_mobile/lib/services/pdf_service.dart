@@ -71,7 +71,21 @@ class PdfService {
 
       codec = await descriptor.instantiateCodec(targetWidth: newWidth, targetHeight: newHeight);
       final frame = await codec.getNextFrame();
-      image = frame.image;
+      final originalImage = frame.image;
+
+      // Draw the image onto a white background to prevent transparent PNGs from turning black
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      canvas.drawRect(
+        ui.Rect.fromLTWH(0, 0, originalImage.width.toDouble(), originalImage.height.toDouble()),
+        ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+      );
+      canvas.drawImage(originalImage, ui.Offset.zero, ui.Paint());
+      final picture = recorder.endRecording();
+      
+      image = await picture.toImage(originalImage.width, originalImage.height);
+      originalImage.dispose();
+      picture.dispose();
 
       // Export as raw RGBA, then encode to JPEG via package:image.
       // This avoids the massive memory usage of PNG encoding and gives us
@@ -94,10 +108,10 @@ class PdfService {
       debugPrint('Native resize failed: $e');
     } finally {
       // Always clean up native resources to prevent memory leaks
-      image?.dispose();
-      codec?.dispose();
-      descriptor?.dispose();
-      buffer?.dispose();
+      try { image?.dispose(); } catch (_) {}
+      try { codec?.dispose(); } catch (_) {}
+      try { descriptor?.dispose(); } catch (_) {}
+      try { buffer?.dispose(); } catch (_) {}
     }
     
     // Fallback to original bytes
@@ -697,12 +711,13 @@ class PdfService {
     final pdf = pw.Document();
 
     List<pw.TextSpan> parseNarrativeSpans(String text) {
+      String cleanText = text.replaceAll('**', '*').replaceAll('"', '').replaceAll('#', '');
       final List<pw.TextSpan> spans = [];
-      final parts = text.split('**');
+      final parts = cleanText.split('*');
       for (int i = 0; i < parts.length; i++) {
-        if (i % 2 == 1) {
+        if (i % 2 == 1 && parts[i].isNotEmpty) {
           spans.add(pw.TextSpan(text: parts[i], style: pw.TextStyle(fontWeight: pw.FontWeight.bold)));
-        } else {
+        } else if (parts[i].isNotEmpty) {
           spans.add(pw.TextSpan(text: parts[i]));
         }
       }
@@ -712,52 +727,75 @@ class PdfService {
     List<pw.Widget> buildPengaduanNarrative(String text) {
       final List<pw.Widget> widgets = [];
       final lines = text.split('\n');
+      
+      double currentIndent = 0;
+      double childIndent = 0;
 
       for (var line in lines) {
-        final trimmed = line.trim();
-        if (trimmed.isEmpty) {
+        var cleanLine = line.trim();
+        
+        // Normalize bullet points
+        if (cleanLine.startsWith('* ')) {
+          cleanLine = '- ' + cleanLine.substring(2);
+        }
+        
+        // Strip out formatting characters for structural parsing
+        cleanLine = cleanLine.replaceAll('*', '').replaceAll('"', '').replaceAll('#', '').trim();
+        
+        final upperText = cleanLine.toUpperCase();
+        
+        // Ignore useless AI titles and separators
+        if (upperText.contains('LAPORAN PENANGANAN') || 
+            upperText.contains('KEMENTERIAN SOSIAL') || 
+            upperText == '-' || upperText == '--' || upperText == '---') {
+          continue;
+        }
+
+        if (cleanLine.isEmpty) {
           widgets.add(pw.SizedBox(height: 6));
           continue;
         }
 
+        final romanRegExp = RegExp(r'^([IVX]+|[A-Z])\.\s*(.*)');
         final pointRegExp = RegExp(r'^(\d+)\.\s*(.*)');
-        final bulletRegExp = RegExp(r'^[-*•]\s*(.*)');
+        final bulletRegExp = RegExp(r'^[-•]\s*(.*)');
 
-        if (pointRegExp.hasMatch(trimmed)) {
-          final match = pointRegExp.firstMatch(trimmed)!;
+        if (romanRegExp.hasMatch(cleanLine)) {
+          // Roman Numeral or Alphabet Header (e.g., I. IDENTITAS, A. ANALISIS)
+          currentIndent = 12;
+          childIndent = 12;
+          final match = romanRegExp.firstMatch(cleanLine)!;
+          final num = match.group(1)!;
+          final content = match.group(2)!;
+          
+          widgets.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 10, bottom: 4),
+              child: pw.Text(
+                '$num. $content',
+                style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+          );
+        } else if (pointRegExp.hasMatch(cleanLine)) {
+          // Numbered List (e.g., 1. Tindak Lanjut)
+          final match = pointRegExp.firstMatch(cleanLine)!;
           final num = match.group(1)!;
           final content = match.group(2)!;
 
-          String pointTitle = '';
+          String pointTitle = content;
           String pointDesc = '';
 
-          final boldStartRegExp = RegExp(r'^\*\*(.*?)\*\*\s*[:\-]?\s*(.*)');
-          final colonStartRegExp = RegExp(r'^([^*:\-]+?)\s*[:\-]\s*(.*)');
-
-          if (boldStartRegExp.hasMatch(content)) {
-            final boldMatch = boldStartRegExp.firstMatch(content)!;
-            pointTitle = boldMatch.group(1)!.trim();
-            pointDesc = boldMatch.group(2)!.trim();
-          } else if (colonStartRegExp.hasMatch(content)) {
-            final colonMatch = colonStartRegExp.firstMatch(content)!;
-            pointTitle = colonMatch.group(1)!.trim();
-            pointDesc = colonMatch.group(2)!.trim();
-          } else {
-            final words = content.split(' ');
-            if (words.length > 2) {
-              pointTitle = words.sublist(0, 2).join(' ');
-              pointDesc = words.sublist(2).join(' ');
-            } else {
-              pointTitle = content;
-              pointDesc = '';
-            }
+          final colonStartRegExp = RegExp(r'^([^:\-]+?)\s*[:\-]\s*(.*)');
+          if (colonStartRegExp.hasMatch(content)) {
+            final m = colonStartRegExp.firstMatch(content)!;
+            pointTitle = m.group(1)!.trim();
+            pointDesc = m.group(2)!.trim();
           }
-
-          pointTitle = pointTitle.replaceAll('**', '').trim();
 
           widgets.add(
             pw.Padding(
-              padding: const pw.EdgeInsets.only(left: 10, top: 4, bottom: 2),
+              padding: pw.EdgeInsets.only(left: currentIndent, top: 6, bottom: 2),
               child: pw.Text(
                 '$num. $pointTitle',
                 style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
@@ -765,10 +803,12 @@ class PdfService {
             ),
           );
 
+          childIndent = currentIndent + 12;
+
           if (pointDesc.isNotEmpty) {
             widgets.add(
               pw.Padding(
-                padding: const pw.EdgeInsets.only(left: 22, bottom: 6),
+                padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
                 child: pw.RichText(
                   textAlign: pw.TextAlign.justify,
                   text: pw.TextSpan(
@@ -779,17 +819,18 @@ class PdfService {
               ),
             );
           }
-        } else if (bulletRegExp.hasMatch(trimmed)) {
-          final match = bulletRegExp.firstMatch(trimmed)!;
+        } else if (bulletRegExp.hasMatch(cleanLine)) {
+          // Bullet points
+          final match = bulletRegExp.firstMatch(cleanLine)!;
           final content = match.group(1)!;
 
           widgets.add(
             pw.Padding(
-              padding: const pw.EdgeInsets.only(left: 22, bottom: 4),
+              padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('- ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('• ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
                   pw.Expanded(
                     child: pw.RichText(
                       textAlign: pw.TextAlign.justify,
@@ -804,14 +845,15 @@ class PdfService {
             ),
           );
         } else {
+          // Regular paragraph (automatically aligns with childIndent for stepped structure)
           widgets.add(
             pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 6),
+              padding: pw.EdgeInsets.only(left: childIndent, bottom: 6),
               child: pw.RichText(
                 textAlign: pw.TextAlign.justify,
                 text: pw.TextSpan(
                   style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
-                  children: parseNarrativeSpans(trimmed),
+                  children: parseNarrativeSpans(line.trim()), // Use original line to preserve bold formatting if any
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 import '../config/constants.dart';
@@ -278,21 +279,26 @@ class FormProvider extends ChangeNotifier {
 
       final report = Report.fromSheetRow(rowData);
 
-      // 2. Get AI config (locked to OpenRouter & default API key, only model is configurable)
-      final configRows = await auth.sheetsService!.getAllRows(
-        auth.spreadsheetId!,
-        AppConstants.sheetConfig,
-      );
-      String provider = 'openrouter';
-      String apiKey = AppConstants.defaultOpenRouterApiKey;
+      // 2. Get AI config
+      final prefs = await SharedPreferences.getInstance();
+      final userEmail = auth.currentUser?.email ?? '';
+      final storedKey = prefs.getString('ai_api_key_$userEmail');
+      String apiKey = storedKey?.isNotEmpty == true ? storedKey! : AppConstants.defaultOpenRouterApiKey;
       String model = AppConstants.defaultOpenRouterModel;
+      String provider = 'openrouter';
 
-      for (var row in configRows) {
-        if (row.isNotEmpty) {
-          if (row[0] == 'AI_MODEL' && row.length > 1) {
+      try {
+        final configRows = await auth.sheetsService!.getAllRows(
+          auth.spreadsheetId!,
+          AppConstants.sheetConfig,
+        );
+        for (var row in configRows) {
+          if (row.isNotEmpty && row[0] == 'AI_MODEL' && row.length > 1) {
             model = row[1].toString();
           }
         }
+      } catch (e) {
+        debugPrint('Gagal membaca sheetConfig: $e');
       }
 
       // 3. Build Prompt

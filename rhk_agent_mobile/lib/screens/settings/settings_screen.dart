@@ -119,10 +119,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
                 // Profile Card
                 _buildProfileCard(auth),
-                const SizedBox(height: 12),
-
-                // ── Kartu Premium ──
-                _buildPremiumCard(),
                 const SizedBox(height: 16),
 
                 // Profile Form
@@ -135,6 +131,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // AI Config Section
                 _buildAiConfigSection(),
+                const SizedBox(height: 16),
+
+                // ── Kartu Premium ──
+                _buildPremiumCard(),
                 const SizedBox(height: 16),
 
                 // Contact Admin Section

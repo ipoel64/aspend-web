@@ -544,18 +544,20 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
                         children: [
                           Icon(Icons.camera_alt_rounded, color: AppColors.navy, size: 28),
                           const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Jepret Foto KTP',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navyDark),
-                              ),
-                              Text(
-                                'Asisten Pendamping otomatis scan NIK & Data Diri',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                              ),
-                            ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Jepret Foto KTP',
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navyDark),
+                                ),
+                                Text(
+                                  'Asisten Pendamping otomatis scan NIK & Data Diri',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
                           )
                         ],
                       ),

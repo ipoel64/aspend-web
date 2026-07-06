@@ -409,7 +409,7 @@ function loadRHKOptions() {
 }
 
 // ── Dashboard Data & Table ──────────────────────────────────────
-async function loadDashboardData() {
+async function loadDashboardData(isSilent = false) {
   try {
     let ssId = localStorage.getItem('aspend_spreadsheetId');
     if (!ssId) {
@@ -433,18 +433,32 @@ async function loadDashboardData() {
     if (document.getElementById('dash-stat-draft')) document.getElementById('dash-stat-draft').textContent = stats.pending || 0;
     if (document.getElementById('dash-stat-final')) document.getElementById('dash-stat-final').textContent = stats.done || 0;
     
-    state.reports = data.list.data || [];
-    state.totalReports = data.list.total || 0;
-    renderDashboardTable();
-    hideLoading();
+    const newReports = data.list.data || [];
+    const newTotal = data.list.total || 0;
+    
+    // Perbandingan cerdas untuk auto-refresh tanpa kedipan UI
+    if (JSON.stringify(state.reports) !== JSON.stringify(newReports) || state.totalReports !== newTotal) {
+      state.reports = newReports;
+      state.totalReports = newTotal;
+      renderDashboardTable();
+      
+      // Update instan PDF jika sedang dibuka
+      if (window.activeReportId && !document.getElementById('pdf-preview-pane').classList.contains('hidden')) {
+         previewPdf(window.activeReportId);
+      }
+    }
+    
+    if (!isSilent) hideLoading();
   } catch(err) {
     console.error("Dashboard Load Error:", err);
-    let errorMsg = err.message || err;
-    if (typeof err === 'object' && err.result && err.result.error) {
-       errorMsg = err.result.error.message;
+    if (!isSilent) {
+      let errorMsg = err.message || err;
+      if (typeof err === 'object' && err.result && err.result.error) {
+         errorMsg = err.result.error.message;
+      }
+      hideLoading();
+      showToast('Gagal memuat Dashboard: ' + errorMsg, 'error');
     }
-    hideLoading();
-    showToast('Gagal memuat Dashboard: ' + errorMsg, 'error');
   }
 }
 
@@ -548,24 +562,22 @@ function renderDashboardTable() {
       // Rencana Aksi sebagai Judul Utama (Lebih Besar, Tebal)
       var judulHTML = `<div class="font-bold text-on-surface mb-0.5 text-[11px] leading-tight line-clamp-2" title="${r.RencanaAksi || ''}">${r.RencanaAksi || '-'}</div>`;
       
+      var statusText = (r.Status && r.Status.toLowerCase() !== 'draft') ? 'Selesai' : 'Draft';
+      var statusClass = statusText === 'Selesai' 
+          ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' 
+          : 'bg-amber-500/15 text-amber-600 border-amber-500/30';
+      var statusIcon = statusText === 'Selesai' ? 'check_circle' : 'edit_document';
+      var statusBadge = `<span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} mr-1 font-bold text-[9px] uppercase tracking-wider"><span class="material-symbols-outlined text-[10px] mr-0.5">${statusIcon}</span>${statusText}</span>`;
+
       // RHK sebagai Subjudul (Lebih Kecil, Biru)
       var subtitleHTML = `<div class="text-[9px] text-primary/80 font-medium leading-tight mt-1 line-clamp-2" title="${r.JenisRHK || ''}">
               <span class="inline-flex items-center bg-pink-500/15 text-pink-600 px-1 py-0.5 rounded border border-pink-500/20 mr-1 font-bold">
                 <span class="material-symbols-outlined text-[9px] mr-0.5">adjust</span>
                 RHK-${angkaRHK}
               </span>
+              ${statusBadge}
               ${r.JenisRHK || '-'}
             </div>`;
-
-      // Lokasi & Tanggal
-      var lokasiHtml = r.Lokasi ? `<div class="text-[10px] text-on-surface-variant/80 mt-0.5 line-clamp-2 leading-tight flex items-start gap-0.5"><span class="material-symbols-outlined text-[10px] mt-0.5">location_on</span>${escapeHtml(r.Lokasi)}</div>` : '';
-
-      // Status Badge disembunyikan sementara sesuai permintaan
-      // var statusText = (r.Status && r.Status.toLowerCase() !== 'draft') ? 'Selesai' : 'Draft';
-      // var statusClass = statusText === 'Selesai' 
-      //     ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' 
-      //     : 'bg-amber-500/10 text-amber-600 border-amber-500/30';
-      // var statusBadge = `<div class="mt-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${statusClass}">${statusText}</div>`;
       
       var downloadBtn = `<button class="mt-1 w-[54px] mx-auto flex items-center justify-center gap-1 px-1 py-1 rounded text-[9px] font-bold bg-primary text-white hover:bg-primary/80 transition-colors shadow-sm" onclick="event.stopPropagation(); downloadPdf('${r.ReportId}')" title="Unduh Laporan PDF">
         <span class="material-symbols-outlined text-[12px]">download</span> Unduh
@@ -2494,3 +2506,16 @@ function deleteAduanLog(id) {
   state.deleteTarget = { type: 'aduan', id: id };
   openModal('modal-delete');
 }
+
+// ==========================================
+// BACKGROUND POLLING (REAL-TIME AUTO REFRESH)
+// ==========================================
+setInterval(() => {
+  // Hanya fetch data jika sudah login dan tidak ada loading modal yang menutupi
+  let ssId = localStorage.getItem('aspend_spreadsheetId');
+  let isLoadingHidden = document.getElementById('loading-overlay') && document.getElementById('loading-overlay').classList.contains('hidden');
+  
+  if (ssId && isLoadingHidden && window.appState === 'dashboard') {
+    loadDashboardData(true); // true = mode silent (tanpa loading UI, tanpa pesan error)
+  }
+}, 15000); // 15 detik sekali

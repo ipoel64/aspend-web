@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../models/pengaduan.dart';
 import '../services/ai_service.dart';
@@ -50,31 +51,35 @@ class PengaduanProvider extends ChangeNotifier {
     }
   }
 
-  // Get AI config from Google Sheets (locked to OpenRouter & default API key, only model is configurable)
   Future<Map<String, String>> _getAiConfig() async {
-    if (_auth?.sheetsService == null || _auth?.spreadsheetId == null) {
-      return {
-        'provider': 'openrouter',
-        'apiKey': AppConstants.defaultOpenRouterApiKey,
-        'model': AppConstants.defaultOpenRouterModel,
-      };
-    }
-    final configRows = await _auth!.sheetsService!.getAllRows(
-      _auth!.spreadsheetId!,
-      AppConstants.sheetConfig,
-    );
+    final prefs = await SharedPreferences.getInstance();
+    final userEmail = _auth?.currentUser?.email ?? '';
+    final storedKey = prefs.getString('ai_api_key_$userEmail');
+    
+    String apiKey = storedKey?.isNotEmpty == true ? storedKey! : AppConstants.defaultOpenRouterApiKey;
     String model = AppConstants.defaultOpenRouterModel;
 
-    for (var row in configRows) {
-      if (row.isNotEmpty) {
-        if (row[0] == 'AI_MODEL' && row.length > 1) {
-          model = row[1].toString();
+    if (_auth?.sheetsService != null && _auth?.spreadsheetId != null) {
+      try {
+        final configRows = await _auth!.sheetsService!.getAllRows(
+          _auth!.spreadsheetId!,
+          AppConstants.sheetConfig,
+        );
+        for (var row in configRows) {
+          if (row.isNotEmpty) {
+            if (row[0] == 'AI_MODEL' && row.length > 1) {
+              model = row[1].toString();
+            }
+          }
         }
+      } catch (e) {
+        debugPrint('Failed to load config from sheet: $e');
       }
     }
+
     return {
       'provider': 'openrouter',
-      'apiKey': AppConstants.defaultOpenRouterApiKey,
+      'apiKey': apiKey,
       'model': model,
     };
   }
@@ -113,16 +118,22 @@ class PengaduanProvider extends ChangeNotifier {
     final provider = aiConfig['provider'] ?? 'openrouter';
     final model = aiConfig['model'] ?? AppConstants.defaultOpenRouterModel;
 
-    final prompt = '''Anda adalah asisten cerdas Kementerian Sosial RI.
-Analisis aduan masyarakat berikut secara profesional dan objektif, lalu susun rekomendasi tindak lanjutnya dalam format formal birokrasi Indonesia.
+    final prompt = '''Tugas Anda: Analisis aduan berikut secara sangat singkat dan berikan langkah tindak lanjut praktis.
 
-Aduan:
-"$aduan"
+Aduan: "$aduan"
 
-Berikan respons dalam bahasa Indonesia yang baku, terstruktur dengan poin-poin analisis akar masalah dan langkah-langkah tindak lanjut konkret.
-Format respons HARUS terbagi menjadi:
-A. ANALISA PERMASALAHAN: (Jelaskan akar penyebab masalah secara singkat dan logis)
-B. REKOMENDASI TINDAK LANJUT: (Jelaskan langkah konkret yang perlu dilakukan oleh Pendamping Sosial atau Dinas Sosial terkait)
+ATURAN KETAT:
+1. JANGAN menuliskan judul laporan, nama instansi, atau kata pengantar apapun.
+2. LANGSUNG jawab sesuai format di bawah tanpa basa-basi.
+3. Sangat singkat. Isi pokoknya saja, maksimal 1-2 kalimat per poin.
+
+Format Respons:
+**1. Analisa Singkat:**
+(tulis inti masalah di sini)
+
+**2. Tindak Lanjut:**
+- (langkah 1)
+- (langkah 2)
 ''';
 
     return await _aiService.generateNarrative(

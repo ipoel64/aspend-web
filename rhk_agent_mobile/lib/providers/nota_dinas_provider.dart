@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../models/nota_dinas.dart';
 import '../services/ai_service.dart';
@@ -50,31 +51,35 @@ class NotaDinasProvider extends ChangeNotifier {
     }
   }
 
-  // Get AI config from Google Sheets (locked to OpenRouter & default API key, only model is configurable)
   Future<Map<String, String>> _getAiConfig() async {
-    if (_auth?.sheetsService == null || _auth?.spreadsheetId == null) {
-      return {
-        'provider': 'openrouter',
-        'apiKey': AppConstants.defaultOpenRouterApiKey,
-        'model': AppConstants.defaultOpenRouterModel,
-      };
-    }
-    final configRows = await _auth!.sheetsService!.getAllRows(
-      _auth!.spreadsheetId!,
-      AppConstants.sheetConfig,
-    );
+    final prefs = await SharedPreferences.getInstance();
+    final userEmail = _auth?.currentUser?.email ?? '';
+    final storedKey = prefs.getString('ai_api_key_$userEmail');
+    
+    String apiKey = storedKey?.isNotEmpty == true ? storedKey! : AppConstants.defaultOpenRouterApiKey;
     String model = AppConstants.defaultOpenRouterModel;
 
-    for (var row in configRows) {
-      if (row.isNotEmpty) {
-        if (row[0] == 'AI_MODEL' && row.length > 1) {
-          model = row[1].toString();
+    if (_auth?.sheetsService != null && _auth?.spreadsheetId != null) {
+      try {
+        final configRows = await _auth!.sheetsService!.getAllRows(
+          _auth!.spreadsheetId!,
+          AppConstants.sheetConfig,
+        );
+        for (var row in configRows) {
+          if (row.isNotEmpty) {
+            if (row[0] == 'AI_MODEL' && row.length > 1) {
+              model = row[1].toString();
+            }
+          }
         }
+      } catch (e) {
+        debugPrint('Failed to load config from sheet: $e');
       }
     }
+
     return {
       'provider': 'openrouter',
-      'apiKey': AppConstants.defaultOpenRouterApiKey,
+      'apiKey': apiKey,
       'model': model,
     };
   }
