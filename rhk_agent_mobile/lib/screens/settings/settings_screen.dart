@@ -1583,6 +1583,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
   Widget _buildUpdateAppVersion() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
@@ -1613,7 +1615,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.system_update_rounded, color: AppColors.primary),
+                const Icon(Icons.system_update_rounded, color: AppColors.navy),
                 const SizedBox(width: 8),
                 Text(
                   'Periksa Pembaruan Aplikasi',

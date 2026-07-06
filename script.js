@@ -567,7 +567,7 @@ function renderDashboardTable() {
           ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' 
           : 'bg-amber-500/15 text-amber-600 border-amber-500/30';
       var statusIcon = statusText === 'Selesai' ? 'check_circle' : 'edit_document';
-      var statusBadge = `<span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} font-bold text-[7.5px] uppercase tracking-wider shadow-sm"><span class="material-symbols-outlined text-[8px] mr-0.5">${statusIcon}</span>${statusText}</span>`;
+      var statusBadge = `<span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} font-bold text-[7px] uppercase tracking-wider shadow-sm" style="white-space: nowrap;"><span class="material-symbols-outlined text-[8px] mr-0.5">${statusIcon}</span>${statusText}</span>`;
 
       // Logika Warna RHK (Pelangi)
       var angkaRHKNum = parseInt(angkaRHK) || 0;
@@ -603,11 +603,11 @@ function renderDashboardTable() {
           <td class="px-1 py-2 align-top text-center" style="min-width: 90px;" onclick="event.stopPropagation(); ${(Array.isArray(photos)&&photos.length>0) ? `showLightbox('https://drive.google.com/thumbnail?id=${photos[0]}&sz=w1200')` : ''}">
             ${photoHtml}
           </td>
-          <td class="px-1.5 py-2 align-top whitespace-normal" style="min-width: 80px;">
+          <td class="px-1.5 py-2 align-top whitespace-normal" style="min-width: 95px;">
             <div class="font-bold text-[10px] leading-tight text-on-surface">${formattedDate}</div>
-            <div class="flex flex-wrap items-center gap-1 mt-1">
-              <div class="text-[7.5px] text-primary font-bold bg-primary/10 inline-flex items-center gap-0.5 px-1 py-0.5 rounded">
-                <span class="material-symbols-outlined text-[9px]">schedule</span>
+            <div class="flex items-center gap-1 mt-1 flex-nowrap">
+              <div class="text-[7px] text-primary font-bold bg-primary/10 inline-flex items-center gap-0.5 px-1 py-0.5 rounded" style="white-space: nowrap;">
+                <span class="material-symbols-outlined text-[8px]">schedule</span>
                 ${(r.Pukul || '').replace(/WIB/gi, '').trim()}
               </div>
               ${statusBadge}
