@@ -567,15 +567,30 @@ function renderDashboardTable() {
           ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' 
           : 'bg-amber-500/15 text-amber-600 border-amber-500/30';
       var statusIcon = statusText === 'Selesai' ? 'check_circle' : 'edit_document';
-      var statusBadge = `<span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} mr-1 font-bold text-[9px] uppercase tracking-wider"><span class="material-symbols-outlined text-[10px] mr-0.5">${statusIcon}</span>${statusText}</span>`;
+      var statusBadge = `<div class="mt-1.5"><span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} font-bold text-[8px] uppercase tracking-wider shadow-sm"><span class="material-symbols-outlined text-[9px] mr-0.5">${statusIcon}</span>${statusText}</span></div>`;
+
+      // Logika Warna RHK (Pelangi)
+      var angkaRHKNum = parseInt(angkaRHK) || 0;
+      var rhkColors = [
+        'bg-slate-500/15 text-slate-600 border-slate-500/20',     // default/0
+        'bg-pink-500/15 text-pink-600 border-pink-500/20',       // 1 (merah muda)
+        'bg-slate-500/15 text-slate-600 border-slate-500/20',    // 2 (abu-abu)
+        'bg-blue-500/15 text-blue-600 border-blue-500/20',       // 3
+        'bg-purple-500/15 text-purple-600 border-purple-500/20', // 4
+        'bg-indigo-500/15 text-indigo-600 border-indigo-500/20', // 5
+        'bg-teal-500/15 text-teal-600 border-teal-500/20',       // 6
+        'bg-cyan-500/15 text-cyan-600 border-cyan-500/20',       // 7
+        'bg-rose-500/15 text-rose-600 border-rose-500/20',       // 8
+        'bg-fuchsia-500/15 text-fuchsia-600 border-fuchsia-500/20' // 9
+      ];
+      var rhkClass = rhkColors[angkaRHKNum % rhkColors.length];
 
       // RHK sebagai Subjudul (Lebih Kecil, Biru)
-      var subtitleHTML = `<div class="text-[9px] text-primary/80 font-medium leading-tight mt-1 line-clamp-2" title="${r.JenisRHK || ''}">
-              <span class="inline-flex items-center bg-pink-500/15 text-pink-600 px-1 py-0.5 rounded border border-pink-500/20 mr-1 font-bold">
+      var subtitleHTML = `<div class="text-[9px] text-on-surface-variant font-medium leading-tight mt-1 line-clamp-2" title="${r.JenisRHK || ''}">
+              <span class="inline-flex items-center ${rhkClass} px-1 py-0.5 rounded border mr-1 font-bold">
                 <span class="material-symbols-outlined text-[9px] mr-0.5">adjust</span>
                 RHK-${angkaRHK}
               </span>
-              ${statusBadge}
               ${r.JenisRHK || '-'}
             </div>`;
       
@@ -588,12 +603,13 @@ function renderDashboardTable() {
           <td class="px-1 py-2 align-top text-center" style="min-width: 90px;" onclick="event.stopPropagation(); ${(Array.isArray(photos)&&photos.length>0) ? `showLightbox('https://drive.google.com/thumbnail?id=${photos[0]}&sz=w1200')` : ''}">
             ${photoHtml}
           </td>
-          <td class="px-1.5 py-2 align-top whitespace-normal">
-            <div class="font-medium text-[11px] leading-tight text-on-surface">${formattedDate}</div>
-            <div class="text-[9px] text-primary font-bold mt-1 bg-primary/10 inline-flex items-center gap-1 px-1 py-0.5 rounded">
-              <span class="material-symbols-outlined text-[10px]">schedule</span>
+          <td class="px-1.5 py-2 align-top whitespace-normal" style="min-width: 80px;">
+            <div class="font-bold text-[10px] leading-tight text-on-surface">${formattedDate}</div>
+            <div class="text-[8px] text-primary font-bold mt-1 bg-primary/10 inline-flex items-center gap-1 px-1 py-0.5 rounded">
+              <span class="material-symbols-outlined text-[9px]">schedule</span>
               ${(r.Pukul || '').replace(/WIB/gi, '').trim()}
             </div>
+            ${statusBadge}
           </td>
           <td class="px-1.5 py-2 align-top">
             ${judulHTML}
@@ -691,6 +707,9 @@ window.changePage = function(page) {
 
 // FUNGSI PREVIEW PDF BARU
 async function previewPdf(reportId) {
+  // Panggil auto-refresh diam-diam setiap kali baris diklik untuk memastikan data terbaru (Real-time manual force)
+  loadDashboardData(true);
+
   let report = state.reports.find(r => String(r.ReportId) === String(reportId));
   if (!report) {
     console.error('Report not found for ID:', reportId);
@@ -2515,7 +2534,8 @@ setInterval(() => {
   let ssId = localStorage.getItem('aspend_spreadsheetId');
   let isLoadingHidden = document.getElementById('loading-overlay') && document.getElementById('loading-overlay').classList.contains('hidden');
   
-  if (ssId && isLoadingHidden && window.appState === 'dashboard') {
+  if (ssId && isLoadingHidden) {
     loadDashboardData(true); // true = mode silent (tanpa loading UI, tanpa pesan error)
   }
 }, 15000); // 15 detik sekali
+
