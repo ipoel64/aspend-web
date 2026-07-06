@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants.dart';
 import '../../config/app_theme.dart';
@@ -107,7 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Selamat Datang 👋',
+                                      'Selamat Datang',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: Colors.white.withOpacity(0.7),
@@ -158,13 +159,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 titlePadding: const EdgeInsets.only(left: 20, bottom: 14),
-                title: const Text(
-                  'RHK',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+                title: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'RHK',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: SizedBox(
+                          height: 16,
+                          child: Marquee(
+                            text: 'Hasil laporan ini juga dapat dilihat di web (laptop) melalui link : aspend-web.vercel.app',
+                            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w500),
+                            scrollAxis: Axis.horizontal,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            blankSpace: 40.0,
+                            velocity: 25.0,
+                            pauseAfterRound: const Duration(seconds: 2),
+                            startPadding: 10.0,
+                            accelerationDuration: const Duration(seconds: 1),
+                            accelerationCurve: Curves.linear,
+                            decelerationDuration: const Duration(milliseconds: 500),
+                            decelerationCurve: Curves.easeOut,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
                 ),
               ),
             ),

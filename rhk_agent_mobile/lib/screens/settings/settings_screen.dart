@@ -10,6 +10,7 @@ import '../../providers/theme_provider.dart';
 import '../../services/ai_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/subscription_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:typed_data';
 import 'widgets/digital_signature_dialog.dart';
 
@@ -43,6 +44,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Notification State
   bool _notificationEnabled = true;
   TimeOfDay _notificationTime = const TimeOfDay(hour: 17, minute: 0);
+
+  String _appVersion = '';
+  String _packageName = 'com.ipol.aspend';
 
   @override
   void initState() {
@@ -85,6 +89,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _kabupatenController.dispose();
     _apiKeyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initPackageInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${info.version}';
+          if (info.packageName.isNotEmpty) {
+            _packageName = info.packageName;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v1.0.0'; // Fallback
+        });
+      }
+    }
   }
 
   @override
@@ -151,6 +175,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // Account Info
                 _buildAccountInfo(auth),
+                const SizedBox(height: 16),
+
+                // Update Button
+                _buildUpdateAppVersion(),
+
                 const SizedBox(height: 80),
               ],
             );
@@ -232,9 +261,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProfileCard(AuthProvider auth) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 24, bottom: 20),
+          decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.navyDark, AppColors.navy],
         ),
@@ -324,6 +355,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    ),
+    if (_appVersion.isNotEmpty)
+      Positioned(
+        top: 8,
+        left: 14,
+        child: Text(
+          _appVersion,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    ],
     );
   }
 
@@ -1535,6 +1581,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
         ],
+      ),
+    );
+  Widget _buildUpdateAppVersion() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color ?? Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            final url = Uri.parse('https://play.google.com/store/apps/details?id=$_packageName');
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.system_update_rounded, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Periksa Pembaruan Aplikasi',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.navy,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

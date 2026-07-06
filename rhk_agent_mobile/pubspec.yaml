@@ -58,6 +58,8 @@ dependencies:
   intl: ^0.20.2
   geolocator: ^13.0.1
   geocoding: ^3.0.0
+  package_info_plus: ^8.0.2
+  marquee: ^2.2.3
   csv: ^5.1.1
   excel: ^4.0.0
   file_picker: ^8.1.2

@@ -725,14 +725,26 @@ class PdfService {
     }
 
     List<pw.Widget> buildPengaduanNarrative(String text) {
-      final List<pw.Widget> widgets = [];
+      final List<pw.Widget> finalWidgets = [];
       final lines = text.split('\n');
       
       double currentIndent = 0;
       double childIndent = 0;
+      
+      pw.Widget? pendingHeader;
+
+      void flushPendingHeader() {
+        if (pendingHeader != null) {
+          finalWidgets.add(pendingHeader!);
+          pendingHeader = null;
+        }
+      }
 
       for (var line in lines) {
         var cleanLine = line.trim();
+        
+        // Replace weird unicode bullets (like ➢, ✓, ▪, □) with standard dash
+        cleanLine = cleanLine.replaceAll(RegExp(r'^([^\w\sa-zA-Z0-9(]+)\s+'), '- ');
         
         // Normalize bullet points
         if (cleanLine.startsWith('* ')) {
@@ -752,7 +764,9 @@ class PdfService {
         }
 
         if (cleanLine.isEmpty) {
-          widgets.add(pw.SizedBox(height: 6));
+          if (pendingHeader == null) {
+            finalWidgets.add(pw.SizedBox(height: 6));
+          }
           continue;
         }
 
@@ -768,15 +782,22 @@ class PdfService {
           final num = match.group(1)!;
           final content = match.group(2)!;
           
-          widgets.add(
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 10, bottom: 4),
-              child: pw.Text(
-                '$num. $content',
-                style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
-              ),
+          final headerWidget = pw.Padding(
+            padding: pw.EdgeInsets.only(top: finalWidgets.isEmpty && pendingHeader == null ? 2 : 10, bottom: 4),
+            child: pw.Text(
+              '$num. $content',
+              style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
             ),
           );
+          
+          if (pendingHeader != null) {
+            pendingHeader = pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [pendingHeader!, headerWidget],
+            );
+          } else {
+            pendingHeader = headerWidget;
+          }
         } else if (pointRegExp.hasMatch(cleanLine)) {
           // Numbered List (e.g., 1. Tindak Lanjut)
           final match = pointRegExp.firstMatch(cleanLine)!;
@@ -793,75 +814,111 @@ class PdfService {
             pointDesc = m.group(2)!.trim();
           }
 
-          widgets.add(
-            pw.Padding(
-              padding: pw.EdgeInsets.only(left: currentIndent, top: 6, bottom: 2),
-              child: pw.Text(
-                '$num. $pointTitle',
-                style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
-              ),
+          final titleWidget = pw.Padding(
+            padding: pw.EdgeInsets.only(left: currentIndent, top: 6, bottom: 2),
+            child: pw.Text(
+              '$num. $pointTitle',
+              style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold),
             ),
           );
 
           childIndent = currentIndent + 12;
 
           if (pointDesc.isNotEmpty) {
-            widgets.add(
-              pw.Padding(
-                padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
-                child: pw.RichText(
-                  textAlign: pw.TextAlign.justify,
-                  text: pw.TextSpan(
-                    style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
-                    children: parseNarrativeSpans(pointDesc),
-                  ),
+            final descWidget = pw.Padding(
+              padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
+              child: pw.RichText(
+                textAlign: pw.TextAlign.justify,
+                text: pw.TextSpan(
+                  style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
+                  children: parseNarrativeSpans(pointDesc),
                 ),
               ),
             );
+            
+            final colChildren = <pw.Widget>[];
+            if (pendingHeader != null) {
+              colChildren.add(pendingHeader!);
+              pendingHeader = null;
+            }
+            colChildren.add(titleWidget);
+            colChildren.add(descWidget);
+            
+            finalWidgets.add(pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: colChildren,
+            ));
+          } else {
+            if (pendingHeader != null) {
+              pendingHeader = pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [pendingHeader!, titleWidget],
+              );
+            } else {
+              pendingHeader = titleWidget;
+            }
           }
         } else if (bulletRegExp.hasMatch(cleanLine)) {
           // Bullet points
           final match = bulletRegExp.firstMatch(cleanLine)!;
           final content = match.group(1)!;
 
-          widgets.add(
-            pw.Padding(
-              padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('• ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
-                  pw.Expanded(
-                    child: pw.RichText(
-                      textAlign: pw.TextAlign.justify,
-                      text: pw.TextSpan(
-                        style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
-                        children: parseNarrativeSpans(content),
-                      ),
+          final bulletWidget = pw.Padding(
+            padding: pw.EdgeInsets.only(left: childIndent, bottom: 4),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('• ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                pw.Expanded(
+                  child: pw.RichText(
+                    textAlign: pw.TextAlign.justify,
+                    text: pw.TextSpan(
+                      style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
+                      children: parseNarrativeSpans(content),
                     ),
                   ),
-                ],
-              ),
-            ),
-          );
-        } else {
-          // Regular paragraph (automatically aligns with childIndent for stepped structure)
-          widgets.add(
-            pw.Padding(
-              padding: pw.EdgeInsets.only(left: childIndent, bottom: 6),
-              child: pw.RichText(
-                textAlign: pw.TextAlign.justify,
-                text: pw.TextSpan(
-                  style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
-                  children: parseNarrativeSpans(line.trim()), // Use original line to preserve bold formatting if any
                 ),
+              ],
+            ),
+          );
+          
+          if (pendingHeader != null) {
+            finalWidgets.add(pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [pendingHeader!, bulletWidget],
+            ));
+            pendingHeader = null;
+          } else {
+            finalWidgets.add(bulletWidget);
+          }
+        } else {
+          // Regular paragraph
+          final paraWidget = pw.Padding(
+            padding: pw.EdgeInsets.only(left: childIndent, bottom: 6),
+            child: pw.RichText(
+              textAlign: pw.TextAlign.justify,
+              text: pw.TextSpan(
+                style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 1.9, color: PdfColors.black),
+                children: parseNarrativeSpans(line.trim()), // Use original line to preserve bold formatting
               ),
             ),
           );
+          
+          if (pendingHeader != null) {
+            finalWidgets.add(pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [pendingHeader!, paraWidget],
+            ));
+            pendingHeader = null;
+          } else {
+            finalWidgets.add(paraWidget);
+          }
         }
       }
+      
+      flushPendingHeader();
 
-      return widgets;
+      return finalWidgets;
     }
 
     // Resize photos
@@ -1014,7 +1071,6 @@ class PdfService {
           pw.SizedBox(height: 15),
 
           pw.Text('HASIL ANALISIS & TINDAK LANJUT:', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 5),
           ...buildPengaduanNarrative(pengaduan.hasilAnalisa),
           pw.SizedBox(height: 20),
 

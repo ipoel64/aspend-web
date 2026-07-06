@@ -567,7 +567,7 @@ function renderDashboardTable() {
           ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' 
           : 'bg-amber-500/15 text-amber-600 border-amber-500/30';
       var statusIcon = statusText === 'Selesai' ? 'check_circle' : 'edit_document';
-      var statusBadge = `<div class="mt-1.5"><span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} font-bold text-[8px] uppercase tracking-wider shadow-sm"><span class="material-symbols-outlined text-[9px] mr-0.5">${statusIcon}</span>${statusText}</span></div>`;
+      var statusBadge = `<span class="inline-flex items-center px-1 py-0.5 rounded border ${statusClass} font-bold text-[7.5px] uppercase tracking-wider shadow-sm"><span class="material-symbols-outlined text-[8px] mr-0.5">${statusIcon}</span>${statusText}</span>`;
 
       // Logika Warna RHK (Pelangi)
       var angkaRHKNum = parseInt(angkaRHK) || 0;
@@ -605,11 +605,13 @@ function renderDashboardTable() {
           </td>
           <td class="px-1.5 py-2 align-top whitespace-normal" style="min-width: 80px;">
             <div class="font-bold text-[10px] leading-tight text-on-surface">${formattedDate}</div>
-            <div class="text-[8px] text-primary font-bold mt-1 bg-primary/10 inline-flex items-center gap-1 px-1 py-0.5 rounded">
-              <span class="material-symbols-outlined text-[9px]">schedule</span>
-              ${(r.Pukul || '').replace(/WIB/gi, '').trim()}
+            <div class="flex flex-wrap items-center gap-1 mt-1">
+              <div class="text-[7.5px] text-primary font-bold bg-primary/10 inline-flex items-center gap-0.5 px-1 py-0.5 rounded">
+                <span class="material-symbols-outlined text-[9px]">schedule</span>
+                ${(r.Pukul || '').replace(/WIB/gi, '').trim()}
+              </div>
+              ${statusBadge}
             </div>
-            ${statusBadge}
           </td>
           <td class="px-1.5 py-2 align-top">
             ${judulHTML}

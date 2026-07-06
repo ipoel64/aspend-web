@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Login Screen — Google Sign-In with Animations & Disclaimer
 class LoginScreen extends StatefulWidget {
@@ -20,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   late Animation<Offset> _cardSlide;
   late Animation<double> _cardFade;
   late Animation<Offset> _floatAnimation;
+
+  String _appVersion = '';
 
   int _currentFeatureIndex = 0;
   late Timer _featureTimer;
@@ -45,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    _initPackageInfo();
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1400),
       vsync: this,
@@ -103,6 +107,23 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     _floatController.dispose();
     _featureTimer.cancel();
     super.dispose();
+  }
+
+  Future<void> _initPackageInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${info.version}';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v1.0.0'; // Fallback
+        });
+      }
+    }
   }
 
   void _showDisclaimerDialog(BuildContext context) {
@@ -542,7 +563,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'v1.0.0 - hihang hoheng',
+                    _appVersion,
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.white.withOpacity(0.4),
