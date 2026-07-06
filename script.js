@@ -590,10 +590,10 @@ function renderDashboardTable() {
           <td class="px-1 py-2 align-top text-center" onclick="event.stopPropagation()">
             <div id="action-group-${r.ReportId}" class="action-group opacity-30 grayscale pointer-events-none transition-all duration-300">
               <div class="flex items-center justify-center gap-1 flex-nowrap">
-                <button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded bg-surface border border-surface-variant hover:border-primary/50 shadow-sm" onclick="editReportDraft('${r.ReportId}')" title="Edit Data">
+                <button disabled class="text-on-surface-variant opacity-50 cursor-not-allowed transition-colors p-1 rounded bg-surface border border-surface-variant shadow-sm" onclick="editReportDraft('${r.ReportId}')" title="Fitur Edit Dimatikan Sementara">
                   <span class="material-symbols-outlined text-[14px]">edit</span>
                 </button>
-                <button class="text-error/70 hover:text-error transition-colors p-1 rounded bg-surface border border-surface-variant hover:border-error/50 shadow-sm" onclick="deleteReportLog('${r.ReportId}')" title="Hapus Data">
+                <button disabled class="text-error/70 opacity-50 cursor-not-allowed transition-colors p-1 rounded bg-surface border border-surface-variant shadow-sm" onclick="deleteReportLog('${r.ReportId}')" title="Fitur Hapus Dimatikan Sementara">
                   <span class="material-symbols-outlined text-[14px]">delete</span>
                 </button>
               </div>
