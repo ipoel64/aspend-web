@@ -492,13 +492,10 @@ async function saveEditedNarrativeClient(spreadsheetId, reportId, editedText) {
  */
 async function updatePdfInDrive(fileId, blob) {
   try {
-    const authInstance = gapi.auth2.getAuthInstance();
-    const user = authInstance.currentUser.get();
-    const authResponse = user.getAuthResponse();
-    const accessToken = authResponse.access_token;
+    const accessToken = localStorage.getItem('google_access_token');
     
     if (!accessToken) {
-      throw new Error("Sesi Google tidak valid atau Token kedaluwarsa.");
+      throw new Error("Sesi Google tidak valid atau Token kedaluwarsa. Silakan masuk kembali.");
     }
     
     // Gunakan Fetch API langsung ke endpoint upload media Google Drive v3
