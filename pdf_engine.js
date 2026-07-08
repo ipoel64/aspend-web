@@ -17,19 +17,19 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
         lineHeight: 1.5 // Sesuai permintaan (lineSpacing lebih longgar)
       },
       styles: {
+        kopTitle: { fontSize: 12, bold: true, alignment: 'center' },
+        kopAddress: { fontSize: 9, alignment: 'center' },
         header: {
-          fontSize: 14,
+          fontSize: 12,
           bold: true,
           alignment: 'center',
-          margin: [0, 0, 0, 20] // [left, top, right, bottom]
+          margin: [0, 0, 0, 5]
         },
         subHeader: {
-          fontSize: 12,
+          fontSize: 11,
           bold: true,
           margin: [0, 15, 0, 5],
           pageBreakBefore: function(currentNode, followingNodesOnPage) {
-            // Orphan Control: Jangan biarkan sub-judul terpisah dari isi paragrafnya
-            // Jika sisa ruang di halaman sangat kecil, dorong sub-judul ke halaman berikutnya
             return followingNodesOnPage.length === 0;
           }
         },
@@ -46,22 +46,49 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     };
 
     // 2. Susun Konten
-    docDefinition.content.push({ text: 'LAPORAN KEGIATAN PENDAMPING PKH', style: 'header' });
+    // Kop Surat
+    docDefinition.content.push({
+      text: 'KEMENTERIAN SOSIAL REPUBLIK INDONESIA\nDIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL\nDIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN',
+      style: 'kopTitle'
+    });
+    docDefinition.content.push({
+      text: 'Jln. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id',
+      style: 'kopAddress'
+    });
+    
+    // Garis Bawah Kop Surat
+    docDefinition.content.push({
+      canvas: [{ type: 'line', x1: 0, y1: 10, x2: 475, y2: 10, lineWidth: 2 }],
+      margin: [0, 0, 0, 20]
+    });
+    
+    // Judul Laporan
+    let rhkTitle = (report.JenisRHK && report.JenisRHK.includes('RHK-')) 
+      ? report.JenisRHK.match(/RHK-\d+/)?.[0] || 'RHK'
+      : 'RHK';
+      
+    let jenisKegiatanText = report.JenisRHK ? report.JenisRHK.replace(/\[RHK-\d+\]\s*/g, '') : '-';
+    
+    // Dapatkan bulan dan tahun dari Tanggal
+    let dateObj = new Date(report.Tanggal);
+    let bulanArr = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    let periodeStr = !isNaN(dateObj.getTime()) ? `${bulanArr[dateObj.getMonth()]} ${dateObj.getFullYear()}` : '-';
+
+    docDefinition.content.push({ text: `LAPORAN RENCANA HASIL KERJA (${rhkTitle})`, style: 'header' });
+    docDefinition.content.push({ text: jenisKegiatanText, alignment: 'center', fontSize: 10, italics: true });
+    docDefinition.content.push({ text: `(Periode: ${periodeStr})`, alignment: 'center', fontSize: 10, margin: [0, 0, 0, 25] });
 
     // Informasi Dasar
     docDefinition.content.push({
       table: {
-        widths: [120, 'auto', '*'],
+        widths: [80, 'auto', '*'],
         body: [
-          ['Nama Pendamping', ':', userProfile.nama || userProfile.email],
-          ['Tanggal Kegiatan', ':', report.Tanggal],
-          ['Lokasi', ':', report.Lokasi || '-'],
-          ['Jenis Kegiatan', ':', report.JenisRHK],
-          ['Rencana Aksi', ':', report.RencanaAksi || '-']
+          ['Rencana Aksi', ':', report.RencanaAksi || '-'],
+          ['Waktu', ':', report.Tanggal + (report.Jam ? `, Pukul ${report.Jam}` : '')]
         ]
       },
       layout: 'noBorders',
-      margin: [0, 0, 0, 20]
+      margin: [30, 0, 0, 25]
     });
 
     // Uraian Kegiatan (Diubah dari teks biasa ke struktur Markdown/Paragraf)
