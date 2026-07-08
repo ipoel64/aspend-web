@@ -126,7 +126,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
       ]
     });
 
-    // 4. Unduh PDF
+    // 4. Unduh PDF atau Kembalikan Data
     const filename = `Laporan_RHK_${report.Tanggal}.pdf`;
     
     if (action === 'dataUrl') {
@@ -136,13 +136,17 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
           resolve(blobUrl + '#toolbar=0&navpanes=0&scrollbar=0&view=FitH');
         });
       });
+    } else if (action === 'blob') {
+      return new Promise((resolve) => {
+        pdfMake.createPdf(docDefinition).getBlob((blob) => {
+          resolve(blob);
+        });
+      });
     } else {
       pdfMake.createPdf(docDefinition).download(filename);
+      hideLoading();
+      showToast('PDF berhasil diunduh ke perangkat Anda!', 'success');
     }
-
-
-    hideLoading();
-    showToast('PDF berhasil diunduh ke perangkat Anda!', 'success');
 
   } catch (err) {
     hideLoading();

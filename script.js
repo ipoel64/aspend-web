@@ -620,7 +620,7 @@ function renderDashboardTable() {
           <td class="px-1 py-2 align-top text-center" onclick="event.stopPropagation()">
             <div id="action-group-${r.ReportId}" class="action-group opacity-30 grayscale pointer-events-none transition-all duration-300">
               <div class="flex items-center justify-center gap-1 flex-nowrap">
-                <button disabled class="text-on-surface-variant opacity-50 cursor-not-allowed transition-colors p-1 rounded bg-surface border border-surface-variant shadow-sm" onclick="editReportDraft('${r.ReportId}')" title="Fitur Edit Dimatikan Sementara">
+                <button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded bg-surface border border-surface-variant hover:border-primary/50 shadow-sm" onclick="editReportDraft('${r.ReportId}')" title="Edit Narasi & Perbarui PDF">
                   <span class="material-symbols-outlined text-[14px]">edit</span>
                 </button>
                 <button disabled class="text-error/70 opacity-50 cursor-not-allowed transition-colors p-1 rounded bg-surface border border-surface-variant shadow-sm" onclick="deleteReportLog('${r.ReportId}')" title="Fitur Hapus Dimatikan Sementara">
@@ -1195,47 +1195,57 @@ function regenerateNarrative() {
   generateNarrativeText();
 }
 
-async function saveAndGeneratePDF() {
-  var narrativeText = document.getElementById('textarea-narasi').value;
+async function saveAndRegeneratePDF() {
+  var narrativeText = document.getElementById('textarea-edit-narasi').value;
   if (!narrativeText) {
-    showToast('Konten narasi kosong!', 'error');
+    showToast('Teks narasi tidak boleh kosong!', 'error');
     return;
   }
   
-  showLoading('Menyimpan laporan...');
+  showLoading('Menyimpan ke Database & Merakit ulang PDF...');
   
   try {
     let ssId = localStorage.getItem('aspend_spreadsheetId');
     if (!ssId) throw new Error("Spreadsheet ID belum siap.");
     
+    // 1. Simpan narasi ke Google Sheet
     await saveEditedNarrativeClient(ssId, state.currentReportId, narrativeText);
     
+    // Ambil data report terbaru dari memori, dan perbarui narasinya secara lokal agar PDF engine memakai teks baru
+    let report = state.reports.find(r => String(r.ReportId) === String(state.currentReportId));
+    if (!report) throw new Error("Data laporan menghilang dari memori.");
+    
+    report.NarasiEdited = narrativeText;
+    report.Status = 'Selesai';
+    
+    // 2. Rakit PDF dalam bentuk Blob rahasia
+    if (!report.PdfFileId || report.PdfFileId.length < 5) {
+        throw new Error("Laporan ini belum memiliki file PDF asli di Google Drive untuk ditimpa. Buat PDF dari HP terlebih dahulu.");
+    }
+    
+    showLoading('Mencetak PDF & Mengunggah ke Google Drive...');
+    const pdfBlob = await generateClientPDF(report, state.user, false, 'blob');
+    
+    // 3. Timpa PDF lama di Google Drive
+    await updatePdfInDrive(report.PdfFileId, pdfBlob);
+    
     hideLoading();
-    showToast('Laporan berhasil disimpan! (Pembuatan PDF dialihkan ke pembaruan mendatang)', 'success');
+    closeModal('modal-edit-narasi');
+    showToast('Sukses! Narasi tersimpan dan file PDF asli di Drive telah diperbarui.', 'success');
     
-    // Reset form cache
-    state.currentReportId = null;
-    state.selectedPhotos = [];
-    document.getElementById('select-jenis-rhk').value = '';
-    document.getElementById('select-rencana-aksi').innerHTML = '<option value="">— Pilih Rencana Aksi —</option>';
-    document.getElementById('input-tanggal').value = '';
-    document.getElementById('input-lokasi').value = '';
-    document.getElementById('input-poin').value = '';
-    document.getElementById('photo-previews').innerHTML = '';
+    // 4. Perbarui pratinjau secara instan (ini akan memicu ulang renderDashboardTable)
+    previewPdf(state.currentReportId);
     
-    navigateTo('dashboard');
   } catch(err) {
     hideLoading();
-    showToast('Gagal menyelesaikan laporan: ' + err.message, 'error');
+    console.error(err);
+    showToast('Gagal memproses pembaruan PDF: ' + err.message, 'error');
   }
 }
 
 function editReportDraft(reportId) {
-  showLoading('Memuat detail draf...');
-  
-  // Ambil dari RAM lokal (state.reports)
+  // Hanya ambil laporan dari memori lokal (tanpa loading panjang)
   let r = state.reports.find(rep  => String(rep.ReportId) === String(reportId));
-  hideLoading();
   
   if (!r) {
     showToast('Laporan tidak ditemukan di memori.', 'error');
@@ -1243,47 +1253,18 @@ function editReportDraft(reportId) {
   }
   
   state.currentReportId = r.ReportId;
-  document.getElementById('form-title-text').textContent = 'Edit Laporan RHK';
   
-  // Populate fields
-  document.getElementById('input-tanggal').value = r.Tanggal ? r.Tanggal.substring(0, 10) : '';
-  document.getElementById('input-lokasi').value = r.Lokasi || '';
-  document.getElementById('input-poin').value = r.PoinKegiatan || '';
+  // Prioritaskan Narasi yang sudah diedit. Jika belum pernah diedit, pakai Narasi AI. Jika kosong, pakai Uraian.
+  let text = r.NarasiEdited || r.NarasiAI || r.Uraian || '';
   
-  var selectJenis = document.getElementById('select-jenis-rhk');
-  if (selectJenis) {
-    var opt = Array.from(selectJenis.options).find(o => o.value === r.IdRHK);
-    if (opt) {
-      selectJenis.value = r.IdRHK;
-      onJenisRHKChange();
-    }
+  // Masukkan teks ke dalam textarea modal yang baru kita buat
+  let textarea = document.getElementById('textarea-edit-narasi');
+  if (textarea) {
+    textarea.value = text;
   }
   
-  setTimeout(() => {
-    var selectRencana = document.getElementById('select-rencana-aksi');
-    if (selectRencana) {
-      var opt2 = Array.from(selectRencana.options).find(o => o.value === r.RencanaAksi);
-      if (opt2) {
-        selectRencana.value = r.RencanaAksi;
-      }
-    }
-    
-    // Populate P2K2 jika ada
-    if (r.P2K2Data) {
-      document.getElementById('p2k2-fields').classList.remove('hidden');
-      document.getElementById('input-p2k2-modul').value = r.P2K2Data.Modul || '';
-      onModulChange();
-      setTimeout(() => {
-        document.getElementById('input-p2k2-sesi').value = r.P2K2Data.Sesi || '';
-      }, 300);
-      document.getElementById('input-p2k2-kpm').value = r.P2K2Data.JumlahKPM || '';
-    } else {
-      document.getElementById('p2k2-fields').classList.add('hidden');
-    }
-  }, 300);
-  
-  // Tampilkan modal
-  openModal('modal-form');
+  // Buka jendela popup baru
+  openModal('modal-edit-narasi');
 }
 
 function deleteReportLog(reportId) {

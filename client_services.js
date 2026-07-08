@@ -488,30 +488,39 @@ async function saveEditedNarrativeClient(spreadsheetId, reportId, editedText) {
 
 
 /**
- * Menyimpan Narasi Akhir dan Mengubah Status Laporan menjadi Selesai
+ * Menimpa (Overwrite) File PDF di Google Drive
  */
-async function saveEditedNarrativeClient(spreadsheetId, reportId, narrativeText) {
+async function updatePdfInDrive(fileId, blob) {
   try {
-    const response = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: spreadsheetId,
-      range: 'Laporan_Log!A:Q'
+    const authInstance = gapi.auth2.getAuthInstance();
+    const user = authInstance.currentUser.get();
+    const authResponse = user.getAuthResponse();
+    const accessToken = authResponse.access_token;
+    
+    if (!accessToken) {
+      throw new Error("Sesi Google tidak valid atau Token kedaluwarsa.");
+    }
+    
+    // Gunakan Fetch API langsung ke endpoint upload media Google Drive v3
+    // Menggunakan PATCH akan memperbarui konten file tanpa mengubah ID-nya
+    const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/pdf'
+      },
+      body: blob
     });
     
-    const rows = response.result.values || [];
-    const rowIndex = rows.findIndex(r => r[0] === reportId) + 1;
-    if (rowIndex === 0) throw new Error("Laporan tidak ditemukan di database.");
+    if (!response.ok) {
+      const errData = await response.json();
+      console.error("Google Drive API Error:", errData);
+      throw new Error("Gagal menimpa PDF ke Google Drive. Pastikan berkas lama belum dihapus.");
+    }
     
-    // Update NarasiEdited (Kolom J) dan Status (Kolom K)
-    await gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId: spreadsheetId,
-      range: `Laporan_Log!J${rowIndex}:K${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values: [[narrativeText, 'Selesai']] }
-    });
-    
-    return { success: true };
+    return await response.json();
   } catch(err) {
-    console.error("Gagal menyimpan narasi:", err);
+    console.error("Kesalahan updatePdfInDrive:", err);
     throw err;
   }
 }

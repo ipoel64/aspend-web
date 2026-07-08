@@ -1180,6 +1180,34 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════
+       Modal: Edit Narasi Laporan
+       ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="modal-edit-narasi">
+    <div class="modal max-w-4xl w-full bg-white rounded-xl shadow-xl border border-surface-variant overflow-hidden flex flex-col" style="max-height: 90vh;">
+      <div class="modal-header px-6 py-4 bg-surface-container border-b border-surface-variant flex justify-between items-center shrink-0">
+        <h3 class="font-title-lg text-title-lg text-primary flex items-center gap-2">
+          <span class="material-symbols-outlined">edit_document</span>
+          Edit Narasi & Cetak Ulang PDF
+        </h3>
+        <button class="p-1 hover:bg-surface-variant rounded-full text-on-surface-variant" onclick="closeModal('modal-edit-narasi')">✕</button>
+      </div>
+      <div class="modal-body p-6 flex-1 overflow-y-auto bg-surface/30">
+        <div class="mb-4 bg-primary/10 p-4 rounded-lg border border-primary/20 text-sm text-on-surface">
+          <strong>Perhatian:</strong> Menyimpan perubahan narasi ini akan langsung <strong>menimpa</strong> berkas PDF lama Anda di Google Drive secara permanen.
+        </div>
+        <textarea id="textarea-edit-narasi" class="w-full h-[400px] p-4 border border-outline-variant rounded-lg font-body-md text-on-surface bg-white resize-none shadow-inner focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Tulis narasi di sini... (Gunakan '-' atau '*' untuk membuat poin)"></textarea>
+      </div>
+      <div class="modal-footer px-6 py-4 bg-surface-container border-t border-surface-variant flex justify-end gap-3 shrink-0">
+        <button class="px-4 py-2 text-on-surface-variant font-label-md bg-transparent hover:bg-surface-variant rounded border border-transparent transition-colors" onclick="closeModal('modal-edit-narasi')">Batal</button>
+        <button class="px-6 py-2 bg-primary text-on-primary font-label-md rounded shadow-sm hover:bg-primary/90 hover:shadow transition-all flex items-center gap-2" onclick="saveAndRegeneratePDF()">
+          <span class="material-symbols-outlined text-[18px]">save</span>
+          Simpan & Perbarui PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
        Modal: Admin Add/Edit
        ═══════════════════════════════════════════════════════ -->
   <div class="modal-overlay hidden" id="modal-admin">
