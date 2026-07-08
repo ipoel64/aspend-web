@@ -46,19 +46,31 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     };
 
     // 2. Susun Konten
-    // Kop Surat
+    // Kop Surat dengan Logo Kemensos (2 Kolom)
     docDefinition.content.push({
-      text: 'KEMENTERIAN SOSIAL REPUBLIK INDONESIA\nDIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL\nDIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN',
-      style: 'kopTitle'
-    });
-    docDefinition.content.push({
-      text: 'Jln. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id',
-      style: 'kopAddress'
+      columns: [
+        {
+          image: typeof KEMENSOS_LOGO_BASE64 !== 'undefined' ? KEMENSOS_LOGO_BASE64 : '',
+          width: 55,
+          margin: [0, 0, 0, 0]
+        },
+        {
+          width: '*',
+          text: [
+            { text: 'KEMENTERIAN SOSIAL REPUBLIK INDONESIA\n', style: 'kopTitle' },
+            { text: 'DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL\n', style: 'kopTitle' },
+            { text: 'DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN\n', style: 'kopTitle' },
+            { text: 'Jln. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id', style: 'kopAddress' }
+          ],
+          margin: [0, 5, 55, 0] // Geser ke kiri sedikit agar penempatan seimbang di tengah halaman
+        }
+      ],
+      margin: [0, 0, 0, 5]
     });
     
     // Garis Bawah Kop Surat
     docDefinition.content.push({
-      canvas: [{ type: 'line', x1: 0, y1: 10, x2: 475, y2: 10, lineWidth: 2 }],
+      canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 2 }],
       margin: [0, 0, 0, 20]
     });
     
@@ -137,21 +149,72 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     const signatureBase64 = localStorage.getItem('aspend_signature_base64');
     
     // Formatting Tanda Tangan Proporsional
+    // Format Tanggal (e.g. 7 Juli 2026)
+    let signDate = new Date(report.Tanggal);
+    let signDateStr = !isNaN(signDate.getTime()) 
+       ? `${signDate.getDate()} ${bulanArr[signDate.getMonth()]} ${signDate.getFullYear()}` 
+       : report.Tanggal;
+
     docDefinition.content.push({
       columns: [
         { width: '*', text: '' }, // Spacer kiri
         {
-          width: 200,
+          width: 250,
           alignment: 'center',
           margin: [0, 40, 0, 0],
           stack: [
-            { text: 'Pendamping Sosial,' },
-            signatureBase64 ? { image: signatureBase64, width: 120, margin: [0, 10, 0, 10] } : { text: '\\n\\n\\n( Belum Ada Tanda Tangan )\\n\\n' },
-            { text: userProfile.nama || userProfile.email, bold: true, decoration: 'underline' }
+            { text: `Binjai, ${signDateStr}` },
+            { text: 'Penata Layanan Operasional' },
+            signatureBase64 ? { image: signatureBase64, width: 120, margin: [0, 10, 0, 10] } : { text: '\n\n\n( Belum Ada Tanda Tangan )\n\n' },
+            { text: userProfile.nama || userProfile.email, bold: true, decoration: 'underline' },
+            { text: 'NIP. 199009272025211060' } // Ditambahkan langsung dari template mobile
           ]
         }
       ]
     });
+
+    // 3.5 Ambil Foto Dokumentasi (Jika Ada)
+    if (report.FotoList && report.FotoList.length > 0) {
+      docDefinition.content.push({
+        text: 'LAMPIRAN DOKUMENTASI',
+        style: 'header',
+        pageBreak: 'before',
+        margin: [0, 20, 0, 20]
+      });
+
+      const token = localStorage.getItem('google_access_token');
+      for (let foto of report.FotoList) {
+        if (foto.url) {
+          // Ekstrak File ID dari URL Google Drive
+          const match = foto.url.match(/id=([a-zA-Z0-9_-]+)/);
+          if (match) {
+            const fileId = match[1];
+            try {
+              let fetchRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (fetchRes.ok) {
+                let blob = await fetchRes.blob();
+                let base64 = await new Promise((resolve) => {
+                  let reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result);
+                  reader.readAsDataURL(blob);
+                });
+                
+                docDefinition.content.push({
+                  image: base64,
+                  width: 400,
+                  alignment: 'center',
+                  margin: [0, 0, 0, 20]
+                });
+              }
+            } catch (err) {
+              console.error("Gagal mengunduh foto untuk PDF:", err);
+            }
+          }
+        }
+      }
+    }
 
     // 4. Unduh PDF atau Kembalikan Data
     const filename = `Laporan_RHK_${report.Tanggal}.pdf`;
