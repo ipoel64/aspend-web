@@ -211,7 +211,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
           contentWidget = {
             text: textContent,
             fontSize: 10.5,
-            lineHeight: 1.9,
+            lineHeight: 1.3,
             alignment: 'justify',
             margin: [14, 0, 0, 6]
           };
@@ -222,7 +222,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
               ...parseNarrativeSpans(content)
             ],
             fontSize: 10.5,
-            lineHeight: 1.9,
+            lineHeight: 1.3,
             alignment: 'justify',
             margin: [14, 0, 0, 6]
           };
@@ -234,7 +234,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
             ...parseNarrativeSpans(content)
           ],
           fontSize: 10.5,
-          lineHeight: 1.9,
+          lineHeight: 1.3,
           alignment: 'justify',
           margin: [14, 0, 0, 6]
         };
@@ -253,7 +253,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
           ...parseNarrativeSpans(content)
         ],
         fontSize: 10.5,
-        lineHeight: 1.9,
+        lineHeight: 1.3,
         alignment: 'justify',
         margin: [36, 0, 0, 0]
       };
@@ -267,7 +267,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
           ...parseNarrativeSpans(trimmed)
         ],
         fontSize: 10.5,
-        lineHeight: 1.9,
+        lineHeight: 1.3,
         alignment: 'justify',
         margin: [inListItem ? 14 : 0, 0, 0, 6]
       };
@@ -332,7 +332,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
       defaultStyle: {
         font: 'Roboto',
         fontSize: 10.5,
-        lineHeight: 1.5
+        lineHeight: 1.2
       },
       styles: {},
       content: []
