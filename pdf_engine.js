@@ -594,5 +594,6 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     hideLoading();
     console.error('PDF Engine Error:', err);
     showToast('Gagal menyusun PDF: ' + err.message, 'error');
+    throw err;
   }
 }

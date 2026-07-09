@@ -1238,8 +1238,12 @@ async function saveAndRegeneratePDF() {
     
   } catch(err) {
     hideLoading();
-    console.error(err);
-    showToast('Gagal memproses pembaruan PDF: ' + err.message, 'error');
+    console.error('Error saat Simpan & Perbarui PDF:', err);
+    let errorMsg = err.message || 'Error tidak diketahui';
+    if (err && err.result && err.result.error) {
+      errorMsg = err.result.error.message;
+    }
+    showToast('Gagal memproses pembaruan PDF: ' + errorMsg, 'error');
   }
 }
 
