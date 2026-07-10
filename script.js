@@ -262,6 +262,32 @@ async function loadUserProfile() {
           picture = `https://drive.google.com/thumbnail?id=${response.result.files[0].id}&sz=w128`;
           localStorage.setItem('aspend_driveProfilePicture', picture);
         }
+        
+        // Coba ambil Tanda Tangan
+        if (!localStorage.getItem('aspend_signature_base64')) {
+          const sigResponse = await gapi.client.drive.files.list({
+            q: `name contains 'Signature_' and name contains '${emailPrefix}' and mimeType contains 'image/' and trashed=false`,
+            fields: 'files(id, name)',
+            pageSize: 1
+          });
+          if (sigResponse.result.files && sigResponse.result.files.length > 0) {
+            const sigId = sigResponse.result.files[0].id;
+            const token = gapi.client.getToken().access_token;
+            const fetchRes = await fetch(`https://www.googleapis.com/drive/v3/files/${sigId}?alt=media`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (fetchRes.ok) {
+              const blob = await fetchRes.blob();
+              const base64 = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+              });
+              localStorage.setItem('aspend_signature_base64', base64);
+              console.log("Signature fetched from Drive");
+            }
+          }
+        }
       }
     } catch (err) {
       console.warn("Gagal mengambil foto profil Aspend dari Drive", err);

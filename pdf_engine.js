@@ -201,41 +201,51 @@ function buildNarrativeWidgets(text, p2k2Data) {
         const pointDesc = (titleMatch[3] || '').trim();
         
         if (pointTitle) {
-          const textContent = [
-            { text: `${num}. ${pointTitle}`, bold: true },
+          contentWidget = [
+            {
+              text: `${num}. ${pointTitle}`,
+              bold: true,
+              fontSize: 10.5,
+              margin: [14, 0, 0, 4]
+            }
           ];
           if (pointDesc) {
-            textContent.push({ text: '\n       ' }); // indent for description
-            textContent.push(...parseNarrativeSpans(pointDesc));
+            contentWidget.push({
+              text: [
+                { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces
+                ...parseNarrativeSpans(pointDesc)
+              ],
+              fontSize: 10.5,
+              lineHeight: 1.3,
+              alignment: 'justify',
+              margin: [14, 0, 0, 6]
+            });
           }
-          contentWidget = {
-            text: textContent,
-            fontSize: 10.5,
-            lineHeight: 1.3,
-            alignment: 'justify',
-            margin: [14, 0, 0, 6]
-          };
         } else {
           contentWidget = {
-            text: [
-              { text: `${num}. `, bold: true },
-              ...parseNarrativeSpans(content)
+            columns: [
+              { text: `${num}.`, width: 18, bold: true },
+              {
+                text: parseNarrativeSpans(content),
+                alignment: 'justify',
+                lineHeight: 1.3
+              }
             ],
             fontSize: 10.5,
-            lineHeight: 1.3,
-            alignment: 'justify',
             margin: [14, 0, 0, 6]
           };
         }
       } else {
         contentWidget = {
-          text: [
-            { text: `${num}. `, bold: true },
-            ...parseNarrativeSpans(content)
+          columns: [
+            { text: `${num}.`, width: 18, bold: true },
+            {
+              text: parseNarrativeSpans(content),
+              alignment: 'justify',
+              lineHeight: 1.3
+            }
           ],
           fontSize: 10.5,
-          lineHeight: 1.3,
-          alignment: 'justify',
           margin: [14, 0, 0, 6]
         };
       }
@@ -248,14 +258,16 @@ function buildNarrativeWidgets(text, p2k2Data) {
       const content = match[1];
 
       contentWidget = {
-        text: [
-          { text: '- ', bold: true },
-          ...parseNarrativeSpans(content)
+        columns: [
+          { text: '•', width: 14, bold: true },
+          {
+            text: parseNarrativeSpans(content),
+            alignment: 'justify',
+            lineHeight: 1.3
+          }
         ],
         fontSize: 10.5,
-        lineHeight: 1.3,
-        alignment: 'justify',
-        margin: [36, 0, 0, 0]
+        margin: [28, 0, 0, 6]
       };
     }
 
@@ -263,25 +275,37 @@ function buildNarrativeWidgets(text, p2k2Data) {
     else {
       contentWidget = {
         text: [
-          { text: '      ' }, // indent like mobile
+          { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces for proper indent
           ...parseNarrativeSpans(trimmed)
         ],
         fontSize: 10.5,
         lineHeight: 1.3,
         alignment: 'justify',
-        margin: [inListItem ? 14 : 0, 0, 0, 6]
+        margin: [inListItem ? 28 : 0, 0, 0, 6]
       };
     }
 
     // If there are pending headers, group them with the first content widget
     if (pendingHeaders.length > 0 && contentWidget) {
-      widgets.push({
-        stack: [...pendingHeaders, contentWidget],
-        unbreakable: true
-      });
+      if (Array.isArray(contentWidget)) {
+        widgets.push({
+          stack: [...pendingHeaders, contentWidget[0]],
+          unbreakable: true
+        });
+        widgets.push(...contentWidget.slice(1));
+      } else {
+        widgets.push({
+          stack: [...pendingHeaders, contentWidget],
+          unbreakable: true
+        });
+      }
       pendingHeaders = [];
     } else if (contentWidget) {
-      widgets.push(contentWidget);
+      if (Array.isArray(contentWidget)) {
+        widgets.push(...contentWidget);
+      } else {
+        widgets.push(contentWidget);
+      }
     }
   }
 
@@ -363,7 +387,8 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
             { text: 'DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL', bold: true, fontSize: 10.5, alignment: 'center' },
             { text: 'DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN', bold: true, fontSize: 10.5, alignment: 'center' },
             { text: 'Jl. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id', fontSize: 7.5, alignment: 'center' }
-          ]
+          ],
+          margin: [0, 8, 0, 0]
         }
       ],
       margin: [0, 0, 0, 3]
