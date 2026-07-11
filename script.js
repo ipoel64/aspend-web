@@ -1263,7 +1263,7 @@ async function saveAndRegeneratePDF() {
     let report = state.reports.find(r => String(r.ReportId) === String(state.currentReportId));
     if (!report) throw new Error("Data laporan menghilang dari memori.");
     
-    let newFotoId = report.FotoIds;
+    let newFotoId = null;
     
     // Jika ada foto baru yang diunggah
     if (window.editModalTempPhoto) {
@@ -1291,7 +1291,7 @@ async function saveAndRegeneratePDF() {
     if (editTanggal) report.Tanggal = editTanggal;
     if (editWaktu) report.Pukul = editWaktu;
     report.NarasiEdited = narrativeText;
-    report.FotoIds = newFotoId;
+    if (newFotoId) report.FotoIds = [newFotoId];
     report.Status = 'Selesai';
     
     // 2. Rakit PDF dalam bentuk Blob rahasia
