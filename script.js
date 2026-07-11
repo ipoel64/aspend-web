@@ -514,7 +514,7 @@ async function loadDashboardData(isSilent = false) {
         sortedKeys.forEach(key => {
           let num = parseInt(key.replace(/\D/g, '')) || 0;
           let colorClass = rhkColors[num % rhkColors.length];
-          breakdownContainer.innerHTML += `<span class="inline-flex items-center justify-between ${colorClass} px-2 py-0.5 rounded-md border text-[9px] min-w-[50px] shadow-sm"><span class="font-medium mr-1.5 opacity-80 uppercase tracking-wide">${key}</span><span class="font-black text-xs leading-none">${stats.rhkBreakdown[key]}</span></span>`;
+          breakdownContainer.innerHTML += `<span class="inline-flex items-center justify-between ${colorClass} py-0.5 pl-2 pr-0.5 rounded-md border text-[9px] min-w-[55px] shadow-sm"><span class="font-medium mr-1.5 opacity-80 uppercase tracking-wide">${key}</span><span class="flex items-center justify-center w-4 h-4 rounded-full bg-white/60 border border-black/5 font-black text-[10px] leading-none">${stats.rhkBreakdown[key]}</span></span>`;
         });
       }
     }
