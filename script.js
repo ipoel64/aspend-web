@@ -1263,16 +1263,29 @@ async function saveAndRegeneratePDF() {
     let report = state.reports.find(r => String(r.ReportId) === String(state.currentReportId));
     if (!report) throw new Error("Data laporan menghilang dari memori.");
     
-    let newFotoId = null;
+    let finalFotoIds = [];
+    let hasChangesInPhotos = false;
     
-    // Jika ada foto baru yang diunggah
-    if (window.editModalTempPhoto) {
-      showLoading('Mengunggah Foto Bukti Dukung ke Google Drive...');
-      let base64Data = window.editModalTempPhoto;
-      let uploadedId = await uploadImageToDriveClient(base64Data, 'Foto_' + report.ReportId + '_Edit.jpg');
-      if (uploadedId) {
-        newFotoId = uploadedId;
+    if (window.editModalPhotos) {
+      for (let i = 0; i < window.editModalPhotos.length; i++) {
+        let photo = window.editModalPhotos[i];
+        if (photo.type === 'base64') {
+          showLoading(`Mengunggah Foto Baru (${i+1}/${window.editModalPhotos.length})...`);
+          let uploadedId = await uploadImageToDriveClient(photo.data, 'Foto_' + report.ReportId + '_Edit_' + i + '.jpg');
+          if (uploadedId) {
+            finalFotoIds.push(uploadedId);
+            hasChangesInPhotos = true;
+          }
+        } else {
+          finalFotoIds.push(photo.data);
+        }
       }
+    }
+    
+    let originalPhotosStr = JSON.stringify(report.FotoIds || []);
+    let finalPhotosStr = JSON.stringify(finalFotoIds);
+    if (originalPhotosStr !== finalPhotosStr) {
+      hasChangesInPhotos = true;
     }
     
     showLoading('Menyimpan Perubahan ke Google Sheets...');
@@ -1281,7 +1294,7 @@ async function saveAndRegeneratePDF() {
       tanggal: editTanggal,
       pukul: editWaktu,
       narasiEdited: narrativeText,
-      fotoIds: newFotoId
+      fotoIds: hasChangesInPhotos ? finalFotoIds : null
     };
     
     // 1. Simpan ke Google Sheet
@@ -1291,7 +1304,7 @@ async function saveAndRegeneratePDF() {
     if (editTanggal) report.Tanggal = editTanggal;
     if (editWaktu) report.Pukul = editWaktu;
     report.NarasiEdited = narrativeText;
-    if (newFotoId) report.FotoIds = [newFotoId];
+    if (hasChangesInPhotos) report.FotoIds = finalFotoIds;
     report.Status = 'Selesai';
     
     // 2. Rakit PDF dalam bentuk Blob rahasia
@@ -1386,23 +1399,25 @@ function editReportDraft(reportId) {
   // Clear image upload field
   if (document.getElementById('edit-foto')) document.getElementById('edit-foto').value = '';
   
-  // Show existing photo if any
-  let previewDiv = document.getElementById('edit-foto-preview');
-  let previewImg = document.getElementById('edit-foto-img');
-  if (previewDiv && previewImg) {
-    let photos = r.FotoIds;
-    if (typeof photos === 'string') {
-      try { photos = JSON.parse(photos); } catch(e) { photos = [photos]; }
-    }
-    if (Array.isArray(photos) && photos.length > 0 && photos[0] && photos[0].length > 5) {
-      previewImg.src = `https://drive.google.com/thumbnail?id=${photos[0]}&sz=w400`;
-      previewDiv.classList.remove('hidden');
-    } else {
-      previewDiv.classList.add('hidden');
-    }
+  // Initialize multiple photos array
+  window.editModalPhotos = [];
+  let photos = r.FotoIds;
+  if (typeof photos === 'string') {
+    try { photos = JSON.parse(photos); } catch(e) { photos = [photos]; }
   }
+  if (Array.isArray(photos)) {
+    photos.forEach(p => {
+      if (p && p.length > 5) {
+        window.editModalPhotos.push({
+          type: 'id',
+          data: p
+        });
+      }
+    });
+  }
+  renderEditPhotos();
   
-  // Store the photo base64 locally if they pick one
+  // Remove old temp photo state
   window.editModalTempPhoto = null;
   
   // Buka jendela popup baru
@@ -2587,18 +2602,55 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const reader = new FileReader();
       reader.onload = function(evt) {
-        window.editModalTempPhoto = evt.target.result;
-        const previewDiv = document.getElementById('edit-foto-preview');
-        const previewImg = document.getElementById('edit-foto-img');
-        if (previewDiv && previewImg) {
-          previewImg.src = window.editModalTempPhoto;
-          previewDiv.classList.remove('hidden');
-        }
+        if (!window.editModalPhotos) window.editModalPhotos = [];
+        window.editModalPhotos.push({
+          type: 'base64',
+          data: evt.target.result
+        });
+        renderEditPhotos();
+        editFotoInput.value = '';
       };
       reader.readAsDataURL(file);
     });
   }
 });
+
+// Fungsi untuk me-render kumpulan foto di edit modal
+window.renderEditPhotos = function() {
+  const container = document.getElementById('edit-foto-preview');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  if (!window.editModalPhotos || window.editModalPhotos.length === 0) {
+    return;
+  }
+  
+  window.editModalPhotos.forEach((photo, index) => {
+    let imgSrc = photo.type === 'id' ? `https://drive.google.com/thumbnail?id=${photo.data}&sz=w400` : photo.data;
+    let fullSrc = photo.type === 'id' ? `https://drive.google.com/thumbnail?id=${photo.data}&sz=w1200` : photo.data;
+    
+    let wrapper = document.createElement('div');
+    wrapper.className = 'relative group cursor-pointer';
+    wrapper.onclick = function() { showLightbox(fullSrc); };
+    
+    let img = document.createElement('img');
+    img.src = imgSrc;
+    img.className = 'h-24 w-24 object-cover rounded border border-outline-variant shadow-sm';
+    
+    let deleteBtn = document.createElement('button');
+    deleteBtn.className = 'absolute -top-2 -right-2 bg-error text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:scale-110';
+    deleteBtn.innerHTML = '<span class="material-symbols-outlined text-[14px]">close</span>';
+    deleteBtn.onclick = function(e) {
+      e.stopPropagation();
+      window.editModalPhotos.splice(index, 1);
+      renderEditPhotos();
+    };
+    
+    wrapper.appendChild(img);
+    wrapper.appendChild(deleteBtn);
+    container.appendChild(wrapper);
+  });
+};
 
 
 // ── FUNGSI KTP (TERPULIHKAN) ──────────────────────────────────

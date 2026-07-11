@@ -505,7 +505,7 @@ async function saveEditedReportClient(spreadsheetId, reportId, newData) {
       existingRow[8] = newData.narasiEdited || existingRow[8];
       existingRow[9] = 'Selesai';
       if (newData.fotoIds) {
-        existingRow[11] = newData.fotoIds;
+        existingRow[11] = Array.isArray(newData.fotoIds) ? JSON.stringify(newData.fotoIds) : newData.fotoIds;
       }
       
       await gapi.client.sheets.spreadsheets.values.update({

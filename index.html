@@ -29,7 +29,7 @@
   <script src="logo_data.js?v=1783295400"></script>
   <script src="pdf_engine.js?v=1783295414"></script>
   
-  <script src="client_services.js?v=1783284212"></script>
+  <script src="client_services.js?v=1783284213"></script>
   
   <!-- Tailwind Config -->
   <script id="tailwind-config">
@@ -1220,10 +1220,10 @@
               <input type="text" id="edit-waktu" placeholder="Pilih Jam..." class="w-full p-2 border border-outline-variant rounded-md font-body-sm text-on-surface focus:outline-none focus:border-primary">
             </div>
             <div class="md:col-span-2">
-              <label class="block text-xs font-label-md text-secondary mb-1">Ganti Foto Bukti (Biarkan kosong jika tidak ingin mengubah foto)</label>
+              <label class="block text-xs font-label-md text-secondary mb-1">Tambah Foto Bukti (Foto lama tidak akan terhapus kecuali Anda silang)</label>
               <input type="file" id="edit-foto" accept="image/*" class="w-full p-2 border border-outline-variant rounded-md font-body-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
-              <div id="edit-foto-preview" class="mt-2 hidden">
-                <img id="edit-foto-img" src="" class="h-24 w-auto rounded border border-outline-variant object-cover">
+              <div id="edit-foto-preview" class="mt-4 flex flex-wrap gap-2">
+                <!-- Foto-foto akan dirender di sini oleh script.js -->
               </div>
             </div>
           </div>
@@ -1345,6 +1345,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294460"></script>
+  <script src="script.js?v=1783294461"></script>
 </body>
 </html>
