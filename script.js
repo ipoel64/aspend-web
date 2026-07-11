@@ -295,8 +295,10 @@ async function loadUserProfile() {
 
     const profile = {
        email: email,
-       nama: email.split('@')[0], 
-       jabatan: 'Pendamping PKH', // Default
+       nama: localStorage.getItem('aspend_nama') || email.split('@')[0], 
+       jabatan: localStorage.getItem('aspend_jabatan') || 'Pendamping PKH',
+       nip: localStorage.getItem('aspend_nip') || '',
+       kabupaten: localStorage.getItem('aspend_kabupaten') || '',
        picture: picture
     };
     
@@ -1732,6 +1734,16 @@ function saveSettings() {
   var google = document.getElementById('input-key-google').value.trim();
   var groq = document.getElementById('input-key-groq').value.trim();
   
+  var nama = document.getElementById('input-nama').value.trim();
+  var nip = document.getElementById('input-nip').value.trim();
+  var jabatan = document.getElementById('input-jabatan').value.trim();
+  var kabupaten = document.getElementById('input-kabupaten').value.trim();
+  
+  state.user.nama = nama;
+  state.user.nip = nip;
+  state.user.jabatan = jabatan;
+  state.user.kabupaten = kabupaten;
+  
   state.aiProvider = prov;
   state.aiModel = model;
   state.aiKeys.openrouter = openrouter;
@@ -1739,6 +1751,11 @@ function saveSettings() {
   state.aiKeys.groq = groq;
   
   // Karena ini client-side, simpan saja langsung di localStorage!
+  localStorage.setItem('aspend_nama', nama);
+  localStorage.setItem('aspend_nip', nip);
+  localStorage.setItem('aspend_jabatan', jabatan);
+  localStorage.setItem('aspend_kabupaten', kabupaten);
+  
   localStorage.setItem('aspend_aiProvider', prov);
   localStorage.setItem('aspend_aiModel', model);
   localStorage.setItem('aspend_aiKeys', JSON.stringify(state.aiKeys));

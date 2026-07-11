@@ -496,17 +496,20 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     const signDateStr = formatSignDate(report.Tanggal);
     
     // Lokasi dari userProfile atau default
-    const lokasiTTD = (userProfile && userProfile.kabupatenKota) 
-      ? userProfile.kabupatenKota 
-      : ((userProfile && userProfile.lokasi) ? userProfile.lokasi : 'Dibuat di');
+    const lokasiTTD = (userProfile && userProfile.kabupaten) 
+      ? userProfile.kabupaten 
+      : 'Dibuat di';
 
     const jabatan = (userProfile && userProfile.jabatan) 
       ? userProfile.jabatan 
       : 'Pendamping Sosial';
 
-    const namaUser = (userProfile && userProfile.nama) 
+    let namaUser = (userProfile && userProfile.nama) 
       ? userProfile.nama 
-      : ((userProfile && userProfile.email) ? userProfile.email : '-');
+      : ((userProfile && userProfile.email) ? userProfile.email.split('@')[0] : '-');
+      
+    // Capitalize namaUser for professional look
+    namaUser = namaUser.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
 
     const nipUser = (userProfile && userProfile.nip) 
       ? `NIP. ${userProfile.nip}` 
