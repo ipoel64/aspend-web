@@ -305,7 +305,7 @@ async function loadUserProfile() {
     try {
       // Sync from Google Sheets "Database"
       console.log("Fetching user profile from Google Sheets...");
-      const sheetProfile = await fetchUserProfileClient(ASP_SPREADSHEET_ID, email);
+      const sheetProfile = await fetchUserProfileClient(spreadsheetId, email);
       if (sheetProfile) {
         console.log("Profile sync success:", sheetProfile);
         profile = { ...profile, ...sheetProfile };
