@@ -276,13 +276,13 @@ function buildNarrativeWidgets(text, p2k2Data) {
     else {
       contentWidget = {
         text: [
-          { text: '            ', preserveLeadingSpaces: true }, // Regular spaces with preserveLeadingSpaces (12 spaces)
+          { text: '        ', preserveLeadingSpaces: true }, // Regular spaces with preserveLeadingSpaces (8 spaces)
           ...parseNarrativeSpans(trimmed)
         ],
         fontSize: 10.5,
         lineHeight: 1.3,
         alignment: 'justify',
-        margin: [inListItem ? 28 : 0, 0, 0, 6] // Wrapped lines align with 0 if not in list
+        margin: [inListItem ? 28 : 14, 0, 0, 6] // Wrapped lines align with 14 if not in list
       };
     }
 
