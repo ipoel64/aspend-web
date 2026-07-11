@@ -506,15 +506,15 @@ async function loadDashboardData(isSilent = false) {
         
         // Sort keys like RHK-1, RHK-2, etc.
         const sortedKeys = Object.keys(stats.rhkBreakdown).sort((a, b) => {
-          let numA = parseInt(a.replace(/\\D/g, '')) || 0;
-          let numB = parseInt(b.replace(/\\D/g, '')) || 0;
+          let numA = parseInt(a.replace(/\D/g, '')) || 0;
+          let numB = parseInt(b.replace(/\D/g, '')) || 0;
           return numA - numB;
         });
 
         sortedKeys.forEach(key => {
-          let num = parseInt(key.replace(/\\D/g, '')) || 0;
+          let num = parseInt(key.replace(/\D/g, '')) || 0;
           let colorClass = rhkColors[num % rhkColors.length];
-          breakdownContainer.innerHTML += `<span class="inline-flex items-center ${colorClass} px-1.5 py-0.5 rounded border font-bold text-[8px] whitespace-nowrap">${key}: ${stats.rhkBreakdown[key]}</span>`;
+          breakdownContainer.innerHTML += `<span class="inline-flex items-center justify-between ${colorClass} px-2 py-0.5 rounded-md border text-[9px] min-w-[50px] shadow-sm"><span class="font-medium mr-1.5 opacity-80 uppercase tracking-wide">${key}</span><span class="font-black text-xs leading-none">${stats.rhkBreakdown[key]}</span></span>`;
         });
       }
     }
