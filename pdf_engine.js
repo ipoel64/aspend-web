@@ -423,7 +423,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
       bold: true,
       fontSize: 13,
       alignment: 'center',
-      margin: [0, 0, 0, 4]
+      margin: [0, 0, 0, 2]
     });
 
     if (jenisKegiatanText) {
@@ -432,7 +432,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
         fontSize: 11,
         italics: true,
         alignment: 'center',
-        margin: [0, 0, 0, 4]
+        margin: [0, 0, 0, 2]
       });
     }
 
