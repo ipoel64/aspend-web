@@ -213,7 +213,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
           if (pointDesc) {
             contentWidget.push({
               text: [
-                { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces
+                { text: '        ', preserveLeadingSpaces: true }, // Regular spaces with preserveLeadingSpaces (8 spaces)
                 ...parseNarrativeSpans(pointDesc)
               ],
               fontSize: 10.5,
