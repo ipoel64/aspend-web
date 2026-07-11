@@ -284,15 +284,9 @@ async function fetchDashboardDataClient(spreadsheetId, userEmail, options = {}) 
       reports = reports.filter(r => toISODate(r.Tanggal).startsWith(options.filterMonth));
     }
 
-    // Pagination
-    const page = options.page || 1;
-    const size = 1000; // Tampilkan semua data tanpa dibatasi 10
-    const start = (page - 1) * size;
-    const paginatedReports = reports.slice(start, start + size);
-
     return {
       stats: stats,
-      list: { data: paginatedReports, total: reports.length }
+      list: { data: reports, total: reports.length }
     };
   } catch (err) {
     console.error('fetchDashboardDataClient error:', err);
