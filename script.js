@@ -1309,8 +1309,14 @@ async function saveAndRegeneratePDF() {
     closeModal('modal-edit-narasi');
     showToast('Sukses! Data laporan tersimpan dan file PDF asli di Drive telah diperbarui.', 'success');
     
-    // 4. Perbarui pratinjau secara instan
+    // 4. Perbarui pratinjau dan tabel secara instan
+    renderDashboardTable();
     previewPdf(state.currentReportId);
+    
+    // Refresh halaman paksa agar Google Drive Cache hilang (atas permintaan user)
+    setTimeout(() => {
+        window.location.reload();
+    }, 1500);
     
   } catch(err) {
     hideLoading();
