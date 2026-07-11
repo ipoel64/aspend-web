@@ -533,6 +533,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
 
     docDefinition.content.push({
       margin: [0, 20, 0, 0],
+      unbreakable: true, // Prevent signature block from splitting across pages
       columns: [
         { width: '*', text: '' },
         {
