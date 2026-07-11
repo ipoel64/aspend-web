@@ -148,7 +148,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
           ]
         ]
       },
-      margin: [0, 10, 0, 15]
+      margin: [14, 10, 0, 15]
     };
   }
 
