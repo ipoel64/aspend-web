@@ -656,7 +656,7 @@ function renderDashboardTable() {
       </button>`;
 
       tableHtml += `
-        <tr id="row-${r.ReportId}" class="rhk-row hover:bg-primary/5 transition-colors group cursor-pointer" onclick="previewPdf('${r.ReportId}')">
+        <tr id="row-${r.ReportId}" class="rhk-row hover:bg-primary/10 transition-all duration-300 ease-in-out group cursor-pointer border-b border-surface-variant/50 relative" onclick="previewPdf('${r.ReportId}')">
           <td class="px-1 py-2 align-top text-center" style="min-width: 90px;" onclick="event.stopPropagation(); ${(Array.isArray(photos)&&photos.length>0) ? `showLightbox('https://drive.google.com/thumbnail?id=${photos[0]}&sz=w1200')` : ''}">
             ${photoHtml}
           </td>
@@ -785,12 +785,12 @@ async function previewPdf(reportId) {
   });
 
   document.querySelectorAll('tr.rhk-row').forEach(row => {
-    row.classList.remove('bg-primary/10', 'shadow-inner');
+    row.classList.remove('bg-primary/15', 'shadow-md', '-translate-y-0.5', 'z-10');
   });
   
   let activeRow = document.getElementById('row-' + reportId);
   if (activeRow) {
-    activeRow.classList.add('bg-primary/10', 'shadow-inner');
+    activeRow.classList.add('bg-primary/15', 'shadow-md', '-translate-y-0.5', 'z-10');
   }
   
   // Aktifkan action group pada baris yang dipilih
