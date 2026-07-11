@@ -482,9 +482,10 @@ async function loadDashboardData(isSilent = false) {
     const newTotal = data.list.total || 0;
     
     // Perbandingan cerdas untuk auto-refresh tanpa kedipan UI
-    if (JSON.stringify(state.reports) !== JSON.stringify(newReports) || state.totalReports !== newTotal) {
+    if (JSON.stringify(state.reports) !== JSON.stringify(newReports) || state.totalReports !== newTotal || state.statsTotal !== stats.total) {
       state.reports = newReports;
       state.totalReports = newTotal;
+      state.statsTotal = stats.total;
       renderDashboardTable();
       
       // Update instan PDF jika sedang dibuka
@@ -516,6 +517,18 @@ async function loadDashboardData(isSilent = false) {
 function renderDashboardTable() {
   var container = document.getElementById('reports-list-container');
   if (!container) return;
+  
+  // Update info jumlah data filter
+  let countInfo = document.getElementById('filter-count-info');
+  if (countInfo) {
+    if (state.searchTerm || state.filterJenis || state.filterRencanaAksi || state.filterDate || state.filterMonth) {
+      countInfo.innerHTML = `${state.totalReports} Data`;
+      countInfo.classList.remove('hidden');
+    } else {
+      countInfo.classList.add('hidden');
+    }
+  }
+
   container.innerHTML = '';
 
   if (!state.reports || state.reports.length === 0) {

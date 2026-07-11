@@ -361,10 +361,13 @@
               </select>
               <input type="text" class="shrink-0 w-[130px] px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-month" onfocus="(this.type='month')" onblur="(this.type=this.value?'month':'text')" onchange="onFilterChange(event)" title="Filter Bulan" placeholder="Semua Bulan">
               <input type="text" class="shrink-0 w-[130px] px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-date" onfocus="(this.type='date')" onblur="(this.type=this.value?'date':'text')" onchange="onFilterChange(event)" title="Filter Tanggal Spesifik" placeholder="Semua Tanggal">
-              <button class="shrink-0 ml-auto px-3 py-1.5 border border-rose-200 bg-rose-50 text-rose-600 rounded-md hover:bg-rose-100 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer shadow-sm" onclick="resetFilters()">
-                <span class="material-symbols-outlined text-[14px]">refresh</span>
-                Reset
-              </button>
+              <div class="ml-auto flex items-center gap-2 shrink-0">
+                <span id="filter-count-info" class="text-[10px] md:text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded hidden transition-all"></span>
+                <button class="px-3 py-1.5 border border-rose-200 bg-rose-50 text-rose-600 rounded-md hover:bg-rose-100 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer shadow-sm" onclick="resetFilters()">
+                  <span class="material-symbols-outlined text-[14px]">refresh</span>
+                  Reset
+                </button>
+              </div>
             </div>
             
             <!-- Grouped List -->
@@ -1358,6 +1361,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294468"></script>
+  <script src="script.js?v=1783294469"></script>
 </body>
 </html>
