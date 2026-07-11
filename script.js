@@ -1268,7 +1268,7 @@ async function saveAndRegeneratePDF() {
     // Jika ada foto baru yang diunggah
     if (window.editModalTempPhoto) {
       showLoading('Mengunggah Foto Bukti Dukung ke Google Drive...');
-      let base64Data = window.editModalTempPhoto.split(',')[1];
+      let base64Data = window.editModalTempPhoto;
       let uploadedId = await uploadImageToDriveClient(base64Data, 'Foto_' + report.ReportId + '_Edit.jpg');
       if (uploadedId) {
         newFotoId = uploadedId;
