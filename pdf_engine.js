@@ -398,7 +398,7 @@ async function generateClientPDF(report, userProfile, isVerkom = false, action =
     // Garis pembatas (Divider) - garis tebal
     docDefinition.content.push({
       canvas: [{ type: 'line', x1: 0, y1: 0, x2: 487, y2: 0, lineWidth: 2 }],
-      margin: [0, 0, 0, 8]
+      margin: [0, 0, 0, 20]
     });
 
     // ══════════════════════════════════════════
