@@ -276,13 +276,13 @@ function buildNarrativeWidgets(text, p2k2Data) {
     else {
       contentWidget = {
         text: [
-          { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces for proper indent
+          { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces for proper indent (12 spaces)
           ...parseNarrativeSpans(trimmed)
         ],
         fontSize: 10.5,
         lineHeight: 1.3,
         alignment: 'justify',
-        margin: [inListItem ? 28 : 14, 0, 0, 6] // If under list, align with list text (28). If under header, align with header text (14).
+        margin: [inListItem ? 28 : 0, 0, 0, 6] // Wrapped lines align with 0 if not in list
       };
     }
 
