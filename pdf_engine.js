@@ -276,7 +276,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
     else {
       contentWidget = {
         text: [
-          { text: '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' }, // Non-breaking spaces for proper indent (12 spaces)
+          { text: '            ', preserveLeadingSpaces: true }, // Regular spaces with preserveLeadingSpaces (12 spaces)
           ...parseNarrativeSpans(trimmed)
         ],
         fontSize: 10.5,
