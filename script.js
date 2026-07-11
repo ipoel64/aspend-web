@@ -2607,23 +2607,60 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Event listener for edit-foto in edit modal
   const editFotoInput = document.getElementById('edit-foto');
+  const dropZone = document.getElementById('drop-zone-edit-foto');
+  
   if (editFotoInput) {
-    editFotoInput.addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    const processFiles = (files) => {
+      if (!files || files.length === 0) return;
+      if (!window.editModalPhotos) window.editModalPhotos = [];
       
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        if (!window.editModalPhotos) window.editModalPhotos = [];
-        window.editModalPhotos.push({
-          type: 'base64',
-          data: evt.target.result
-        });
-        renderEditPhotos();
-        editFotoInput.value = '';
-      };
-      reader.readAsDataURL(file);
+      Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          window.editModalPhotos.push({
+            type: 'base64',
+            data: evt.target.result
+          });
+          renderEditPhotos();
+        };
+        reader.readAsDataURL(file);
+      });
+      editFotoInput.value = '';
+    };
+
+    editFotoInput.addEventListener('change', function(e) {
+      processFiles(e.target.files);
     });
+    
+    if (dropZone) {
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+      });
+      
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+          dropZone.classList.add('bg-primary/20', 'border-primary');
+          dropZone.classList.remove('bg-primary/5', 'border-primary/40');
+        }, false);
+      });
+      
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+          dropZone.classList.remove('bg-primary/20', 'border-primary');
+          dropZone.classList.add('bg-primary/5', 'border-primary/40');
+        }, false);
+      });
+      
+      dropZone.addEventListener('drop', (e) => {
+        processFiles(e.dataTransfer.files);
+      }, false);
+    }
   }
 });
 

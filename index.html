@@ -1226,8 +1226,15 @@
               </p>
             </div>
             <div class="md:col-span-2">
-              <label class="block text-xs font-label-md text-secondary mb-1">Tambah Foto Bukti (Foto lama tidak akan terhapus kecuali Anda silang)</label>
-              <input type="file" id="edit-foto" accept="image/*" class="w-full p-2 border border-outline-variant rounded-md font-body-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+              <label class="block text-xs font-label-md text-secondary mb-1">Tambah Foto Bukti (Bisa pilih/tarik banyak foto sekaligus)</label>
+              
+              <div id="drop-zone-edit-foto" class="w-full border-2 border-dashed border-primary/40 rounded-lg p-6 bg-primary/5 hover:bg-primary/10 transition-colors text-center cursor-pointer flex flex-col items-center justify-center relative overflow-hidden group">
+                <input type="file" id="edit-foto" accept="image/*" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                <span class="material-symbols-outlined text-primary text-3xl mb-2 group-hover:scale-110 transition-transform">add_photo_alternate</span>
+                <p class="text-xs font-body-sm text-on-surface-variant font-medium">Klik untuk memilih foto atau seret foto ke area ini</p>
+                <p class="text-[10px] text-secondary mt-1">(Bisa upload banyak foto sekaligus, foto lama tidak akan tertimpa)</p>
+              </div>
+
               <div id="edit-foto-preview" class="mt-4 flex flex-wrap gap-2">
                 <!-- Foto-foto akan dirender di sini oleh script.js -->
               </div>
@@ -1351,6 +1358,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294465"></script>
+  <script src="script.js?v=1783294466"></script>
 </body>
 </html>
