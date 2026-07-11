@@ -680,7 +680,7 @@ function renderDashboardTable() {
                 <button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded bg-surface border border-surface-variant hover:border-primary/50 shadow-sm" onclick="editReportDraft('${r.ReportId}')" title="Edit Narasi & Perbarui PDF">
                   <span class="material-symbols-outlined text-[14px]">edit</span>
                 </button>
-                <button disabled class="text-error/70 opacity-50 cursor-not-allowed transition-colors p-1 rounded bg-surface border border-surface-variant shadow-sm" onclick="deleteReportLog('${r.ReportId}')" title="Fitur Hapus Dimatikan Sementara">
+                <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded bg-surface border border-surface-variant hover:border-error/50 shadow-sm" onclick="deleteReportLog('${r.ReportId}')" title="Hapus Laporan">
                   <span class="material-symbols-outlined text-[14px]">delete</span>
                 </button>
               </div>
