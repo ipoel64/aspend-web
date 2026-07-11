@@ -123,28 +123,28 @@ function buildNarrativeWidgets(text, p2k2Data) {
         widths: [120, '*'],
         body: [
           [
-            { text: 'Keterangan P2K2', bold: true, fontSize: 9.5, fillColor: '#f0f0f0', margin: [5, 5, 5, 5] },
-            { text: 'Detail', bold: true, fontSize: 9.5, fillColor: '#f0f0f0', margin: [5, 5, 5, 5] }
+            { text: 'Keterangan P2K2', bold: true, fontSize: 9.5, fillColor: '#f0f0f0', margin: [5, 3, 5, 3] },
+            { text: 'Detail', bold: true, fontSize: 9.5, fillColor: '#f0f0f0', margin: [5, 3, 5, 3] }
           ],
           [
-            { text: 'Modul', fontSize: 9.5, margin: [5, 5, 5, 5] },
-            { text: p2k2.modul || '-', fontSize: 9.5, margin: [5, 5, 5, 5] }
+            { text: 'Modul', fontSize: 9.5, margin: [5, 3, 5, 3] },
+            { text: p2k2.modul || '-', fontSize: 9.5, margin: [5, 3, 5, 3] }
           ],
           [
-            { text: 'Sesi', fontSize: 9.5, margin: [5, 5, 5, 5] },
-            { text: p2k2.sesi || '-', fontSize: 9.5, margin: [5, 5, 5, 5] }
+            { text: 'Sesi', fontSize: 9.5, margin: [5, 3, 5, 3] },
+            { text: p2k2.sesi || '-', fontSize: 9.5, margin: [5, 3, 5, 3] }
           ],
           [
-            { text: 'Nama Kelompok', fontSize: 9.5, margin: [5, 5, 5, 5] },
-            { text: p2k2.namaKelompok || '-', fontSize: 9.5, margin: [5, 5, 5, 5] }
+            { text: 'Nama Kelompok', fontSize: 9.5, margin: [5, 3, 5, 3] },
+            { text: p2k2.namaKelompok || '-', fontSize: 9.5, margin: [5, 3, 5, 3] }
           ],
           [
-            { text: 'Ketua Kelompok', fontSize: 9.5, margin: [5, 5, 5, 5] },
-            { text: p2k2.ketuaKelompok || '-', fontSize: 9.5, margin: [5, 5, 5, 5] }
+            { text: 'Ketua Kelompok', fontSize: 9.5, margin: [5, 3, 5, 3] },
+            { text: p2k2.ketuaKelompok || '-', fontSize: 9.5, margin: [5, 3, 5, 3] }
           ],
           [
-            { text: 'Kehadiran', fontSize: 9.5, margin: [5, 5, 5, 5] },
-            { text: `${p2k2.jumlahHadir || 0} hadir dari total ${p2k2.jumlahKPM || 0} KPM`, fontSize: 9.5, margin: [5, 5, 5, 5] }
+            { text: 'Kehadiran', fontSize: 9.5, margin: [5, 3, 5, 3] },
+            { text: `${p2k2.jumlahHadir || 0} hadir dari total ${p2k2.jumlahKPM || 0} KPM`, fontSize: 9.5, margin: [5, 3, 5, 3] }
           ]
         ]
       },
