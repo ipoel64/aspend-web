@@ -502,7 +502,13 @@ async function loadDashboardData(isSilent = false) {
          errorMsg = err.result.error.message;
       }
       hideLoading();
-      showToast('Gagal memuat Dashboard: ' + errorMsg, 'error');
+      
+      // Deteksi jika error karena otentikasi (Sesi Habis)
+      if (typeof errorMsg === 'string' && (errorMsg.includes('invalid authentication') || errorMsg.includes('OAuth') || err.status === 401)) {
+          showToast('Sesi login Google Anda telah habis. Silakan muat ulang halaman (Refresh) lalu Login kembali.', 'error');
+      } else {
+          showToast('Gagal memuat Dashboard: ' + errorMsg, 'error');
+      }
     }
   }
 }
