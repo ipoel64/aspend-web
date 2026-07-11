@@ -12,6 +12,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   
+  <!-- Flatpickr (Date & Time Picker) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/l10n/id.js"></script>
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   
@@ -1208,11 +1213,11 @@
           <div class="p-4 pt-0 border-t border-outline-variant mt-2 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-label-md text-secondary mb-1">Tanggal Kegiatan</label>
-              <input type="date" id="edit-tanggal" class="w-full p-2 border border-outline-variant rounded-md font-body-sm text-on-surface focus:outline-none focus:border-primary">
+              <input type="text" id="edit-tanggal" placeholder="Pilih Tanggal..." class="w-full p-2 border border-outline-variant rounded-md font-body-sm text-on-surface focus:outline-none focus:border-primary">
             </div>
             <div>
               <label class="block text-xs font-label-md text-secondary mb-1">Waktu (Pukul)</label>
-              <input type="time" id="edit-waktu" class="w-full p-2 border border-outline-variant rounded-md font-body-sm text-on-surface focus:outline-none focus:border-primary">
+              <input type="text" id="edit-waktu" placeholder="Pilih Jam..." class="w-full p-2 border border-outline-variant rounded-md font-body-sm text-on-surface focus:outline-none focus:border-primary">
             </div>
             <div class="md:col-span-2">
               <label class="block text-xs font-label-md text-secondary mb-1">Ganti Foto Bukti (Biarkan kosong jika tidak ingin mengubah foto)</label>
@@ -1340,6 +1345,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294457"></script>
+  <script src="script.js?v=1783294458"></script>
 </body>
 </html>

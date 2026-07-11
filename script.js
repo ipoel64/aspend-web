@@ -1344,8 +1344,17 @@ function editReportDraft(reportId) {
   }
   
   // Populate Data Utama (Baru)
-  if (document.getElementById('edit-tanggal')) {
-    // Format tanggal untuk input type="date" yyyy-mm-dd
+  if (window.editTanggalPicker && r.Tanggal) {
+    let d = new Date(r.Tanggal);
+    if (!isNaN(d.getTime())) {
+      let month = (d.getMonth() + 1).toString().padStart(2, '0');
+      let day = d.getDate().toString().padStart(2, '0');
+      window.editTanggalPicker.setDate(`${d.getFullYear()}-${month}-${day}`);
+    } else {
+      window.editTanggalPicker.clear();
+    }
+  } else if (document.getElementById('edit-tanggal')) {
+    // Fallback
     let d = new Date(r.Tanggal);
     if (!isNaN(d.getTime())) {
       let month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -1356,7 +1365,15 @@ function editReportDraft(reportId) {
     }
   }
   
-  if (document.getElementById('edit-waktu')) document.getElementById('edit-waktu').value = r.Pukul || '';
+  if (window.editWaktuPicker) {
+    if (r.Pukul) {
+      window.editWaktuPicker.setDate(r.Pukul);
+    } else {
+      window.editWaktuPicker.clear();
+    }
+  } else if (document.getElementById('edit-waktu')) {
+    document.getElementById('edit-waktu').value = r.Pukul || '';
+  }
   
 
   
@@ -2536,6 +2553,24 @@ function initAlarmSystem() {
 // Inisialisasi saat aplikasi dimuat
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initAlarmSystem, 5000);
+  
+  // Initialize Flatpickr for Date and Time in edit modal
+  if (typeof flatpickr !== 'undefined') {
+    window.editTanggalPicker = flatpickr("#edit-tanggal", {
+      altInput: true,
+      altFormat: "d/m/Y",
+      dateFormat: "Y-m-d",
+      locale: "id"
+    });
+    
+    window.editWaktuPicker = flatpickr("#edit-waktu", {
+      enableTime: true,
+      noCalendar: true,
+      dateFormat: "H:i",
+      time_24hr: true,
+      locale: "id"
+    });
+  }
   
   // Event listener for edit-foto in edit modal
   const editFotoInput = document.getElementById('edit-foto');
