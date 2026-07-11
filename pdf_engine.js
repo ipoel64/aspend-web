@@ -165,6 +165,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
 
     // Check sub-header (A. PENDAHULUAN, B. KEGIATAN, etc.)
     if (subHeaderRegExp.test(trimmed)) {
+      inListItem = false; // Reset list context
       const match = trimmed.match(subHeaderRegExp);
       const letter = match[1];
       const title = match[2];
@@ -218,7 +219,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
               fontSize: 10.5,
               lineHeight: 1.3,
               alignment: 'justify',
-              margin: [14, 0, 0, 6]
+              margin: [28, 0, 0, 6] // Changed from 14 to 28 so it aligns with the title text
             });
           }
         } else {
@@ -281,7 +282,7 @@ function buildNarrativeWidgets(text, p2k2Data) {
         fontSize: 10.5,
         lineHeight: 1.3,
         alignment: 'justify',
-        margin: [inListItem ? 28 : 0, 0, 0, 6]
+        margin: [inListItem ? 28 : 14, 0, 0, 6] // If under list, align with list text (28). If under header, align with header text (14).
       };
     }
 
