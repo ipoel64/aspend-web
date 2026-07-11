@@ -2424,6 +2424,14 @@ function processSpreadsheetRegistration() {
   });
 }
 
+// ── SISTEM PREMIUM PAYWALL ──────────────────────────────────
+function checkPremiumFeature(featureId) {
+  const premiumModal = document.getElementById('modal-premium');
+  if (premiumModal) {
+    premiumModal.classList.remove('hidden');
+  }
+}
+
 // ── SISTEM IKLAN (AdMob Mock) ──────────────────────────────────
 function showAdModal(onCloseCallback) {
   document.getElementById('modal-ad').classList.remove('hidden');

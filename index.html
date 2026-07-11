@@ -317,7 +317,11 @@
           <div class="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <h2 class="font-headline-lg text-headline-lg text-on-surface mb-0.5">Dashboard Laporan RHK</h2>
-              <p class="font-body-md text-body-md text-on-surface-variant text-sm">Kelola dan tinjau laporan pendampingan sosial secara real-time.</p>
+              <p class="font-body-md text-body-md text-on-surface-variant text-sm mb-3">Kelola dan tinjau laporan pendampingan sosial secara real-time.</p>
+              <button class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg shadow-sm hover:shadow-md hover:scale-[1.02] transition-all flex items-center gap-2 font-bold text-sm cursor-pointer border border-amber-400 w-fit" onclick="checkPremiumFeature('create_rhk')">
+                <span class="material-symbols-outlined text-[18px]">workspace_premium</span>
+                Buat Laporan RHK
+              </button>
             </div>
             
             <div class="flex flex-row flex-wrap gap-3 pb-2 md:pb-0">
@@ -1344,6 +1348,36 @@
         <div class="flex gap-2">
           <button class="px-4 py-2 border border-outline text-on-surface-variant rounded-lg hover:bg-surface-variant font-bold text-xs cursor-pointer" onclick="closeModal('modal-canvas')">Batal</button>
           <button class="px-4 py-2 bg-primary text-secondary-fixed rounded-lg hover:opacity-90 font-bold text-xs cursor-pointer" onclick="saveCanvasSignature()">💾 Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       Modal: Premium Paywall
+       ═══════════════════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="modal-premium">
+    <div class="modal max-w-md w-full bg-white rounded-xl shadow-2xl border border-surface-variant p-0 overflow-hidden text-center relative">
+      <div class="bg-gradient-to-r from-amber-400 to-amber-600 p-8 text-white relative overflow-hidden">
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-white/20 rounded-full blur-2xl"></div>
+        <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-black/10 rounded-full blur-2xl"></div>
+        <span class="material-symbols-outlined text-6xl drop-shadow-md mb-2 relative z-10">workspace_premium</span>
+        <h3 class="font-headline-lg text-2xl font-black relative z-10 drop-shadow-md">Fitur Premium</h3>
+      </div>
+      <div class="p-6">
+        <p class="font-body-md text-sm text-on-surface-variant mb-6 leading-relaxed">
+          Pembuatan laporan baru langsung dari web adalah fitur eksklusif untuk pelanggan <strong>ASPEND Premium</strong>. Tingkatkan akun Anda untuk membuka akses tanpa batas!
+        </p>
+        <div class="flex flex-col gap-3">
+          <button class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-bold hover:scale-[1.02] shadow-sm hover:shadow-md transition-all cursor-not-allowed opacity-80" title="Belum tersedia">
+            Berlangganan Sekarang
+          </button>
+          <button class="w-full py-3 bg-surface text-primary border border-outline-variant rounded-lg font-bold hover:bg-surface-variant transition-colors cursor-pointer" onclick="closeModal('modal-premium'); navigateTo('form');">
+            Coba Simulasi Form (Dev Mode)
+          </button>
+          <button class="w-full py-2 bg-transparent text-on-surface-variant text-sm font-medium hover:text-primary transition-colors cursor-pointer" onclick="closeModal('modal-premium')">
+            Nanti Saja
+          </button>
         </div>
       </div>
     </div>
