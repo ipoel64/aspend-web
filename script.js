@@ -148,6 +148,15 @@ async function initApp() {
     }
     
     // Tunggu profil dan GAPI selesai dimuat
+    await new Promise((resolve) => {
+      const check = setInterval(() => {
+        if (typeof gapi !== 'undefined' && gapi.client && gapi.client.drive) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    });
+    
     await loadUserProfile();
     await checkAdmin();
   } catch(err) {
