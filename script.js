@@ -956,8 +956,11 @@ function resetFilters() {
   document.getElementById('filter-jenis-rhk').value = '';
   document.getElementById('filter-rencana-aksi').innerHTML = '<option value="">Semua Rencana Aksi</option>';
   document.getElementById('filter-date').value = '';
-  if(document.getElementById('filter-month')) document.getElementById('filter-month').value = '';
-  
+  document.getElementById('filter-date').type = 'text';
+  if(document.getElementById('filter-month')) {
+    document.getElementById('filter-month').value = '';
+    document.getElementById('filter-month').type = 'text';
+  }
   state.searchTerm = '';
   state.filterJenis = '';
   state.filterRencanaAksi = '';

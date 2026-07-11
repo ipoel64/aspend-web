@@ -359,8 +359,8 @@
               <select class="w-[160px] md:w-[250px] lg:w-[280px] shrink-0 truncate px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-rencana-aksi" onchange="onFilterChange(event)" title="Filter Rencana Aksi">
                 <option value="">Semua Rencana Aksi</option>
               </select>
-              <input type="month" class="shrink-0 px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-month" onchange="onFilterChange(event)" title="Filter Bulan">
-              <input type="date" class="shrink-0 px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-date" onchange="onFilterChange(event)" title="Filter Tanggal Spesifik">
+              <input type="text" class="shrink-0 w-[130px] px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-month" onfocus="(this.type='month')" onblur="(this.type=this.value?'month':'text')" onchange="onFilterChange(event)" title="Filter Bulan" placeholder="Semua Bulan">
+              <input type="text" class="shrink-0 w-[130px] px-2.5 py-1.5 border border-outline-variant rounded-md text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none bg-white" id="filter-date" onfocus="(this.type='date')" onblur="(this.type=this.value?'date':'text')" onchange="onFilterChange(event)" title="Filter Tanggal Spesifik" placeholder="Semua Tanggal">
               <button class="shrink-0 ml-auto px-3 py-1.5 border border-rose-200 bg-rose-50 text-rose-600 rounded-md hover:bg-rose-100 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer shadow-sm" onclick="resetFilters()">
                 <span class="material-symbols-outlined text-[14px]">refresh</span>
                 Reset
@@ -1358,6 +1358,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294467"></script>
+  <script src="script.js?v=1783294468"></script>
 </body>
 </html>
