@@ -233,10 +233,24 @@ async function fetchDashboardDataClient(spreadsheetId, userEmail, options = {}) 
     
     // Kalkulasi Statistik Keseluruhan (Sebelum Filter)
     const currentMonth = new Date().toISOString().substring(0, 7);
-    const monthCount = reports.filter(r => r.Tanggal && r.Tanggal.startsWith(currentMonth)).length;
+    const reportsThisMonth = reports.filter(r => r.Tanggal && r.Tanggal.startsWith(currentMonth));
+    const monthCount = reportsThisMonth.length;
+    
+    // RHK Breakdown untuk bulan ini
+    const rhkBreakdown = {};
+    reportsThisMonth.forEach(r => {
+      let id = r.IdRHK || r.JenisRHK || '';
+      let angka = id.replace(/\D/g, '') || '?';
+      let key = 'RHK-' + angka;
+      if (key !== 'RHK-?') {
+        rhkBreakdown[key] = (rhkBreakdown[key] || 0) + 1;
+      }
+    });
+
     const stats = {
       total: reports.length,
       month: monthCount,
+      rhkBreakdown: rhkBreakdown,
       pending: reports.filter(r => (r.Status || '').toLowerCase() === 'draft').length,
       done: reports.filter(r => (r.Status || '').toLowerCase() !== 'draft').length
     };

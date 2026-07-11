@@ -333,14 +333,18 @@
               </div>
               
               <!-- Card Bulan Ini -->
-              <div class="bg-surface-container-lowest shadow-sm border border-surface-variant rounded-xl p-3 flex items-center gap-3 min-w-[150px] flex-shrink-0">
-                <div class="p-2 bg-secondary/15 rounded-lg text-secondary flex-shrink-0">
-                  <span class="material-symbols-outlined text-xl">calendar_today</span>
+              <div class="bg-surface-container-lowest shadow-sm border border-surface-variant rounded-xl p-3 flex flex-col justify-center min-w-[150px] flex-shrink-0 flex-grow relative overflow-hidden group">
+                <div class="flex items-center gap-3 w-full">
+                  <div class="p-2 bg-secondary/15 rounded-lg text-secondary flex-shrink-0">
+                    <span class="material-symbols-outlined text-xl">calendar_today</span>
+                  </div>
+                  <div>
+                    <span class="text-on-surface-variant font-label-sm text-[10px] uppercase block mb-0.5 font-bold">Bulan Ini</span>
+                    <div class="font-headline-md text-headline-md text-on-surface font-black leading-none" id="dash-stat-month">0</div>
+                  </div>
                 </div>
-                <div>
-                  <span class="text-on-surface-variant font-label-sm text-[10px] uppercase block mb-0.5 font-bold">Bulan Ini</span>
-                  <div class="font-headline-md text-headline-md text-on-surface font-black leading-none" id="dash-stat-month">0</div>
-                </div>
+                <!-- Breakdown Container -->
+                <div id="dash-rhk-breakdown" class="flex flex-wrap gap-1 mt-2 w-full"></div>
               </div>
             </div>
           </div>
@@ -1361,6 +1365,7 @@
     </div>
   </div>
 
-  <script src="script.js?v=1783294469"></script>
+  <script src="client_services.js?v=1783294470"></script>
+  <script src="script.js?v=1783294470"></script>
 </body>
 </html>
