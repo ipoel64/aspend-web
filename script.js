@@ -1252,10 +1252,6 @@ async function saveAndRegeneratePDF() {
   if (document.getElementById('edit-tanggal')) editTanggal = document.getElementById('edit-tanggal').value;
   var editWaktu = '';
   if (document.getElementById('edit-waktu')) editWaktu = document.getElementById('edit-waktu').value;
-  var editJenisRhk = '';
-  if (document.getElementById('edit-jenis-rhk')) editJenisRhk = document.getElementById('edit-jenis-rhk').value;
-  var editRencanaAksi = '';
-  if (document.getElementById('edit-rencana-aksi')) editRencanaAksi = document.getElementById('edit-rencana-aksi').value;
   
   showLoading('Menyiapkan pembaruan data...');
   
@@ -1284,8 +1280,6 @@ async function saveAndRegeneratePDF() {
     let newData = {
       tanggal: editTanggal,
       pukul: editWaktu,
-      jenisRHK: editJenisRhk,
-      rencanaAksi: editRencanaAksi,
       narasiEdited: narrativeText,
       fotoIds: newFotoId
     };
@@ -1296,8 +1290,6 @@ async function saveAndRegeneratePDF() {
     // Perbarui data secara lokal agar PDF engine memakai teks baru
     if (editTanggal) report.Tanggal = editTanggal;
     if (editWaktu) report.Pukul = editWaktu;
-    if (editJenisRhk) report.JenisRHK = editJenisRhk;
-    if (editRencanaAksi) report.RencanaAksi = editRencanaAksi;
     report.NarasiEdited = narrativeText;
     report.FotoIds = newFotoId;
     report.Status = 'Selesai';
@@ -1366,20 +1358,7 @@ function editReportDraft(reportId) {
   
   if (document.getElementById('edit-waktu')) document.getElementById('edit-waktu').value = r.Pukul || '';
   
-  if (document.getElementById('edit-jenis-rhk')) {
-    let sel = document.getElementById('edit-jenis-rhk');
-    let val = r.JenisRHK || 'Kegiatan Kelompok (P2K2/FDS)';
-    let exists = Array.from(sel.options).some(opt => opt.value === val);
-    if (!exists) {
-      let newOpt = document.createElement('option');
-      newOpt.value = val;
-      newOpt.text = val;
-      sel.appendChild(newOpt);
-    }
-    sel.value = val;
-  }
-  
-  if (document.getElementById('edit-rencana-aksi')) document.getElementById('edit-rencana-aksi').value = r.RencanaAksi || '';
+
   
   // Clear image upload field
   if (document.getElementById('edit-foto')) document.getElementById('edit-foto').value = '';
