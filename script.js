@@ -600,8 +600,14 @@ function renderDashboardTable() {
       if (Array.isArray(photos) && photos.length > 0) {
         let thumbUrl = `https://drive.google.com/thumbnail?id=${photos[0]}&sz=w400`;
         let fullUrl = `https://drive.google.com/uc?id=${photos[0]}&export=view`;
-        // Foto dibuat agak besar (w-16 h-16)
-        photoHtml = `<img src="${thumbUrl}" class="rounded border border-surface-variant" style="width: 80px; height: 56px; object-fit: cover; flex-shrink: 0;" alt="Foto" onerror="this.src='${fullUrl}'; this.onerror=null;">`;
+        photoHtml = `
+          <div class="relative group w-[80px] h-[56px] mx-auto rounded border border-surface-variant overflow-hidden">
+            <img src="${thumbUrl}" class="w-full h-full object-cover" alt="Foto" onerror="this.src='${fullUrl}'; this.onerror=null;">
+            <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="material-symbols-outlined text-white text-[20px]">zoom_in</span>
+            </div>
+          </div>
+        `;
       } else {
         photoHtml = `<div class="rounded bg-surface flex items-center justify-center text-on-surface-variant/30 border border-surface-variant" style="width: 80px; height: 56px; flex-shrink: 0;"><span class="material-symbols-outlined text-[18px]">hide_image</span></div>`;
       }
