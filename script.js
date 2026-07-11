@@ -293,7 +293,7 @@ async function loadUserProfile() {
       console.warn("Gagal mengambil foto profil Aspend dari Drive", err);
     }
 
-    const profile = {
+    let profile = {
        email: email,
        nama: localStorage.getItem('aspend_nama') || email.split('@')[0], 
        jabatan: localStorage.getItem('aspend_jabatan') || 'Pendamping PKH',
@@ -301,6 +301,23 @@ async function loadUserProfile() {
        kabupaten: localStorage.getItem('aspend_kabupaten') || '',
        picture: picture
     };
+    
+    try {
+      // Sync from Google Sheets "Database"
+      console.log("Fetching user profile from Google Sheets...");
+      const sheetProfile = await fetchUserProfileClient(ASP_SPREADSHEET_ID, email);
+      if (sheetProfile) {
+        console.log("Profile sync success:", sheetProfile);
+        profile = { ...profile, ...sheetProfile };
+        // Save to localStorage so it persists
+        localStorage.setItem('aspend_nama', profile.nama);
+        localStorage.setItem('aspend_jabatan', profile.jabatan);
+        localStorage.setItem('aspend_nip', profile.nip);
+        localStorage.setItem('aspend_kabupaten', profile.kabupaten);
+      }
+    } catch (e) {
+      console.warn("Failed to sync profile from Google Sheets", e);
+    }
     
     state.user = profile;
     var initials = getInitials(profile.nama || profile.email || '');

@@ -143,9 +143,39 @@ if (typeof gapi !== 'undefined') {
 
 /**
  * ============================================
+ * ============================================
  * FUNGSI DASHBOARD & LAPORAN
  * ============================================
  */
+
+/**
+ * Mengambil profil dari Sheet Database
+ */
+async function fetchUserProfileClient(spreadsheetId, userEmail) {
+  try {
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: spreadsheetId,
+      range: 'Database!A2:P'
+    });
+    
+    const rows = response.result.values || [];
+    for (const row of rows) {
+      if (row[2] && row[2].toString().trim().toLowerCase() === userEmail.toLowerCase()) {
+        return {
+          nama: row[0] || '',
+          email: row[2] || '',
+          kabupaten: row[3] || '',
+          jabatan: row[6] || '',
+          nip: row[15] || ''
+        };
+      }
+    }
+    return null; // Not found
+  } catch (err) {
+    console.error("Error fetching user profile:", err);
+    return null;
+  }
+}
 
 /**
  * Mengambil rekap statistik dan daftar laporan RHK
