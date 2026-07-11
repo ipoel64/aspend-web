@@ -1365,12 +1365,40 @@ function editReportDraft(reportId) {
   }
   
   if (document.getElementById('edit-waktu')) document.getElementById('edit-waktu').value = r.Pukul || '';
-  if (document.getElementById('edit-jenis-rhk')) document.getElementById('edit-jenis-rhk').value = r.JenisRHK || 'Kegiatan Kelompok (P2K2/FDS)';
+  
+  if (document.getElementById('edit-jenis-rhk')) {
+    let sel = document.getElementById('edit-jenis-rhk');
+    let val = r.JenisRHK || 'Kegiatan Kelompok (P2K2/FDS)';
+    let exists = Array.from(sel.options).some(opt => opt.value === val);
+    if (!exists) {
+      let newOpt = document.createElement('option');
+      newOpt.value = val;
+      newOpt.text = val;
+      sel.appendChild(newOpt);
+    }
+    sel.value = val;
+  }
+  
   if (document.getElementById('edit-rencana-aksi')) document.getElementById('edit-rencana-aksi').value = r.RencanaAksi || '';
   
-  // Clear image upload field and preview
+  // Clear image upload field
   if (document.getElementById('edit-foto')) document.getElementById('edit-foto').value = '';
-  if (document.getElementById('edit-foto-preview')) document.getElementById('edit-foto-preview').classList.add('hidden');
+  
+  // Show existing photo if any
+  let previewDiv = document.getElementById('edit-foto-preview');
+  let previewImg = document.getElementById('edit-foto-img');
+  if (previewDiv && previewImg) {
+    let photos = r.FotoIds;
+    if (typeof photos === 'string') {
+      try { photos = JSON.parse(photos); } catch(e) { photos = [photos]; }
+    }
+    if (Array.isArray(photos) && photos.length > 0 && photos[0] && photos[0].length > 5) {
+      previewImg.src = `https://drive.google.com/thumbnail?id=${photos[0]}&sz=w400`;
+      previewDiv.classList.remove('hidden');
+    } else {
+      previewDiv.classList.add('hidden');
+    }
+  }
   
   // Store the photo base64 locally if they pick one
   window.editModalTempPhoto = null;
