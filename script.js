@@ -1247,20 +1247,59 @@ async function saveAndRegeneratePDF() {
     return;
   }
   
-  showLoading('Menyimpan ke Database & Merakit ulang PDF...');
+  // Ambil Data Utama Baru
+  var editTanggal = '';
+  if (document.getElementById('edit-tanggal')) editTanggal = document.getElementById('edit-tanggal').value;
+  var editWaktu = '';
+  if (document.getElementById('edit-waktu')) editWaktu = document.getElementById('edit-waktu').value;
+  var editJenisRhk = '';
+  if (document.getElementById('edit-jenis-rhk')) editJenisRhk = document.getElementById('edit-jenis-rhk').value;
+  var editRencanaAksi = '';
+  if (document.getElementById('edit-rencana-aksi')) editRencanaAksi = document.getElementById('edit-rencana-aksi').value;
+  
+  showLoading('Menyiapkan pembaruan data...');
   
   try {
     let ssId = localStorage.getItem('aspend_spreadsheetId');
     if (!ssId) throw new Error("Spreadsheet ID belum siap.");
     
-    // 1. Simpan narasi ke Google Sheet
-    await saveEditedNarrativeClient(ssId, state.currentReportId, narrativeText);
-    
-    // Ambil data report terbaru dari memori, dan perbarui narasinya secara lokal agar PDF engine memakai teks baru
+    // Ambil report dari memori lokal
     let report = state.reports.find(r => String(r.ReportId) === String(state.currentReportId));
     if (!report) throw new Error("Data laporan menghilang dari memori.");
     
+    let newFotoId = report.FotoIds;
+    
+    // Jika ada foto baru yang diunggah
+    if (window.editModalTempPhoto) {
+      showLoading('Mengunggah Foto Bukti Dukung ke Google Drive...');
+      let base64Data = window.editModalTempPhoto.split(',')[1];
+      let uploadedId = await uploadImageToDriveClient(base64Data, 'Foto_' + report.ReportId + '_Edit.jpg');
+      if (uploadedId) {
+        newFotoId = uploadedId;
+      }
+    }
+    
+    showLoading('Menyimpan Perubahan ke Google Sheets...');
+    
+    let newData = {
+      tanggal: editTanggal,
+      pukul: editWaktu,
+      jenisRHK: editJenisRhk,
+      rencanaAksi: editRencanaAksi,
+      narasiEdited: narrativeText,
+      fotoIds: newFotoId
+    };
+    
+    // 1. Simpan ke Google Sheet
+    await saveEditedReportClient(ssId, state.currentReportId, newData);
+    
+    // Perbarui data secara lokal agar PDF engine memakai teks baru
+    if (editTanggal) report.Tanggal = editTanggal;
+    if (editWaktu) report.Pukul = editWaktu;
+    if (editJenisRhk) report.JenisRHK = editJenisRhk;
+    if (editRencanaAksi) report.RencanaAksi = editRencanaAksi;
     report.NarasiEdited = narrativeText;
+    report.FotoIds = newFotoId;
     report.Status = 'Selesai';
     
     // 2. Rakit PDF dalam bentuk Blob rahasia
@@ -1268,7 +1307,7 @@ async function saveAndRegeneratePDF() {
         throw new Error("Laporan ini belum memiliki file PDF asli di Google Drive untuk ditimpa. Buat PDF dari HP terlebih dahulu.");
     }
     
-    showLoading('Mencetak PDF & Mengunggah ke Google Drive...');
+    showLoading('Mencetak ulang PDF & Mengunggah ke Google Drive...');
     const pdfBlob = await generateClientPDF(report, state.user, false, 'blob');
     
     // 3. Timpa PDF lama di Google Drive
@@ -1276,9 +1315,9 @@ async function saveAndRegeneratePDF() {
     
     hideLoading();
     closeModal('modal-edit-narasi');
-    showToast('Sukses! Narasi tersimpan dan file PDF asli di Drive telah diperbarui.', 'success');
+    showToast('Sukses! Data laporan tersimpan dan file PDF asli di Drive telah diperbarui.', 'success');
     
-    // 4. Perbarui pratinjau secara instan (ini akan memicu ulang renderDashboardTable)
+    // 4. Perbarui pratinjau secara instan
     previewPdf(state.currentReportId);
     
   } catch(err) {
@@ -1288,7 +1327,7 @@ async function saveAndRegeneratePDF() {
     if (err && err.result && err.result.error) {
       errorMsg = err.result.error.message;
     }
-    showToast('Gagal memproses pembaruan PDF: ' + errorMsg, 'error');
+    showToast('Gagal memproses pembaruan: ' + errorMsg, 'error');
   }
 }
 
@@ -1311,6 +1350,30 @@ function editReportDraft(reportId) {
   if (textarea) {
     textarea.value = text;
   }
+  
+  // Populate Data Utama (Baru)
+  if (document.getElementById('edit-tanggal')) {
+    // Format tanggal untuk input type="date" yyyy-mm-dd
+    let d = new Date(r.Tanggal);
+    if (!isNaN(d.getTime())) {
+      let month = (d.getMonth() + 1).toString().padStart(2, '0');
+      let day = d.getDate().toString().padStart(2, '0');
+      document.getElementById('edit-tanggal').value = `${d.getFullYear()}-${month}-${day}`;
+    } else {
+      document.getElementById('edit-tanggal').value = '';
+    }
+  }
+  
+  if (document.getElementById('edit-waktu')) document.getElementById('edit-waktu').value = r.Pukul || '';
+  if (document.getElementById('edit-jenis-rhk')) document.getElementById('edit-jenis-rhk').value = r.JenisRHK || 'Kegiatan Kelompok (P2K2/FDS)';
+  if (document.getElementById('edit-rencana-aksi')) document.getElementById('edit-rencana-aksi').value = r.RencanaAksi || '';
+  
+  // Clear image upload field and preview
+  if (document.getElementById('edit-foto')) document.getElementById('edit-foto').value = '';
+  if (document.getElementById('edit-foto-preview')) document.getElementById('edit-foto-preview').classList.add('hidden');
+  
+  // Store the photo base64 locally if they pick one
+  window.editModalTempPhoto = null;
   
   // Buka jendela popup baru
   openModal('modal-edit-narasi');
@@ -2466,6 +2529,27 @@ function initAlarmSystem() {
 // Inisialisasi saat aplikasi dimuat
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initAlarmSystem, 5000);
+  
+  // Event listener for edit-foto in edit modal
+  const editFotoInput = document.getElementById('edit-foto');
+  if (editFotoInput) {
+    editFotoInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        window.editModalTempPhoto = evt.target.result;
+        const previewDiv = document.getElementById('edit-foto-preview');
+        const previewImg = document.getElementById('edit-foto-img');
+        if (previewDiv && previewImg) {
+          previewImg.src = window.editModalTempPhoto;
+          previewDiv.classList.remove('hidden');
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 });
 
 

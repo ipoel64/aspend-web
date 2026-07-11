@@ -488,9 +488,9 @@ Data Kegiatan:
 }
 
 /**
- * Menyimpan narasi akhir yang telah diedit manual ke Google Sheets (Client-side)
+ * Menyimpan laporan yang telah diedit manual ke Google Sheets (Client-side)
  */
-async function saveEditedNarrativeClient(spreadsheetId, reportId, editedText) {
+async function saveEditedReportClient(spreadsheetId, reportId, newData) {
   try {
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: spreadsheetId,
@@ -500,12 +500,25 @@ async function saveEditedNarrativeClient(spreadsheetId, reportId, editedText) {
     const rowIndex = rows.findIndex(r => r[0] === reportId) + 1;
     
     if (rowIndex > 0) {
-      // Simpan narasiEdited (Kolom I) dan Status "Selesai" (Kolom J)
+      const existingRow = rows[rowIndex - 1];
+      // Pastikan array memiliki panjang minimal 15 (sampai kolom O)
+      while (existingRow.length < 15) existingRow.push('');
+      
+      existingRow[1] = newData.tanggal || existingRow[1];
+      existingRow[2] = newData.jenisRHK || existingRow[2];
+      existingRow[4] = newData.rencanaAksi || existingRow[4];
+      existingRow[5] = newData.pukul || existingRow[5];
+      existingRow[8] = newData.narasiEdited || existingRow[8];
+      existingRow[9] = 'Selesai';
+      if (newData.fotoIds) {
+        existingRow[11] = newData.fotoIds;
+      }
+      
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: spreadsheetId,
-        range: `Laporan_Log!I${rowIndex}:J${rowIndex}`,
+        range: `Laporan_Log!A${rowIndex}:O${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
-        resource: { values: [[editedText, 'Selesai']] }
+        resource: { values: [existingRow] }
       });
       return true;
     }
