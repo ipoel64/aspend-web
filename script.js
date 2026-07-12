@@ -247,8 +247,11 @@ async function loadUserProfile() {
     await initGoogleApiClient();
     
     // 2. Cari atau buat Spreadsheet di Google Drive
-    const spreadsheetId = await locateOrCreateSpreadsheet();
-    localStorage.setItem('aspend_spreadsheetId', spreadsheetId);
+    let spreadsheetId = localStorage.getItem('aspend_spreadsheetId');
+    if (!spreadsheetId) {
+      spreadsheetId = await locateOrCreateSpreadsheet();
+      localStorage.setItem('aspend_spreadsheetId', spreadsheetId);
+    }
     state.spreadsheetId = spreadsheetId;
     
     // 3. Muat profil dasar dari Token Google (GSI)
