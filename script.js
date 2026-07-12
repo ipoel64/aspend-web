@@ -3048,10 +3048,10 @@ function loadPremiumUsers() {
         let dateStr = dateObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
         html += `
           <tr class="hover:bg-surface-variant/20 transition-colors group">
-            <td class="p-3 font-medium">\${user.email}</td>
-            <td class="p-3 text-on-surface-variant">\${dateStr}</td>
+            <td class="p-3 font-medium">${user.email}</td>
+            <td class="p-3 text-on-surface-variant">${dateStr}</td>
             <td class="p-3 text-right">
-              <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error/10 cursor-pointer opacity-0 group-hover:opacity-100" onclick="handleRemovePremiumUser('\${user.email}')" title="Cabut Akses">
+              <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error/10 cursor-pointer opacity-0 group-hover:opacity-100" onclick="handleRemovePremiumUser('${user.email}')" title="Cabut Akses">
                 <span class="material-symbols-outlined text-[20px]">delete</span>
               </button>
             </td>
@@ -3060,7 +3060,7 @@ function loadPremiumUsers() {
       });
       tbody.innerHTML = html;
     } else {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal memuat: \${res.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal memuat: ${res.message}</td></tr>`;
       showToast(res.message, 'error');
     }
   }, function(err) {
