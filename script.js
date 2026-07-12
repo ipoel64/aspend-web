@@ -355,6 +355,15 @@ async function loadUserProfile() {
     }
   } catch(err) {
     console.error("Profile Load Error:", err);
+    if (err && err.message === "ASPEND_DATABASE_NOT_FOUND") {
+      document.getElementById('modal-app-required').classList.remove('hidden');
+      document.getElementById('modal-app-required').classList.add('flex');
+      // Sembunyikan loading screen agar modal terlihat
+      const initLoad = document.getElementById('initial-loading');
+      if (initLoad) initLoad.classList.add('hidden');
+      return; // Stop execution
+    }
+    
     let errorMsg = err.message || "Unknown error";
     if (err.result && err.result.error) {
        errorMsg = err.result.error.message;
@@ -2492,10 +2501,12 @@ async function checkPremiumFeature(featureId) {
   if (featureId === 'create_rhk') {
     showLoading('Memeriksa status langganan...');
     try {
-      const isPremium = await Promise.race([
-        checkPremiumStatusClient(state.spreadsheetId, state.clientEmail),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Koneksi lambat saat memeriksa status langganan. Silakan coba lagi.')), 10000))
-      ]);
+      // Menggunakan mode manual dari Pengaturan atau Admin (Sesuai instruksi)
+      // Tidak lagi mengecek via checkPremiumStatusClient
+      const isPremium = localStorage.getItem('aspend_is_premium') === 'true';
+      
+      // Simulasi delay kecil
+      await new Promise(resolve => setTimeout(resolve, 500));
       hideLoading();
       
       if (isPremium) {

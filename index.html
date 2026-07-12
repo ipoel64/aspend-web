@@ -29,7 +29,7 @@
   <script src="logo_data.js?v=1783294481"></script>
   <script src="pdf_engine.js?v=1783294481"></script>
   
-  <script src="client_services.js?v=1783294485"></script>
+  <script src="client_services.js?v=1783294486"></script>
   
   <!-- Tailwind Config -->
   <script id="tailwind-config">
@@ -1497,6 +1497,29 @@
       </div>
       <img id="lightbox-image" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain opacity-0 transition-opacity duration-300 z-10" alt="Pratinjau Foto" onload="this.classList.remove('opacity-0'); document.getElementById('lightbox-loading').classList.add('hidden')" onerror="this.removeAttribute('src'); document.getElementById('lightbox-loading').classList.add('hidden')">
     </div>
-  <script src="script.js?v=1783294497"></script>
+    
+    <!-- Modal Redirection ASPEND Mobile -->
+    <div id="modal-app-required" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl relative z-10 overflow-hidden flex flex-col animate-fade-in-up">
+        <div class="p-6 text-center">
+          <span class="material-symbols-outlined text-[64px] text-error mb-4">error</span>
+          <h3 class="font-title-lg font-bold text-on-surface mb-2">Akses Ditolak</h3>
+          <p class="text-body-md text-on-surface-variant mb-6">
+            Sistem tidak menemukan Database ASPEND di akun Google Anda. 
+            <br><br>
+            <b>Penting:</b> Anda wajib menginstal dan login minimal satu kali di <b>ASPEND Mobile</b> melalui HP Anda terlebih dahulu untuk menginisialisasi folder dan database Anda. Ini bertujuan mencegah duplikasi data ganda di Google Drive Anda.
+          </p>
+          <a href="https://play.google.com/store/apps/details?id=com.aspend.mobile" target="_blank" class="w-full flex items-center justify-center gap-2 py-3 bg-primary text-white font-bold rounded-xl text-sm hover:bg-primary/90 transition-all cursor-pointer mb-3">
+            <span class="material-symbols-outlined text-[20px]">shop</span>
+            Buka Play Store (ASPEND Mobile)
+          </a>
+          <button class="w-full flex items-center justify-center gap-2 py-3 bg-surface-variant text-on-surface font-bold rounded-xl text-sm hover:bg-surface-variant/80 transition-all cursor-pointer" onclick="handleLogout()">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+            Keluar Akun
+          </button>
+        </div>
+      </div>
+  <script src="script.js?v=1783294499"></script>
 </body>
 </html>

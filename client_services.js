@@ -121,33 +121,8 @@ async function locateOrCreateSpreadsheet() {
       console.log('Spreadsheet ditemukan:', files[0].id);
       return files[0].id;
     } else {
-      console.log('Spreadsheet tidak ditemukan. Membuat baru...');
-      // Logika pembuatan sheet akan dipanggil ke Sheets API
-      const createRes = await gapi.client.sheets.spreadsheets.create({
-        properties: { title: 'Aspend Database' }
-      });
-      const ssId = createRes.result.spreadsheetId;
-      const defaultSheetId = createRes.result.sheets[0].properties.sheetId;
-      
-      // Inisialisasi tab yang dibutuhkan
-      const requests = [
-        {
-          updateSheetProperties: {
-            properties: { sheetId: defaultSheetId, title: 'Laporan_Log' },
-            fields: 'title'
-          }
-        },
-        { addSheet: { properties: { title: 'Profile' } } },
-        { addSheet: { properties: { title: 'Master' } } },
-        { addSheet: { properties: { title: 'Premium' } } }
-      ];
-      
-      await gapi.client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: ssId,
-        resource: { requests: requests }
-      });
-      
-      return ssId;
+      console.warn('Spreadsheet tidak ditemukan. Membatalkan inisialisasi.');
+      throw new Error("ASPEND_DATABASE_NOT_FOUND");
     }
   } catch (err) {
     console.error('Error mencari spreadsheet:', err);
