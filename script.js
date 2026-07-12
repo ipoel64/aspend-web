@@ -1895,6 +1895,9 @@ function deleteNotaDinasLog(id) {
 // ==============================================================
 function loadProfileSettings() {
   document.getElementById('input-email').value = state.user.email || '';
+  var infoEmail = document.getElementById('info-email');
+  if(infoEmail) infoEmail.textContent = state.user.email || 'Belum login';
+  
   document.getElementById('input-nama').value = state.user.nama || '';
   document.getElementById('input-nip').value = state.user.nip || '';
   document.getElementById('input-jabatan').value = state.user.jabatan || 'Pendamping PKH';
