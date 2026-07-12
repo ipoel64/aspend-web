@@ -1944,17 +1944,18 @@ function loadProfileSettings() {
   }
   
   // AI Settings
-  let savedModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-flash-1.5';
-  let modelSelect = document.getElementById('select-ai-provider');
+  let savedModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-1.5-flash';
+  let modelSelect = document.getElementById('select-ai-provider'); // Ini sebenarnya input model
   if(modelSelect) modelSelect.value = savedModel;
   
-  // Premium Status
-  let isPremium = localStorage.getItem('aspend_is_premium') === 'true';
-  let premToggle = document.getElementById('toggle-premium');
-  if(premToggle) {
-    premToggle.checked = isPremium;
-    togglePremiumStatus({target: {checked: isPremium}});
-  }
+  let savedKey = localStorage.getItem('aspend_api_key_openrouter') || '';
+  let keyInput = document.getElementById('input-key-openrouter');
+  if(keyInput) keyInput.value = savedKey;
+  
+  // Set dark mode toggle
+  let isDarkMode = document.documentElement.classList.contains('dark');
+  let darkToggle = document.getElementById('toggle-dark-mode');
+  if (darkToggle) darkToggle.checked = isDarkMode;
 }
 
 function handleProfilePhotoUpload(event) {
@@ -2005,48 +2006,24 @@ function handleSignatureUpload(event) {
 
 
 function saveSettings() {
-  var prov = document.getElementById('select-ai-provider').value;
-  var model = document.getElementById('input-ai-model').value.trim();
+  var model = document.getElementById('select-ai-provider').value;
   var openrouter = document.getElementById('input-key-openrouter').value.trim();
-  var google = document.getElementById('input-key-google').value.trim();
-  var groq = document.getElementById('input-key-groq').value.trim();
-  
-  var nama = document.getElementById('input-nama').value.trim();
-  var nip = document.getElementById('input-nip').value.trim();
-  var jabatan = document.getElementById('input-jabatan').value.trim();
-  var kabupaten = document.getElementById('input-kabupaten').value.trim();
-  
-  state.user.nama = nama;
-  state.user.nip = nip;
-  state.user.jabatan = jabatan;
-  state.user.kabupaten = kabupaten;
+  var prov = 'openrouter'; // Fixed to openrouter
   
   state.aiProvider = prov;
   state.aiModel = model;
   state.aiKeys.openrouter = openrouter;
-  state.aiKeys.google = google;
-  state.aiKeys.groq = groq;
-  
-  // Karena ini client-side, simpan saja langsung di localStorage!
-  localStorage.setItem('aspend_nama', nama);
-  localStorage.setItem('aspend_nip', nip);
-  localStorage.setItem('aspend_jabatan', jabatan);
-  localStorage.setItem('aspend_kabupaten', kabupaten);
   
   localStorage.setItem('aspend_aiProvider', prov);
   localStorage.setItem('aspend_aiModel', model);
   localStorage.setItem('aspend_aiKeys', JSON.stringify(state.aiKeys));
+  localStorage.setItem('aspend_api_key_openrouter', openrouter);
   
   // Save AI Config to Google Sheets (Config Tab)
   if (state.spreadsheetId) {
-    let apiKey = '';
-    if (prov === 'openrouter') apiKey = openrouter;
-    else if (prov === 'google') apiKey = google;
-    else if (prov === 'groq') apiKey = groq;
-    
     saveConfigClient(state.spreadsheetId, {
       provider: prov,
-      apiKey: apiKey,
+      apiKey: openrouter,
       model: model
     }).then(success => {
        if(success) console.log("AI Config saved to Google Sheets");
@@ -2599,13 +2576,14 @@ function showAdModal(onCloseCallback) {
 }
 
 
-function togglePremiumStatus(event) {
-  let isPremium = event.target.checked;
-  localStorage.setItem('aspend_is_premium', isPremium);
-  let statusText = document.getElementById('premium-status-text');
-  if(statusText) {
-    statusText.textContent = isPremium ? 'Aktif (Premium)' : 'Tidak Aktif (Gratis)';
-    statusText.className = isPremium ? 'text-xs text-primary font-bold' : 'text-xs text-on-surface-variant';
+function toggleDarkMode(event) {
+  let isDark = event.target.checked;
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('aspend_theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('aspend_theme', 'light');
   }
 }
 

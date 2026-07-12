@@ -990,7 +990,7 @@
              ═══════════════════════════════════════════════ -->
         <section class="page hidden" id="page-settings">
           <div class="mb-stack_lg">
-            <h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Pengaturan &amp; AI</h2>
+            <h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Informasi Pengaturan dan Profil Pengguna</h2>
             <p class="font-body-md text-body-md text-on-surface-variant">Kelola profil pengguna, tanda tangan digital, dan konfigurasi diagnostik AI.</p>
           </div>
 
@@ -1006,49 +1006,41 @@
                 </h3>
                 
                 <!-- Keep photo upload but minimal -->
-                <div class="flex flex-col items-center mb-6">
-                  <div class="relative group cursor-pointer" onclick="document.getElementById('profile-photo-input').click()">
+                <div class="flex flex-col items-center mb-6 opacity-80">
+                  <div class="relative">
                     <div class="w-24 h-24 rounded-full overflow-hidden border-2 border-surface-container-high shadow-sm mb-2 bg-surface flex items-center justify-center text-primary font-bold text-2xl" id="profile-photo-preview">
                       <span id="profile-initials">—</span>
                     </div>
-                    <div class="absolute inset-0 bg-primary-container/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 mb-2">
-                      <span class="material-symbols-outlined text-on-primary">photo_camera</span>
-                    </div>
-                    <input type="file" id="profile-photo-input" accept="image/*" class="hidden" onchange="handleProfilePhotoUpload(event)">
                   </div>
-                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Ubah Foto Profil</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Disinkronkan dari Mobile</span>
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-4 opacity-80 pointer-events-none">
                   <!-- Floating labels with icons as seen in screenshot -->
                   <div class="relative border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center p-3">
                     <span class="absolute -top-2.5 left-4 bg-white px-1 text-[10px] text-on-surface-variant">Nama Lengkap</span>
                     <span class="material-symbols-outlined text-primary/70 mr-3 text-[20px]">person</span>
-                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-nama" placeholder="Belum disetel">
+                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-nama" placeholder="Belum disetel" disabled readonly>
                   </div>
                   
                   <div class="relative border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center p-3">
                     <span class="absolute -top-2.5 left-4 bg-white px-1 text-[10px] text-on-surface-variant">NIP</span>
                     <span class="material-symbols-outlined text-primary/70 mr-3 text-[20px]">badge</span>
-                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-nip" placeholder="Belum disetel">
+                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-nip" placeholder="Belum disetel" disabled readonly>
                   </div>
                   
                   <div class="relative border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center p-3">
                     <span class="absolute -top-2.5 left-4 bg-white px-1 text-[10px] text-on-surface-variant">Jabatan</span>
                     <span class="material-symbols-outlined text-primary/70 mr-3 text-[20px]">work</span>
-                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-jabatan" placeholder="Belum disetel">
+                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-jabatan" placeholder="Belum disetel" disabled readonly>
                   </div>
                   
                   <div class="relative border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center p-3">
                     <span class="absolute -top-2.5 left-4 bg-white px-1 text-[10px] text-on-surface-variant">Kabupaten/Kota</span>
                     <span class="material-symbols-outlined text-primary/70 mr-3 text-[20px]">domain</span>
-                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-kabupaten" placeholder="Belum disetel">
+                    <input class="w-full bg-transparent outline-none text-on-surface text-sm font-medium" type="text" id="input-kabupaten" placeholder="Belum disetel" disabled readonly>
                   </div>
                 </div>
-                
-                <button class="w-full py-3.5 mt-6 bg-primary text-white font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer text-sm" onclick="saveSettings()">
-                  Simpan Profil
-                </button>
               </div>
 
               <!-- Tanda Tangan Digital -->
@@ -1115,7 +1107,7 @@
               </div>
 
               <!-- Aspend Premium -->
-              <div class="bg-[#1e466d] rounded-2xl shadow-sm p-5 flex items-center justify-between cursor-pointer hover:opacity-95 transition-opacity" onclick="document.getElementById('toggle-premium').click()">
+              <div class="bg-[#1e466d] rounded-2xl shadow-sm p-5 flex items-center justify-between cursor-pointer hover:opacity-95 transition-opacity" onclick="openModal('modal-premium')">
                 <div class="flex items-center gap-4">
                   <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white">
                     <span class="material-symbols-outlined">workspace_premium</span>
@@ -1126,8 +1118,7 @@
                   </div>
                 </div>
                 <span class="material-symbols-outlined text-white/70">chevron_right</span>
-                <!-- Hidden logic for premium toggle -->
-                <input type="checkbox" id="toggle-premium" class="hidden" onchange="togglePremiumStatus(event)">
+
               </div>
 
               <!-- Layanan Bantuan -->
@@ -1168,8 +1159,8 @@
                     <span class="font-bold text-sm text-on-surface">Mode Gelap</span>
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" class="sr-only peer" disabled title="Sedang dalam pengembangan">
-                    <div class="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-surface-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary opacity-50"></div>
+                    <input type="checkbox" id="toggle-dark-mode" class="sr-only peer" onchange="toggleDarkMode(event)">
+                    <div class="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-surface-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
               </div>
@@ -1520,6 +1511,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=1783294501"></script>
+  <script src="script.js?v=1783294502"></script>
 </body>
 </html>
