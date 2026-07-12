@@ -3052,17 +3052,25 @@ function loadPremiumUsers() {
       let html = '';
       res.data.forEach(user => {
         let expiryStr = '-';
+        let statusHtml = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold border border-green-200">Aktif</span>';
+        
         if (user.expiryDate && user.expiryDate !== '-') {
           let expObj = new Date(user.expiryDate);
+          let now = new Date();
           expiryStr = expObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+          
+          if (now > expObj) {
+            statusHtml = '<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold border border-red-200">Kedaluwarsa</span>';
+          }
         }
         let packageLabel = (user.packageType || 'Permanen').toUpperCase();
         
         html += `
           <tr class="hover:bg-surface-variant/20 transition-colors group">
             <td class="p-3 font-medium">${user.email}</td>
-            <td class="p-3 text-on-surface-variant">
+            <td class="p-3 text-on-surface-variant flex gap-2 items-center">
               <span class="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold border border-primary/20">${packageLabel}</span>
+              ${statusHtml}
             </td>
             <td class="p-3 text-on-surface-variant">${expiryStr}</td>
             <td class="p-3 text-right">
@@ -3198,4 +3206,23 @@ window.handlePremiumSettingsClick = function() {
   } else {
     openModal('modal-premium');
   }
+};
+
+window.updatePremiumPrice = function() {
+  const packageSelect = document.getElementById('input-premium-package');
+  const durationInput = document.getElementById('input-premium-duration');
+  const estimateDisplay = document.getElementById('premium-price-estimate');
+  
+  if (!packageSelect || !durationInput || !estimateDisplay) return;
+  
+  const packageType = packageSelect.value;
+  const duration = parseInt(durationInput.value) || 1;
+  let pricePerUnit = 10000;
+  
+  if (packageType === 'tahunan') {
+    pricePerUnit = 100000;
+  }
+  
+  const total = pricePerUnit * duration;
+  estimateDisplay.innerText = 'Rp ' + total.toLocaleString('id-ID');
 };
