@@ -124,7 +124,7 @@
     };
   </script>
   
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1783294503">
     <script>
       window.addEventListener('error', function(e) {
         if (e.message && e.message.includes('ResizeObserver loop completed with undelivered notifications')) {
@@ -991,13 +991,12 @@
         <section class="page hidden" id="page-settings">
           <div class="mb-stack_lg">
             <h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Informasi Pengaturan dan Profil Pengguna</h2>
-            <p class="font-body-md text-body-md text-on-surface-variant">Kelola profil pengguna, tanda tangan digital, dan konfigurasi diagnostik AI.</p>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
             
-            <!-- Left Side: Profil & Tanda Tangan -->
-            <div class="lg:col-span-5 flex flex-col gap-6">
+            <!-- Left Side -->
+            <div class="flex flex-col gap-6">
               
               <!-- Profil Pengguna -->
               <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
@@ -1049,30 +1048,71 @@
                   <span class="material-symbols-outlined text-[20px]">edit</span>
                   Tanda Tangan Digital
                 </h3>
-                <p class="text-[11px] text-on-surface-variant mb-4">Upload gambar tanda tangan (PNG/JPG, maks 1 MB)</p>
-                
-                <div class="border border-outline-variant rounded-xl bg-surface-container-lowest h-40 flex items-center justify-center mb-4 overflow-hidden relative" id="signature-preview">
+                <!-- Hidden file input and buttons removed as requested -->
+                <div class="border border-outline-variant rounded-xl bg-surface-container-lowest h-40 flex items-center justify-center mb-4 overflow-hidden relative opacity-80 pointer-events-none" id="signature-preview">
                   <span class="text-xs text-on-surface-variant italic">Belum ada tanda tangan</span>
                 </div>
+                <input type="file" id="input-signature" accept="image/png,image/jpeg" class="hidden" disabled>
+              </div>
+
+              <!-- Tampilan Aplikasi -->
+              <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
+                <h3 class="font-title-lg text-title-lg text-primary mb-2 font-bold flex items-center gap-2">
+                  <span class="material-symbols-outlined text-[20px]">palette</span>
+                  Tampilan Aplikasi
+                </h3>
+                <p class="text-xs text-on-surface-variant mb-6">Pilih tema terang atau gelap untuk kenyamanan mata Anda.</p>
                 
-                <input type="file" id="input-signature" accept="image/png,image/jpeg" class="hidden" onchange="handleSignatureUpload(event)">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[20px]">light_mode</span>
+                    <span class="font-bold text-sm text-on-surface">Mode Gelap</span>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggle-dark-mode" class="sr-only peer" onchange="toggleDarkMode(event)">
+                    <div class="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-surface-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Informasi Akun -->
+              <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
+                <h3 class="font-title-lg text-title-lg text-primary mb-4 font-bold">
+                  Informasi Akun
+                </h3>
                 
-                <div class="flex gap-3">
-                  <button class="flex-1 py-3 bg-primary text-white font-bold rounded-xl text-sm hover:bg-primary/90 transition-all flex items-center justify-center gap-2 cursor-pointer" onclick="openSignatureCanvas()">
-                    <span class="material-symbols-outlined text-[18px]">draw</span>
-                    Buat Langsung
-                  </button>
-                  <button class="flex-1 py-3 bg-white border border-primary text-primary font-bold rounded-xl text-sm hover:bg-primary/5 transition-all flex items-center justify-center gap-2 cursor-pointer" onclick="document.getElementById('input-signature').click()">
-                    <span class="material-symbols-outlined text-[18px]">upload_file</span>
-                    Upload File
-                  </button>
+                <div class="space-y-4 divide-y divide-surface-variant">
+                  <div class="flex items-start gap-3 pt-2">
+                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">mail</span>
+                    <div>
+                      <p class="text-[10px] text-on-surface-variant mb-0.5">Email</p>
+                      <p class="text-sm font-bold text-on-surface" id="info-email">Memuat...</p>
+                      <input type="hidden" id="input-email" readonly>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start gap-3 pt-4">
+                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">database</span>
+                    <div>
+                      <p class="text-[10px] text-on-surface-variant mb-0.5">Database</p>
+                      <p class="text-sm font-bold text-on-surface">Google Sheets (Drive Anda)</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start gap-3 pt-4">
+                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">shield</span>
+                    <div>
+                      <p class="text-[10px] text-on-surface-variant mb-0.5">Keamanan</p>
+                      <p class="text-sm font-bold text-on-surface">Data terenkripsi di akun Google Anda</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
             </div>
             
-            <!-- Right Side: AI, Premium, Akun -->
-            <div class="lg:col-span-7 flex flex-col gap-6">
+            <!-- Right Side -->
+            <div class="flex flex-col gap-6">
 
               <!-- Konfigurasi Asisten Pendamping -->
               <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
@@ -1081,29 +1121,22 @@
                   Konfigurasi Asisten Pendamping
                 </h3>
                 
-                <div class="space-y-4">
+                <div class="space-y-4 opacity-80 pointer-events-none">
                   <div>
                     <label class="block text-xs font-bold text-on-surface mb-2">Model Asisten</label>
-                    <select class="w-full rounded-xl bg-surface-container-lowest border-none py-3 px-4 outline-none text-sm font-medium text-on-surface appearance-none focus:ring-1 focus:ring-primary/20" id="select-ai-provider">
-                      <option value="google/gemini-flash-1.5">Narasi Sangat Detail (Rekomendasi)</option>
-                      <option value="meta-llama/llama-3-8b-instruct">Gaya Bahasa Cepat & Ringkas</option>
+                    <select class="w-full rounded-xl bg-surface-container-lowest border border-outline-variant py-3 px-4 outline-none text-sm font-medium text-on-surface appearance-none" id="select-ai-provider" disabled readonly>
+                      <option value="google/gemini-1.5-flash">Google Gemini 1.5 Flash (Narasi Cerdas)</option>
+                      <option value="meta-llama/llama-3-8b-instruct">Meta LLaMA 3 (Bahasa Ringkas)</option>
+                      <option value="google/gemini-flash-1.5">Google Gemini Flash (Legacy)</option>
                     </select>
+                    <p class="text-[10px] text-on-surface-variant mt-2">Disinkronkan dari pengaturan aplikasi ASPEND Mobile.</p>
                   </div>
                   
-                  <div>
-                    <label class="block text-xs font-bold text-on-surface mb-2">Kunci API OpenRouter (Wajib) <span class="text-error">*</span></label>
-                    <input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 outline-none text-sm font-medium focus:ring-1 focus:ring-primary/20" type="password" id="input-key-openrouter" placeholder="sk-or-v1-...">
-                    <p class="text-[10px] text-on-surface-variant mt-2">Dapatkan kunci gratis di <a href="https://openrouter.ai/keys" target="_blank" class="text-primary font-medium hover:underline">openrouter.ai/keys</a>.</p>
-                  </div>
-                  
+                  <input type="hidden" id="input-key-openrouter" value="">
                   <input type="hidden" id="input-ai-model" value="">
                   <input type="hidden" id="input-key-google" value="">
                   <input type="hidden" id="input-key-groq" value="">
                 </div>
-                
-                <button class="w-full py-3 mt-6 bg-primary text-white font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer text-sm" onclick="saveSettings()">
-                  Simpan
-                </button>
               </div>
 
               <!-- Aspend Premium -->
@@ -1142,60 +1175,6 @@
                   <a href="https://wa.me/6283162019160" target="_blank" class="px-4 py-2 bg-[#4caf50] text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1">
                     <span class="material-symbols-outlined text-[14px]">open_in_new</span> Chat WA
                   </a>
-                </div>
-              </div>
-
-              <!-- Tampilan Aplikasi -->
-              <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
-                <h3 class="font-title-lg text-title-lg text-primary mb-2 font-bold flex items-center gap-2">
-                  <span class="material-symbols-outlined text-[20px]">palette</span>
-                  Tampilan Aplikasi
-                </h3>
-                <p class="text-xs text-on-surface-variant mb-6">Pilih tema terang atau gelap untuk kenyamanan mata Anda.</p>
-                
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary text-[20px]">light_mode</span>
-                    <span class="font-bold text-sm text-on-surface">Mode Gelap</span>
-                  </div>
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="toggle-dark-mode" class="sr-only peer" onchange="toggleDarkMode(event)">
-                    <div class="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-surface-variant after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Informasi Akun -->
-              <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
-                <h3 class="font-title-lg text-title-lg text-primary mb-4 font-bold">
-                  Informasi Akun
-                </h3>
-                
-                <div class="space-y-4 divide-y divide-surface-variant">
-                  <div class="flex items-start gap-3 pt-2">
-                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">mail</span>
-                    <div>
-                      <p class="text-[10px] text-on-surface-variant mb-0.5">Email</p>
-                      <p class="text-sm font-bold text-on-surface" id="info-email">Memuat...</p>
-                      <input type="hidden" id="input-email" readonly> <!-- Hidden for saveSettings logic -->
-                    </div>
-                  </div>
-                  
-                  <div class="flex items-start gap-3 pt-4">
-                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">database</span>
-                    <div>
-                      <p class="text-[10px] text-on-surface-variant mb-0.5">Database</p>
-                      <p class="text-sm font-bold text-on-surface">Google Sheets (Drive Anda)</p>
-                    </div>
-                  </div>
-                  
-                  <div class="flex items-start gap-3 pt-4">
-                    <span class="material-symbols-outlined text-on-surface-variant/50 text-[20px] mt-1">shield</span>
-                    <div>
-                      <p class="text-[10px] text-on-surface-variant mb-0.5">Keamanan</p>
-                      <p class="text-sm font-bold text-on-surface">Data terenkripsi di akun Google Anda</p>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1511,6 +1490,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=1783294502"></script>
+  <script src="script.js?v=1783294503"></script>
 </body>
 </html>

@@ -128,3 +128,17 @@
 ::-webkit-scrollbar-track { background: #f7f9fc; }
 ::-webkit-scrollbar-thumb { background: #c4c6ce; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #74777e; }
+
+/* ── Dark Mode (Invert Hack) ─────────────────────────────── */
+html.dark {
+  background-color: #1a1d21;
+}
+html.dark body {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark img, html.dark video, html.dark iframe, html.dark canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark #sidebar {
+  background-color: #f7f9fc; /* will invert to dark */
+}
