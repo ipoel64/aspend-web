@@ -390,6 +390,8 @@ async function loadUserProfile() {
     
     document.getElementById('sidebar-user-name').textContent = profile.nama || profile.email;
     document.getElementById('sidebar-user-role').textContent = profile.jabatan;
+    const emailEl = document.getElementById('sidebar-user-email');
+    if (emailEl) emailEl.textContent = email || profile.email;
     
     var fallbackLogo = document.getElementById('app-logo-fallback');
     if (fallbackLogo && profile.nama) {
