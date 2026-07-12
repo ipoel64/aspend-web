@@ -3063,6 +3063,12 @@ function loadPremiumUsers() {
             statusHtml = '<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold border border-red-200">Kedaluwarsa</span>';
           }
         }
+        let startStr = '-';
+        if (user.addedAt && user.addedAt !== '-') {
+          let startObj = new Date(user.addedAt);
+          startStr = startObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+        }
+        
         let packageLabel = (user.packageType || 'Permanen').toUpperCase();
         
         html += `
@@ -3072,8 +3078,12 @@ function loadPremiumUsers() {
               <span class="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold border border-primary/20">${packageLabel}</span>
               ${statusHtml}
             </td>
+            <td class="p-3 text-on-surface-variant">${startStr}</td>
             <td class="p-3 text-on-surface-variant">${expiryStr}</td>
             <td class="p-3 text-right">
+              <button class="text-on-surface-variant hover:text-primary transition-colors p-1 rounded hover:bg-primary/10 cursor-pointer opacity-0 group-hover:opacity-100 mr-1" onclick="handleEditPremiumUser('${user.email}', '${user.packageType}', '${user.duration}')" title="Edit Data">
+                <span class="material-symbols-outlined text-[20px]">edit</span>
+              </button>
               <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error/10 cursor-pointer opacity-0 group-hover:opacity-100" onclick="handleRemovePremiumUser('${user.email}')" title="Cabut Akses">
                 <span class="material-symbols-outlined text-[20px]">delete</span>
               </button>
@@ -3225,4 +3235,21 @@ window.updatePremiumPrice = function() {
   
   const total = pricePerUnit * duration;
   estimateDisplay.innerText = 'Rp ' + total.toLocaleString('id-ID');
+};
+
+window.handleEditPremiumUser = function(email, packageType, duration) {
+  const emailInput = document.getElementById('input-premium-email');
+  const packageSelect = document.getElementById('input-premium-package');
+  const durationInput = document.getElementById('input-premium-duration');
+  
+  if (emailInput) emailInput.value = email;
+  if (packageSelect) {
+    packageSelect.value = packageType || 'bulanan';
+  }
+  if (durationInput) {
+    durationInput.value = duration || 1;
+  }
+  
+  window.scrollTo({ top: document.getElementById('admin-premium-tbody').offsetTop - 300, behavior: 'smooth' });
+  if (window.updatePremiumPrice) window.updatePremiumPrice();
 };
