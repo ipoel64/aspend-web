@@ -2548,12 +2548,32 @@ async function checkPremiumFeature(featureId) {
   if (featureId === 'create_rhk') {
     showLoading('Memeriksa status langganan...');
     try {
-      // Menggunakan mode manual dari Pengaturan atau Admin (Sesuai instruksi)
-      // Tidak lagi mengecek via checkPremiumStatusClient
-      const isPremium = localStorage.getItem('aspend_is_premium') === 'true';
+      let isPremium = localStorage.getItem('aspend_is_premium') === 'true';
       
-      // Simulasi delay kecil
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Fallback jika belum premium di local storage, pastikan mengecek server lagi
+      // untuk mencegah isu cache (misalnya admin baru saja memberi akses tapi browser belum refresh)
+      if (!isPremium) {
+        const email = localStorage.getItem('aspend_clientEmail') || '';
+        if (email) {
+          isPremium = await new Promise(resolve => {
+            apiCheckPremiumStatus(email, (res) => {
+              if (res && res.success && res.data && res.data.isPremium) {
+                localStorage.setItem('aspend_is_premium', 'true');
+                localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
+                localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
+                if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
+                resolve(true);
+              } else {
+                resolve(false);
+              }
+            }, () => resolve(false));
+          });
+        }
+      } else {
+        // Simulasi delay kecil jika ambil dari cache
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
       hideLoading();
       
       if (isPremium) {
@@ -3175,10 +3195,12 @@ window.updatePremiumSettingsUI = function() {
   const btn = document.getElementById('btn-settings-premium');
   const title = document.getElementById('premium-settings-title');
   const subtitle = document.getElementById('premium-settings-subtitle');
-  
-  if (!btn) return;
+  const dashboardBadge = document.getElementById('user-premium-badge');
   
   if (isPremium) {
+    if (dashboardBadge) dashboardBadge.classList.remove('hidden');
+    if (!btn) return;
+    
     btn.classList.remove('bg-[#1e466d]');
     btn.classList.add('bg-gradient-to-r', 'from-amber-400', 'to-amber-600');
     title.innerText = 'ASPEND Premium';
@@ -3191,6 +3213,9 @@ window.updatePremiumSettingsUI = function() {
     
     subtitle.innerText = `Status Aktif (${packageType}) • Sampai ${expiryStr}`;
   } else {
+    if (dashboardBadge) dashboardBadge.classList.add('hidden');
+    if (!btn) return;
+    
     btn.classList.add('bg-[#1e466d]');
     btn.classList.remove('bg-gradient-to-r', 'from-amber-400', 'to-amber-600');
     title.innerText = 'Aspend Premium';

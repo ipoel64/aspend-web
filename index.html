@@ -256,8 +256,13 @@
         </div>
         
         <div class="flex items-center gap-3 md:gap-0 md:group-hover:gap-3 mb-6 transition-all duration-300 md:justify-center md:group-hover:justify-start">
-          <div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/20 bg-surface flex items-center justify-center font-bold text-base text-primary mx-auto md:group-hover:mx-0" id="sidebar-avatar-container">
-            <span id="sidebar-avatar">—</span>
+          <div class="relative">
+            <div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/20 bg-surface flex items-center justify-center font-bold text-base text-primary mx-auto md:group-hover:mx-0" id="sidebar-avatar-container">
+              <span id="sidebar-avatar">—</span>
+            </div>
+            <div id="user-premium-badge" class="hidden absolute -bottom-1 -right-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-full p-[2px] shadow-sm border border-white flex items-center justify-center z-10" title="ASPEND Premium">
+              <span class="material-symbols-outlined text-[12px]">workspace_premium</span>
+            </div>
           </div>
           <div class="md:w-0 md:opacity-0 md:group-hover:w-[150px] md:group-hover:opacity-100 overflow-hidden transition-all duration-300 whitespace-nowrap">
             <p class="font-label-md text-label-md text-on-primary truncate max-w-[150px]" id="sidebar-user-name">Memuat...</p>
@@ -1217,6 +1222,7 @@
                     <tr class="bg-surface-container-low border-b border-surface-variant font-label-md text-xs text-on-surface-variant uppercase">
                       <th class="p-3 font-medium">Email Pengguna</th>
                       <th class="p-3 font-medium">Paket</th>
+                      <th class="p-3 font-medium">Mulai</th>
                       <th class="p-3 font-medium">Berakhir Pada</th>
                       <th class="p-3 font-medium text-right" style="width:120px;">Aksi</th>
                     </tr>
@@ -1500,6 +1506,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=28"></script>
+  <script src="script.js?v=29"></script>
 </body>
 </html>
