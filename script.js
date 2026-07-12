@@ -2440,7 +2440,10 @@ async function checkPremiumFeature(featureId) {
   if (featureId === 'create_rhk') {
     showLoading('Memeriksa status langganan...');
     try {
-      const isPremium = await checkPremiumStatusClient(state.spreadsheetId, state.clientEmail);
+      const isPremium = await Promise.race([
+        checkPremiumStatusClient(state.spreadsheetId, state.clientEmail),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Koneksi lambat saat memeriksa status langganan. Silakan coba lagi.')), 10000))
+      ]);
       hideLoading();
       
       if (isPremium) {
@@ -2449,12 +2452,13 @@ async function checkPremiumFeature(featureId) {
         const premiumModal = document.getElementById('modal-premium');
         if (premiumModal) {
           premiumModal.classList.remove('hidden');
+          premiumModal.classList.add('show');
         }
       }
     } catch (err) {
       hideLoading();
       console.error('Error saat cek premium:', err);
-      showToast('Terjadi kesalahan jaringan.', 'error');
+      showToast(err.message || 'Terjadi kesalahan jaringan.', 'error');
     }
   }
 }
