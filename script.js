@@ -253,7 +253,7 @@ async function loadUserProfile() {
     
     // 3. Muat profil dasar dari Token Google (GSI)
     const email = localStorage.getItem('aspend_clientEmail') || '';
-    let picture = localStorage.getItem('aspend_driveProfilePicture') || '';
+    let picture = localStorage.getItem('aspend_driveProfilePicture') || localStorage.getItem('aspend_clientPicture') || '';
     
     // Coba ambil foto profil spesifik ASPEND dari Google Drive pengguna (Aspend Output)
     try {
@@ -2295,12 +2295,13 @@ function formatDateIndo(date) {
 }
 
 function logoutSession() {
-  localStorage.removeItem('aspend_clientEmail');
-  localStorage.removeItem('google_access_token');
-  localStorage.removeItem('aspend_gsiToken');
-  localStorage.removeItem('aspend_spreadsheetId');
-  localStorage.removeItem('aspend_driveProfilePicture');
-  localStorage.removeItem('aspend_signature_base64');
+  const keys = Object.keys(localStorage);
+  for (let key of keys) {
+    if (key.startsWith('aspend_') || key === 'google_access_token') {
+      localStorage.removeItem(key);
+    }
+  }
+  
   state.clientEmail = '';
   state.spreadsheetId = '';
   
