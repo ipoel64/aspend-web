@@ -3064,6 +3064,16 @@ function loadPremiumUsers() {
       showToast(res.message, 'error');
     }
   }, function(err) {
+    if (err.message.includes('Pengguna tidak ditemukan')) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Menyiapkan database server untuk pertama kali...</td></tr>';
+      callGoogleScript('setupDatabase', [adminEmail], function() {
+        loadPremiumUsers();
+      }, function(err2) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal setup server: ${err2.message}</td></tr>`;
+      });
+      return;
+    }
+    
     tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Koneksi gagal: ${err.message}</td></tr>`;
     showToast('Koneksi gagal: ' + err.message, 'error');
   });
