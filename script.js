@@ -256,7 +256,7 @@ async function loadUserProfile() {
     
     // 3. Muat profil dasar dari Token Google (GSI)
     const email = localStorage.getItem('aspend_clientEmail') || '';
-    let picture = localStorage.getItem('aspend_driveProfilePicture') || localStorage.getItem('aspend_clientPicture') || '';
+    let picture = localStorage.getItem('aspend_profile_photo') || localStorage.getItem('aspend_driveProfilePicture') || localStorage.getItem('aspend_clientPicture') || '';
     
     // Coba ambil foto profil spesifik ASPEND dari Google Drive pengguna (Aspend Output)
     try {
@@ -1903,8 +1903,8 @@ function loadProfileSettings() {
   var initials = getInitials(state.user.nama || state.user.email || '');
   document.getElementById('profile-initials').textContent = initials;
   
-  if (state.user.photoBase64) {
-    document.getElementById('profile-photo-preview').innerHTML = `<img src="${state.user.photoBase64}" class="w-full h-full object-cover">`;
+  if (state.user.picture) {
+    document.getElementById('profile-photo-preview').innerHTML = `<img src="${state.user.picture}" class="w-full h-full object-cover">`;
   }
   
   const signatureBase64 = localStorage.getItem('aspend_signature_base64');
@@ -1924,6 +1924,56 @@ function loadProfileSettings() {
     premToggle.checked = isPremium;
     togglePremiumStatus({target: {checked: isPremium}});
   }
+}
+
+function handleProfilePhotoUpload(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result;
+    localStorage.setItem('aspend_profile_photo', base64);
+    
+    // Perbarui pratinjau di Pengaturan
+    var preview = document.getElementById('profile-photo-preview');
+    if (preview) {
+      preview.innerHTML = '<img src="' + base64 + '" class="w-full h-full object-cover">';
+    }
+    
+    // Perbarui foto di Sidebar (Dashboard)
+    var avatarContainer = document.getElementById('sidebar-avatar-container');
+    if (avatarContainer) {
+      avatarContainer.innerHTML = '<img src="' + base64 + '" class="w-full h-full object-cover">';
+    }
+    state.user.picture = base64;
+    
+    showToast('Foto profil berhasil disimpan secara lokal.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleSignatureUpload(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result;
+    localStorage.setItem('aspend_signature_base64', base64);
+    
+    var preview = document.getElementById('signature-preview');
+    if (preview) {
+      preview.innerHTML = '<img src="' + base64 + '" class="max-w-full max-h-full object-contain">';
+    }
+    
+    showToast('Tanda tangan berhasil disimpan secara lokal.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function openSignatureCanvas() {
+  showToast('Fitur gambar langsung sedang dalam pengembangan. Silakan gunakan opsi unggah.', 'warning');
 }
 
 function saveSettings() {
