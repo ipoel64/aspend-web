@@ -3064,8 +3064,8 @@ function loadPremiumUsers() {
       showToast(res.message, 'error');
     }
   }, function(err) {
-    tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-error">Koneksi gagal.</td></tr>';
-    showToast('Koneksi gagal', 'error');
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Koneksi gagal: ${err.message}</td></tr>`;
+    showToast('Koneksi gagal: ' + err.message, 'error');
   });
 }
 

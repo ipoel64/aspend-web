@@ -89,13 +89,24 @@ async function callGoogleScript(functionName, args, successCallback, errorCallba
   try {
     const response = await fetch(WEB_APP_URL, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
       body: JSON.stringify({
         functionName: functionName,
         arguments: args
       })
     });
     
-    const result = await response.json();
+    const textData = await response.text();
+    let result;
+    try {
+      result = JSON.parse(textData);
+    } catch (parseErr) {
+      console.error("Backend mengembalikan respons non-JSON:", textData);
+      throw new Error("Respons server tidak valid (Mungkin SPREADSHEET_ID salah di Code.gs atau terjadi error server).");
+    }
+    
     if (result.success) {
       if (successCallback) successCallback(result);
     } else {
