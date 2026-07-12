@@ -980,8 +980,35 @@ async function checkPremiumStatusClient(spreadsheetId, userEmail) {
     }
     return false;
   } catch (err) {
-    // Abaikan error jika sheet belum ada, anggap saja false
-    console.warn("Info Premium: Tab 'Premium' mungkin belum dibuat di Spreadsheet.", err.message);
+    // Auto-Heal: Jika error "Unable to parse range", sheet belum ada. Buatkan otomatis.
+    if (err.result && err.result.error && err.result.error.message && err.result.error.message.includes('Unable to parse range')) {
+      console.log("Info Premium: Tab 'Premium' belum ada. Membuat otomatis...");
+      try {
+        await gapi.client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: spreadsheetId,
+          resource: { 
+            requests: [
+              { addSheet: { properties: { title: 'Premium' } } }
+            ] 
+          }
+        });
+        
+        // Tulis header agar rapi
+        await gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: spreadsheetId,
+          range: 'Premium!A1:C1',
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [['Email', 'Status', 'Metode']]
+          }
+        });
+        console.log("Berhasil membuat tab Premium.");
+      } catch (createErr) {
+        console.error("Gagal membuat tab Premium:", createErr);
+      }
+    } else {
+      console.warn("Error saat membaca tab Premium:", err.message);
+    }
     return false;
   }
 }
