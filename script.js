@@ -354,11 +354,19 @@ async function loadUserProfile() {
       // Cek Status Premium ke Backend
       console.log("Checking premium status...");
       apiCheckPremiumStatus(email, function(res) {
-        if (res && res.success && res.data && res.data.isPremium) {
-          localStorage.setItem('aspend_is_premium', 'true');
-          localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
-          localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
-          console.log("User is PREMIUM");
+        if (res && res.success && res.data !== undefined) {
+          const isPremium = res.data === true || res.data.isPremium === true;
+          if (isPremium) {
+            localStorage.setItem('aspend_is_premium', 'true');
+            localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
+            localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
+            console.log("User is PREMIUM");
+          } else {
+            localStorage.setItem('aspend_is_premium', 'false');
+            localStorage.setItem('aspend_premium_package', '');
+            localStorage.setItem('aspend_premium_expiry', '');
+            console.log("User is NOT PREMIUM");
+          }
         } else {
           localStorage.setItem('aspend_is_premium', 'false');
           localStorage.setItem('aspend_premium_package', '');
@@ -2559,15 +2567,18 @@ async function checkPremiumFeature(featureId) {
         if (email) {
           isPremium = await new Promise(resolve => {
             apiCheckPremiumStatus(email, (res) => {
-              if (res && res.success && res.data && res.data.isPremium) {
-                localStorage.setItem('aspend_is_premium', 'true');
-                localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
-                localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
-                if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
-                resolve(true);
-              } else {
-                resolve(false);
+              if (res && res.success && res.data !== undefined) {
+                const isPremiumResult = res.data === true || res.data.isPremium === true;
+                if (isPremiumResult) {
+                  localStorage.setItem('aspend_is_premium', 'true');
+                  localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
+                  localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
+                  if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
+                  resolve(true);
+                  return;
+                }
               }
+              resolve(false);
             }, () => resolve(false));
           });
         }
