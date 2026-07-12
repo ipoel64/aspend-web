@@ -1062,7 +1062,10 @@
               </div>
             </div>
 
-                            <!-- AI Provider Config -->
+            <!-- Right Side: AI & Premium -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
+              
+              <!-- AI Provider Config -->
               <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6 relative overflow-hidden" id="gemini-settings-card">
                 <div class="absolute inset-0 opacity-[0.03] pointer-events-none" style="background-image: radial-gradient(#000f22 1px, transparent 1px); background-size: 16px 16px;"></div>
                 <h3 class="font-title-lg text-title-lg text-on-surface mb-6 border-b border-surface-variant pb-2 flex items-center gap-2 relative z-10">
@@ -1078,11 +1081,18 @@
                       <option value="meta-llama/llama-3-8b-instruct">Meta Llama 3 8B (Kreatif & bervariasi)</option>
                     </select>
                   </div>
-                  <p class="text-[10px] text-on-surface-variant/70 italic">*Sistem telah dikunci menggunakan server OpenRouter dan API tersembunyi. Anda hanya perlu memilih otak utama yang ingin Anda gunakan.</p>
-
-                  <div class="flex gap-3 mt-4">
-                    <button class="w-full py-2 px-4 bg-primary text-secondary-fixed rounded-lg hover:opacity-90 font-bold text-xs cursor-pointer" onclick="saveAIConfigSettings()">💾 Simpan Pilihan Model AI</button>
+                  
+                  <div class="flex flex-col gap-2">
+                    <label class="font-label-md text-xs text-on-surface-variant">KUNCI API OPENROUTER (Wajib) <span class="text-error">*</span></label>
+                    <input class="w-full bg-white text-on-surface border border-outline-variant rounded-lg px-4 py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors font-body-md text-sm" type="password" id="input-key-openrouter" placeholder="sk-or-v1-...">
+                    <p class="text-[10px] text-on-surface-variant/70 italic">
+                      Dapatkan kunci API Anda di <a href="https://openrouter.ai/keys" target="_blank" class="text-primary hover:underline">openrouter.ai/keys</a>.
+                    </p>
                   </div>
+                  
+                  <input type="hidden" id="input-ai-model" value="">
+                  <input type="hidden" id="input-key-google" value="">
+                  <input type="hidden" id="input-key-groq" value="">
                 </div>
               </div>
               
@@ -1107,12 +1117,11 @@
                 </div>
                 <p class="text-[9px] text-on-surface-variant mt-2 text-right">Hanya Rp 10.000 / Bulan</p>
               </div>
-              </div>
 
               <!-- Main Save Button -->
               <button class="w-full py-3 bg-primary text-secondary-fixed font-title-lg text-title-lg font-bold rounded-xl shadow-md hover:bg-primary-container hover:text-white transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2" onclick="saveSettings()">
                 <span class="material-symbols-outlined">save</span>
-                Simpan Semua Perubahan Profil
+                Simpan Semua Pengaturan
               </button>
             </div>
           </div>
@@ -1402,6 +1411,6 @@
       </div>
       <img id="lightbox-image" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain opacity-0 transition-opacity duration-300 z-10" alt="Pratinjau Foto" onload="this.classList.remove('opacity-0'); document.getElementById('lightbox-loading').classList.add('hidden')" onerror="this.removeAttribute('src'); document.getElementById('lightbox-loading').classList.add('hidden')">
     </div>
-  <script src="script.js?v=1783294491"></script>
+  <script src="script.js?v=1783294493"></script>
 </body>
 </html>
