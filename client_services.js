@@ -937,3 +937,30 @@ async function saveMasterDataClient(sheetName, values, editIndex) {
     throw err;
   }
 }
+
+/**
+ * Mengecek status Premium dari tab "Premium"
+ */
+async function checkPremiumStatusClient(spreadsheetId, userEmail) {
+  try {
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: spreadsheetId,
+      range: 'Premium!A2:C'
+    });
+    
+    const rows = response.result.values || [];
+    for (const row of rows) {
+      if (row[0] && row[0].toString().trim().toLowerCase() === userEmail.toLowerCase()) {
+        const status = (row[1] || '').toString().trim().toLowerCase();
+        if (status === 'aktif') {
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch (err) {
+    // Abaikan error jika sheet belum ada, anggap saja false
+    console.warn("Info Premium: Tab 'Premium' mungkin belum dibuat di Spreadsheet.", err.message);
+    return false;
+  }
+}

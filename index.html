@@ -26,10 +26,10 @@
   <!-- PDF Generation Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
-  <script src="logo_data.js?v=1783295400"></script>
-  <script src="pdf_engine.js?v=1783295414"></script>
+  <script src="logo_data.js?v=1783294481"></script>
+  <script src="pdf_engine.js?v=1783294481"></script>
   
-  <script src="client_services.js?v=1783284213"></script>
+  <script src="client_services.js?v=1783294481"></script>
   
   <!-- Tailwind Config -->
   <script id="tailwind-config">
@@ -1369,9 +1369,14 @@
           Pembuatan laporan baru langsung dari web adalah fitur eksklusif untuk pelanggan <strong>ASPEND Premium</strong>. Tingkatkan akun Anda untuk membuka akses tanpa batas!
         </p>
         <div class="flex flex-col gap-3">
-          <button class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-bold hover:scale-[1.02] shadow-sm hover:shadow-md transition-all cursor-not-allowed opacity-80" title="Belum tersedia">
-            Berlangganan Sekarang
-          </button>
+          <!-- Tombol Lynk.id -->
+          <a href="https://lynk.id/nama-anda/premium" target="_blank" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg font-bold hover:scale-[1.02] shadow-sm hover:shadow-md transition-all text-center flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[20px]">shopping_cart</span>
+            Berlangganan via Lynk.id
+          </a>
+          <p class="text-[10px] text-on-surface-variant leading-tight mb-2">
+            *Jika Anda sudah membayar via aplikasi ASPEND Mobile, Anda tidak perlu membayar lagi. Cukup tunggu sistem tersinkronisasi.
+          </p>
           <button class="w-full py-3 bg-surface text-primary border border-outline-variant rounded-lg font-bold hover:bg-surface-variant transition-colors cursor-pointer" onclick="closeModal('modal-premium'); navigateTo('form');">
             Coba Simulasi Form (Dev Mode)
           </button>
@@ -1397,6 +1402,6 @@
       </div>
       <img id="lightbox-image" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain opacity-0 transition-opacity duration-300 z-10" alt="Pratinjau Foto" onload="this.classList.remove('opacity-0'); document.getElementById('lightbox-loading').classList.add('hidden')" onerror="this.removeAttribute('src'); document.getElementById('lightbox-loading').classList.add('hidden')">
     </div>
-  <script src="script.js?v=1783294480"></script>
+  <script src="script.js?v=1783294481"></script>
 </body>
 </html>

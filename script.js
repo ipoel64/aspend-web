@@ -2425,10 +2425,26 @@ function processSpreadsheetRegistration() {
 }
 
 // ── SISTEM PREMIUM PAYWALL ──────────────────────────────────
-function checkPremiumFeature(featureId) {
-  const premiumModal = document.getElementById('modal-premium');
-  if (premiumModal) {
-    premiumModal.classList.remove('hidden');
+async function checkPremiumFeature(featureId) {
+  if (featureId === 'create_rhk') {
+    showLoading('Memeriksa status langganan...');
+    try {
+      const isPremium = await checkPremiumStatusClient(state.spreadsheetId, state.clientEmail);
+      hideLoading();
+      
+      if (isPremium) {
+        navigateTo('form');
+      } else {
+        const premiumModal = document.getElementById('modal-premium');
+        if (premiumModal) {
+          premiumModal.classList.remove('hidden');
+        }
+      }
+    } catch (err) {
+      hideLoading();
+      console.error('Error saat cek premium:', err);
+      showToast('Terjadi kesalahan jaringan.', 'error');
+    }
   }
 }
 
