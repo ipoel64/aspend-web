@@ -307,8 +307,8 @@ async function loadUserProfile() {
 
     let profile = {
        email: email,
-       nama: localStorage.getItem('aspend_nama') || email.split('@')[0], 
-       jabatan: localStorage.getItem('aspend_jabatan') || 'Pendamping PKH',
+       nama: localStorage.getItem('aspend_nama') || '', 
+       jabatan: localStorage.getItem('aspend_jabatan') || '',
        nip: localStorage.getItem('aspend_nip') || '',
        kabupaten: localStorage.getItem('aspend_kabupaten') || '',
        picture: picture
@@ -1900,7 +1900,7 @@ function loadProfileSettings() {
   
   document.getElementById('input-nama').value = state.user.nama || '';
   document.getElementById('input-nip').value = state.user.nip || '';
-  document.getElementById('input-jabatan').value = state.user.jabatan || 'Pendamping PKH';
+  document.getElementById('input-jabatan').value = state.user.jabatan || '';
   document.getElementById('input-kabupaten').value = state.user.kabupaten || '';
   
   var initials = getInitials(state.user.nama || state.user.email || '');
@@ -1976,7 +1976,80 @@ function handleSignatureUpload(event) {
 }
 
 function openSignatureCanvas() {
-  showToast('Fitur gambar langsung sedang dalam pengembangan. Silakan gunakan opsi unggah.', 'warning');
+  document.getElementById('signature-modal').classList.remove('hidden');
+  document.getElementById('signature-modal').classList.add('flex');
+  setTimeout(initSignatureCanvas, 100);
+}
+
+function closeSignatureCanvas() {
+  document.getElementById('signature-modal').classList.add('hidden');
+  document.getElementById('signature-modal').classList.remove('flex');
+}
+
+let canvas, ctx, isDrawing = false;
+function initSignatureCanvas() {
+  canvas = document.getElementById('sig-canvas');
+  if(!canvas) return;
+  ctx = canvas.getContext('2d');
+  
+  // Set actual canvas size to match CSS display size
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width - 32; // padding
+  canvas.height = 200;
+  
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  
+  // Clear with white background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function startDrawing(e) {
+  isDrawing = true;
+  draw(e);
+}
+
+function stopDrawing() {
+  isDrawing = false;
+  ctx.beginPath();
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX || e.touches[0].clientX) - rect.left;
+  const y = (e.clientY || e.touches[0].clientY) - rect.top;
+  
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+}
+
+function clearSignature() {
+  if(ctx && canvas) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function saveSignature() {
+  if(!canvas) return;
+  const base64 = canvas.toDataURL('image/png');
+  localStorage.setItem('aspend_signature_base64', base64);
+  
+  var preview = document.getElementById('signature-preview');
+  if (preview) {
+    preview.innerHTML = '<img src="' + base64 + '" class="max-w-full max-h-full object-contain">';
+  }
+  
+  closeSignatureCanvas();
+  showToast('Tanda tangan berhasil dibuat.', 'success');
 }
 
 function saveSettings() {
