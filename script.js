@@ -2296,7 +2296,14 @@ function formatDateIndo(date) {
 
 function logoutSession() {
   localStorage.removeItem('aspend_clientEmail');
+  localStorage.removeItem('google_access_token');
+  localStorage.removeItem('aspend_gsiToken');
+  localStorage.removeItem('aspend_spreadsheetId');
+  localStorage.removeItem('aspend_driveProfilePicture');
+  localStorage.removeItem('aspend_signature_base64');
   state.clientEmail = '';
+  state.spreadsheetId = '';
+  
   showToast('Sesi Anda berakhir.', 'info');
   document.getElementById('login-overlay').classList.remove('hidden');
 }
