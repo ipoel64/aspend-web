@@ -1932,8 +1932,8 @@ function loadProfileSettings() {
   document.getElementById('input-kabupaten').value = state.user.kabupaten || '';
   
   var initials = getInitials(state.user.nama || state.user.email || '');
-  document.getElementById('profile-initials').textContent = initials;
-  
+  var initEl = document.getElementById('profile-initials');
+  if(initEl) initEl.textContent = initials;
   if (state.user.picture) {
     document.getElementById('profile-photo-preview').innerHTML = `<img src="${state.user.picture}" class="w-full h-full object-cover">`;
   }
