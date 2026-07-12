@@ -331,6 +331,25 @@ async function loadUserProfile() {
       console.warn("Failed to sync profile from Google Sheets", e);
     }
     
+    try {
+      // Sync Config (AI Settings) from Google Sheets
+      console.log("Fetching AI config from Google Sheets...");
+      const configData = await fetchConfigClient(spreadsheetId);
+      if (configData) {
+        if (configData.AI_PROVIDER) localStorage.setItem('aspend_ai_provider', configData.AI_PROVIDER);
+        if (configData.AI_API_KEY) {
+           // Simpan ke masing-masing provider berdasarkan pilihan
+           if (configData.AI_PROVIDER === 'openrouter') localStorage.setItem('aspend_api_key_openrouter', configData.AI_API_KEY);
+           else if (configData.AI_PROVIDER === 'google') localStorage.setItem('aspend_api_key_google', configData.AI_API_KEY);
+           else if (configData.AI_PROVIDER === 'groq') localStorage.setItem('aspend_api_key_groq', configData.AI_API_KEY);
+        }
+        if (configData.AI_MODEL) localStorage.setItem('aspend_ai_model', configData.AI_MODEL);
+        console.log("AI Config sync success:", configData);
+      }
+    } catch (e) {
+      console.warn("Failed to sync AI config from Google Sheets", e);
+    }
+    
     state.user = profile;
     var initials = getInitials(profile.nama || profile.email || '');
     
@@ -2018,7 +2037,23 @@ function saveSettings() {
   localStorage.setItem('aspend_aiModel', model);
   localStorage.setItem('aspend_aiKeys', JSON.stringify(state.aiKeys));
   
-  showToast('Pengaturan lokal berhasil disimpan.', 'success');
+  // Save AI Config to Google Sheets (Config Tab)
+  if (state.spreadsheetId) {
+    let apiKey = '';
+    if (prov === 'openrouter') apiKey = openrouter;
+    else if (prov === 'google') apiKey = google;
+    else if (prov === 'groq') apiKey = groq;
+    
+    saveConfigClient(state.spreadsheetId, {
+      provider: prov,
+      apiKey: apiKey,
+      model: model
+    }).then(success => {
+       if(success) console.log("AI Config saved to Google Sheets");
+    });
+  }
+  
+  showToast('Pengaturan berhasil disimpan dan disinkronkan.', 'success');
 }
 
 // ==============================================================

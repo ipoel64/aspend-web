@@ -174,6 +174,57 @@ async function fetchUserProfileClient(spreadsheetId, userEmail) {
 }
 
 /**
+ * Mengambil pengaturan AI dari Sheet Config
+ */
+async function fetchConfigClient(spreadsheetId) {
+  try {
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: spreadsheetId,
+      range: 'Config!A2:B'
+    });
+    
+    const rows = response.result.values || [];
+    let config = {};
+    for (const row of rows) {
+      if (row[0]) {
+        config[row[0]] = row[1] || '';
+      }
+    }
+    return config;
+  } catch (err) {
+    console.warn("Error fetching config (Config sheet might not exist):", err);
+    return null;
+  }
+}
+
+/**
+ * Menyimpan pengaturan AI ke Sheet Config
+ */
+async function saveConfigClient(spreadsheetId, configData) {
+  try {
+    // Siapkan data dalam bentuk array [Key, Value]
+    const values = [
+      ['AI_PROVIDER', configData.provider || 'openrouter'],
+      ['AI_API_KEY', configData.apiKey || ''],
+      ['AI_MODEL', configData.model || '']
+    ];
+    
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: spreadsheetId,
+      range: 'Config!A2:B4',
+      valueInputOption: 'RAW',
+      resource: {
+        values: values
+      }
+    });
+    return true;
+  } catch (err) {
+    console.error("Error saving config:", err);
+    return false;
+  }
+}
+
+/**
  * Mengambil rekap statistik dan daftar laporan RHK
  */
 async function fetchDashboardDataClient(spreadsheetId, userEmail, options = {}) {
