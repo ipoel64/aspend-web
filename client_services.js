@@ -74,7 +74,7 @@ function parseRobustDate(dateStr, timeStr) {
  */
 
 // URL Web App dari deployment Code.gs (Wajib diisi oleh Admin agar fitur Premium berjalan)
-const WEB_APP_URL = "ISI_DENGAN_URL_WEB_APP_ANDA";
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyIvZiC8dqOsr6CWKtLkU8MfZzX5sLJRcX5L9seKAM7bAa9CsLld-OBY472d_7ILc-D_A/exec";
 
 /**
  * Memanggil fungsi backend Code.gs via API (doPost)
