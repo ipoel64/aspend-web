@@ -2066,25 +2066,7 @@ function saveSettings() {
 // ── MODULE: Panel Admin ───────────────────────────────────────
 // ==============================================================
 function loadAdminData() {
-  var rhkList = document.getElementById('admin-rhk-list');
-  var p2k2List = document.getElementById('admin-p2k2-list');
-  
-  if (rhkList) rhkList.innerHTML = '<div class="text-center p-4">Memuat data RHK...</div>';
-  if (p2k2List) p2k2List.innerHTML = '<div class="text-center p-4">Memuat data P2K2...</div>';
-  
-  fetchAdminDataClient()
-    .then(data => {
-      // Simpan juga ke state untuk dropdown
-      state.rhkOptions = data.rhk.map(r => ({id: r.id, jenisRhk: r.jenis, rencanaAksi: r.rencana}));
-      state.p2k2ModulOptions = data.p2k2.map(p => ({modul: p.modul, sesi: p.sesi}));
-      
-      renderAdminList('rhk', data.rhk, rhkList);
-      renderAdminList('p2k2', data.p2k2, p2k2List);
-    })
-    .catch(err => {
-      if (rhkList) rhkList.innerHTML = '<div class="text-error p-4">Gagal memuat RHK.</div>';
-      if (p2k2List) p2k2List.innerHTML = '<div class="text-error p-4">Gagal memuat P2K2.</div>';
-    });
+  loadPremiumUsers();
 }
 
 function switchAdminTab(tab) {
@@ -3047,8 +3029,11 @@ function loadPremiumUsers() {
   
   tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Memuat data...</td></tr>';
   
-  const adminEmail = localStorage.getItem('aspend_userEmail');
-  if (!adminEmail) return;
+  const adminEmail = localStorage.getItem('aspend_clientEmail');
+  if (!adminEmail) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-error">Email admin tidak ditemukan.</td></tr>';
+    return;
+  }
   
   apiGetPremiumUsers(adminEmail, function(res) {
     if (res.success) {
@@ -3094,7 +3079,7 @@ function handleAddPremiumUser() {
     return;
   }
   
-  const adminEmail = localStorage.getItem('aspend_userEmail');
+  const adminEmail = localStorage.getItem('aspend_clientEmail');
   showLoading('Menambahkan pengguna...');
   
   apiAddPremiumUser(adminEmail, targetEmail, function(res) {
@@ -3115,7 +3100,7 @@ function handleAddPremiumUser() {
 function handleRemovePremiumUser(targetEmail) {
   if (!confirm('Apakah Anda yakin ingin mencabut akses premium untuk ' + targetEmail + '?')) return;
   
-  const adminEmail = localStorage.getItem('aspend_userEmail');
+  const adminEmail = localStorage.getItem('aspend_clientEmail');
   showLoading('Mencabut akses...');
   
   apiRemovePremiumUser(adminEmail, targetEmail, function(res) {
