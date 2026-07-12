@@ -36,8 +36,11 @@ class AdService {
     
     // Terapkan filter ketat dari sisi aplikasi (Rating G = General/Semua Umur)
     // Ini secara paksa memblokir iklan judi, dewasa, kekerasan, dll.
+    // tagForChildDirectedTreatment = true akan memblokir iklan dewasa & judi secara ekstra ketat.
     final RequestConfiguration requestConfiguration = RequestConfiguration(
       maxAdContentRating: MaxAdContentRating.g,
+      tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
+      tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.yes,
     );
     await MobileAds.instance.updateRequestConfiguration(requestConfiguration);
 
@@ -51,7 +54,10 @@ class AdService {
 
     await InterstitialAd.load(
       adUnitId: _adUnitId,
-      request: const AdRequest(),
+      request: const AdRequest(
+        keywords: ['education', 'social', 'government', 'office', 'productivity'],
+        nonPersonalizedAds: true,
+      ),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;

@@ -350,6 +350,27 @@ async function loadUserProfile() {
       console.warn("Failed to sync AI config from Google Sheets", e);
     }
     
+    try {
+      // Cek Status Premium ke Backend
+      console.log("Checking premium status...");
+      apiCheckPremiumStatus(email, function(res) {
+        if (res && res.data === true) {
+          localStorage.setItem('aspend_is_premium', 'true');
+          console.log("User is PREMIUM");
+        } else {
+          localStorage.setItem('aspend_is_premium', 'false');
+          console.log("User is NOT PREMIUM");
+        }
+      }, function(err) {
+        console.warn("Failed to check premium status backend", err);
+        // Default to not premium on error to be safe
+        localStorage.setItem('aspend_is_premium', 'false');
+      });
+    } catch(e) {
+      console.warn("Premium check failed", e);
+      localStorage.setItem('aspend_is_premium', 'false');
+    }
+    
     state.user = profile;
     var initials = getInitials(profile.nama || profile.email || '');
     
@@ -2060,22 +2081,30 @@ function loadAdminData() {
 }
 
 function switchAdminTab(tab) {
-  document.getElementById('tab-btn-rhk').className = tab === 'rhk' ?
-    'py-3 px-6 border-b-2 border-primary font-bold text-primary text-sm focus:outline-none cursor-pointer' :
-    'py-3 px-6 border-b-2 border-transparent font-medium text-on-surface-variant hover:text-primary text-sm focus:outline-none cursor-pointer';
-    
-  document.getElementById('tab-btn-p2k2').className = tab === 'p2k2' ?
-    'py-3 px-6 border-b-2 border-primary font-bold text-primary text-sm focus:outline-none cursor-pointer' :
-    'py-3 px-6 border-b-2 border-transparent font-medium text-on-surface-variant hover:text-primary text-sm focus:outline-none cursor-pointer';
-    
-  document.getElementById('tab-content-rhk');
+  const activeClass = 'py-3 px-6 whitespace-nowrap border-b-2 border-primary font-bold text-primary text-sm focus:outline-none cursor-pointer flex items-center gap-2';
+  const inactiveClass = 'py-3 px-6 whitespace-nowrap border-b-2 border-transparent font-medium text-on-surface-variant hover:text-primary text-sm focus:outline-none cursor-pointer flex items-center gap-2';
   
-  if (tab === 'rhk') {
-    document.getElementById('tab-rhk').classList.remove('hidden');
-    document.getElementById('tab-p2k2').classList.add('hidden');
-  } else {
-    document.getElementById('tab-rhk').classList.add('hidden');
-    document.getElementById('tab-p2k2').classList.remove('hidden');
+  const btnRhk = document.getElementById('tab-btn-rhk');
+  const btnP2k2 = document.getElementById('tab-btn-p2k2');
+  const btnPremium = document.getElementById('tab-btn-premium');
+  
+  if (btnRhk) btnRhk.className = tab === 'rhk' ? activeClass : inactiveClass;
+  if (btnP2k2) btnP2k2.className = tab === 'p2k2' ? activeClass : inactiveClass;
+  if (btnPremium) btnPremium.className = tab === 'premium' ? activeClass : inactiveClass;
+  
+  const tabRhk = document.getElementById('tab-rhk');
+  const tabP2k2 = document.getElementById('tab-p2k2');
+  const tabPremium = document.getElementById('tab-premium');
+  
+  if (tabRhk) tabRhk.classList.add('hidden');
+  if (tabP2k2) tabP2k2.classList.add('hidden');
+  if (tabPremium) tabPremium.classList.add('hidden');
+  
+  if (tab === 'rhk' && tabRhk) tabRhk.classList.remove('hidden');
+  if (tab === 'p2k2' && tabP2k2) tabP2k2.classList.remove('hidden');
+  if (tab === 'premium' && tabPremium) {
+    tabPremium.classList.remove('hidden');
+    loadPremiumUsers();
   }
 }
 
@@ -2992,3 +3021,97 @@ setInterval(() => {
   }
 }, 15000); // 15 detik sekali
 
+// ==========================================
+// ADMIN PREMIUM USERS LOGIC
+// ==========================================
+
+function loadPremiumUsers() {
+  const tbody = document.getElementById('admin-premium-tbody');
+  if (!tbody) return;
+  
+  tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Memuat data...</td></tr>';
+  
+  const adminEmail = localStorage.getItem('aspend_userEmail');
+  if (!adminEmail) return;
+  
+  apiGetPremiumUsers(adminEmail, function(res) {
+    if (res.success) {
+      if (!res.data || res.data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant italic">Belum ada pengguna premium.</td></tr>';
+        return;
+      }
+      
+      let html = '';
+      res.data.forEach(user => {
+        let dateObj = new Date(user.addedAt);
+        let dateStr = dateObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+        html += `
+          <tr class="hover:bg-surface-variant/20 transition-colors group">
+            <td class="p-3 font-medium">\${user.email}</td>
+            <td class="p-3 text-on-surface-variant">\${dateStr}</td>
+            <td class="p-3 text-right">
+              <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error/10 cursor-pointer opacity-0 group-hover:opacity-100" onclick="handleRemovePremiumUser('\${user.email}')" title="Cabut Akses">
+                <span class="material-symbols-outlined text-[20px]">delete</span>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    } else {
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal memuat: \${res.message}</td></tr>`;
+      showToast(res.message, 'error');
+    }
+  }, function(err) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-error">Koneksi gagal.</td></tr>';
+    showToast('Koneksi gagal', 'error');
+  });
+}
+
+function handleAddPremiumUser() {
+  const emailInput = document.getElementById('input-premium-email');
+  if (!emailInput) return;
+  const targetEmail = emailInput.value.trim();
+  
+  if (!targetEmail || !targetEmail.includes('@')) {
+    showToast('Silakan masukkan alamat email yang valid.', 'error');
+    return;
+  }
+  
+  const adminEmail = localStorage.getItem('aspend_userEmail');
+  showLoading('Menambahkan pengguna...');
+  
+  apiAddPremiumUser(adminEmail, targetEmail, function(res) {
+    hideLoading();
+    if (res.success) {
+      showToast(res.message, 'success');
+      emailInput.value = '';
+      loadPremiumUsers();
+    } else {
+      showToast(res.message, 'error');
+    }
+  }, function(err) {
+    hideLoading();
+    showToast('Gagal terhubung ke server', 'error');
+  });
+}
+
+function handleRemovePremiumUser(targetEmail) {
+  if (!confirm('Apakah Anda yakin ingin mencabut akses premium untuk ' + targetEmail + '?')) return;
+  
+  const adminEmail = localStorage.getItem('aspend_userEmail');
+  showLoading('Mencabut akses...');
+  
+  apiRemovePremiumUser(adminEmail, targetEmail, function(res) {
+    hideLoading();
+    if (res.success) {
+      showToast(res.message, 'success');
+      loadPremiumUsers();
+    } else {
+      showToast(res.message, 'error');
+    }
+  }, function(err) {
+    hideLoading();
+    showToast('Gagal terhubung ke server', 'error');
+  });
+}

@@ -51,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _initPackageInfo();
     _loadProfile();
     _loadAiConfig();
     _loadNotificationConfig();
@@ -96,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final info = await PackageInfo.fromPlatform();
       if (mounted) {
         setState(() {
-          _appVersion = 'v${info.version}';
+          _appVersion = 'v${info.version}+${info.buildNumber}';
           if (info.packageName.isNotEmpty) {
             _packageName = info.packageName;
           }
@@ -105,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _appVersion = 'v1.0.0'; // Fallback
+          _appVersion = 'v${AppConstants.appVersion}'; // Fallback
         });
       }
     }
@@ -264,6 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Stack(
       children: [
         Container(
+          width: double.infinity,
           padding: const EdgeInsets.only(left: 20, right: 20, top: 24, bottom: 20),
           decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -1087,11 +1089,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'Config',
       );
       
-      // Force selected provider and display censored API key
+      // Set provider and check local preferences for API Key
       setState(() {
         _selectedProvider = 'openrouter';
-        _apiKeyController.text = 'sk-or-v1-61f329••••••••••••••••74f4ee26';
       });
+
 
       for (var row in rows) {
         if (row.isNotEmpty) {
@@ -1173,27 +1175,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
 
-    // Find row for AI_API_KEY
-    int apiKeyRow = await auth.sheetsService!.findRowByValue(
-      auth.spreadsheetId!,
-      'Config',
-      0,
-      'AI_API_KEY',
-    );
-    if (apiKeyRow == -1) {
-      await auth.sheetsService!.appendRow(
-        auth.spreadsheetId!,
-        'Config',
-        ['AI_API_KEY', AppConstants.defaultOpenRouterApiKey],
-      );
-    } else {
-      await auth.sheetsService!.writeCell(
-        auth.spreadsheetId!,
-        'Config',
-        'B$apiKeyRow',
-        AppConstants.defaultOpenRouterApiKey,
-      );
-    }
 
     // Find row for AI_MODEL
     int modelRow = await auth.sheetsService!.findRowByValue(
@@ -1224,10 +1205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (auth.sheetsService == null || auth.spreadsheetId == null) return;
     try {
       await _saveAiConfigSilent();
-
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ai_provider_${auth.currentUser!.email}', 'openrouter');
-      await prefs.setString('ai_api_key_${auth.currentUser!.email}', AppConstants.defaultOpenRouterApiKey);
       await prefs.setString('ai_model_${auth.currentUser!.email}', _selectedModel);
 
       await auth.checkProfileComplete();
@@ -1257,10 +1235,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _testAiConnection() async {
     setState(() => _isTestingConnection = true);
     final auth = context.read<AuthProvider>();
+    final testKey = AppConstants.defaultOpenRouterApiKey;
+    
     try {
       final res = await AiService().testConnection(
         'openrouter',
-        AppConstants.defaultOpenRouterApiKey,
+        testKey,
         _selectedModel,
       );
       
@@ -1268,10 +1248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setBool('is_ai_connected_${auth.currentUser!.email}', res['success']);
       
       if (res['success']) {
-        await prefs.setString('ai_provider_${auth.currentUser!.email}', 'openrouter');
-        await prefs.setString('ai_api_key_${auth.currentUser!.email}', AppConstants.defaultOpenRouterApiKey);
         await prefs.setString('ai_model_${auth.currentUser!.email}', _selectedModel);
-        
         // Silently save configuration to Sheets
         try {
           await _saveAiConfigSilent();
@@ -1390,8 +1367,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

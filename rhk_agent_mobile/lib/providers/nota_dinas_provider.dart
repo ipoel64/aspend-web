@@ -52,11 +52,7 @@ class NotaDinasProvider extends ChangeNotifier {
   }
 
   Future<Map<String, String>> _getAiConfig() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userEmail = _auth?.currentUser?.email ?? '';
-    final storedKey = prefs.getString('ai_api_key_$userEmail');
-    
-    String apiKey = storedKey?.isNotEmpty == true ? storedKey! : AppConstants.defaultOpenRouterApiKey;
+    String apiKey = AppConstants.defaultOpenRouterApiKey;
     String model = AppConstants.defaultOpenRouterModel;
 
     if (_auth?.sheetsService != null && _auth?.spreadsheetId != null) {

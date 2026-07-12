@@ -280,10 +280,8 @@ class FormProvider extends ChangeNotifier {
       final report = Report.fromSheetRow(rowData);
 
       // 2. Get AI config
-      final prefs = await SharedPreferences.getInstance();
       final userEmail = auth.currentUser?.email ?? '';
-      final storedKey = prefs.getString('ai_api_key_$userEmail');
-      String apiKey = storedKey?.isNotEmpty == true ? storedKey! : AppConstants.defaultOpenRouterApiKey;
+      String apiKey = AppConstants.defaultOpenRouterApiKey;
       String model = AppConstants.defaultOpenRouterModel;
       String provider = 'openrouter';
 

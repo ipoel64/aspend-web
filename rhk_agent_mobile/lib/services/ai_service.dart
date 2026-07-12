@@ -89,6 +89,7 @@ class AiService {
       'messages': [
         {'role': 'user', 'content': content}
       ],
+      'max_tokens': 2048,
     };
 
     final response = await http.post(

@@ -56,7 +56,7 @@ function doPost(e) {
       'apiSaveNotaDinasWithFiles', 'apiCreateNotaDinasPdf', 'apiGetNotaDinasList',
       'apiGetPengaduanList', 'apiSaveComplaintWithFiles', 'apiCreatePengaduanPdf',
       'getRencanaAksiByJenis', 'getUniqueModulP2K2', 'getSesiByModul', 'apiExtractKtpData',
-      'apiCreateVerkomPdf'
+      'apiCreateVerkomPdf', 'checkPremiumStatusBackend', 'getPremiumUsers', 'addPremiumUser', 'removePremiumUser'
     ];
     
     if (allowedFunctions.indexOf(functionName) === -1) {

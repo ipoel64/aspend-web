@@ -70,7 +70,8 @@ function setupDatabase(clientEmail) {
       'KPM_Komponen': ['KomponenId', 'KpmId', 'Nama', 'JenisKelamin', 'HubunganKeluarga', 'JenisKomponen', 'Kelas', 'Posyandu', 'CreatedAt'],
       'KPM_RumahUsaha': ['RumahId', 'KpmId', 'PunyaUsaha', 'NamaUsaha', 'FotoUsaha', 'FotoRumahLuar', 'FotoRumahTamu', 'FotoKamarMandi', 'Latitude', 'Longitude', 'Pernyataan', 'BansosLain', 'CreatedAt'],
       'Pengaduan': ['Id', 'Email', 'Nik', 'Nama', 'Alamat', 'DesaKelurahan', 'Kecamatan', 'KabKota', 'Aduan', 'HasilAnalisa', 'Latitude', 'Longitude', 'FotoKtp', 'ScreenshotSiks', 'PdfFileId', 'CreatedAt'],
-      'Nota_Dinas': ['Id', 'Email', 'Nomor', 'Yth', 'Dari', 'Hal', 'Lampiran', 'Sifat', 'Tanggal', 'PoinDraft', 'IsiNotaDinas', 'PdfFileId', 'CreatedAt', 'BuktiDukung']
+      'Nota_Dinas': ['Id', 'Email', 'Nomor', 'Yth', 'Dari', 'Hal', 'Lampiran', 'Sifat', 'Tanggal', 'PoinDraft', 'IsiNotaDinas', 'PdfFileId', 'CreatedAt', 'BuktiDukung'],
+      'PremiumUsers': ['Email', 'AddedAt']
     };
 
     var ss = getSpreadsheet();
@@ -1185,6 +1186,126 @@ function deleteNotaDinas(id, clientEmail) {
     return { success: false, message: 'Data tidak ditemukan' };
   } catch (e) {
     Logger.log('Error deleteNotaDinas: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+// ============================================
+// MANAJEMEN PREMIUM PENGGUNA
+// ============================================
+
+/**
+ * Mengecek apakah email tertentu terdaftar di sheet PremiumUsers
+ * @param {string} email - Email pengguna
+ * @returns {boolean} True jika premium, false jika tidak
+ */
+function checkPremiumStatusBackend(email) {
+  try {
+    var rowIndex = findRowByKey('PremiumUsers', email, 1);
+    return rowIndex !== -1;
+  } catch (e) {
+    Logger.log('Error checkPremiumStatusBackend: ' + e.message);
+    return false; // Aman jika error
+  }
+}
+
+/**
+ * Mengambil seluruh daftar email premium (hanya untuk Admin)
+ * @param {string} adminEmail - Email admin
+ * @returns {Object} Hasil {success, data}
+ */
+function getPremiumUsers(adminEmail) {
+  try {
+    var email = adminEmail || Session.getActiveUser().getEmail();
+    var rowIndex = findRowByKey('Users', email, 1);
+    if (rowIndex === -1) throw new Error('Pengguna tidak ditemukan.');
+    
+    var adminSheet = getSheet('Users');
+    var adminRow = adminSheet.getRange(rowIndex, 1, 1, adminSheet.getLastColumn()).getValues()[0];
+    var isAdmin = adminRow[7] === true || adminRow[7] === 'TRUE';
+    
+    if (!isAdmin) throw new Error('Akses ditolak. Anda bukan admin.');
+    
+    var premiumSheet = getSheet('PremiumUsers');
+    var lastRow = premiumSheet.getLastRow();
+    if (lastRow <= 1) return { success: true, data: [] };
+    
+    var data = premiumSheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    var result = data.map(function(row) {
+      return { email: row[0], addedAt: row[1] };
+    });
+    
+    return { success: true, data: result };
+  } catch (e) {
+    Logger.log('Error getPremiumUsers: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Menambahkan email baru ke sheet PremiumUsers (hanya untuk Admin)
+ * @param {string} adminEmail - Email admin
+ * @param {string} targetEmail - Email yang mau ditambahkan
+ * @returns {Object} Hasil {success, message}
+ */
+function addPremiumUser(adminEmail, targetEmail) {
+  try {
+    if (!targetEmail) throw new Error('Email tidak valid.');
+    
+    var email = adminEmail || Session.getActiveUser().getEmail();
+    var rowIndex = findRowByKey('Users', email, 1);
+    if (rowIndex === -1) throw new Error('Pengguna tidak ditemukan.');
+    
+    var adminSheet = getSheet('Users');
+    var adminRow = adminSheet.getRange(rowIndex, 1, 1, adminSheet.getLastColumn()).getValues()[0];
+    var isAdmin = adminRow[7] === true || adminRow[7] === 'TRUE';
+    
+    if (!isAdmin) throw new Error('Akses ditolak. Anda bukan admin.');
+    
+    targetEmail = normalizeEmail(targetEmail);
+    var existIndex = findRowByKey('PremiumUsers', targetEmail, 1);
+    if (existIndex !== -1) {
+      return { success: true, message: 'Email sudah berstatus premium.' };
+    }
+    
+    appendRow('PremiumUsers', [targetEmail, new Date().toISOString()]);
+    return { success: true, message: 'Email berhasil ditambahkan ke daftar premium.' };
+  } catch (e) {
+    Logger.log('Error addPremiumUser: ' + e.message);
+    return { success: false, message: e.message };
+  }
+}
+
+/**
+ * Menghapus email dari sheet PremiumUsers (hanya untuk Admin)
+ * @param {string} adminEmail - Email admin
+ * @param {string} targetEmail - Email yang mau dihapus
+ * @returns {Object} Hasil {success, message}
+ */
+function removePremiumUser(adminEmail, targetEmail) {
+  try {
+    if (!targetEmail) throw new Error('Email tidak valid.');
+    
+    var email = adminEmail || Session.getActiveUser().getEmail();
+    var rowIndex = findRowByKey('Users', email, 1);
+    if (rowIndex === -1) throw new Error('Pengguna tidak ditemukan.');
+    
+    var adminSheet = getSheet('Users');
+    var adminRow = adminSheet.getRange(rowIndex, 1, 1, adminSheet.getLastColumn()).getValues()[0];
+    var isAdmin = adminRow[7] === true || adminRow[7] === 'TRUE';
+    
+    if (!isAdmin) throw new Error('Akses ditolak. Anda bukan admin.');
+    
+    targetEmail = normalizeEmail(targetEmail);
+    var existIndex = findRowByKey('PremiumUsers', targetEmail, 1);
+    if (existIndex !== -1) {
+      deleteRow('PremiumUsers', existIndex);
+      return { success: true, message: 'Akses premium berhasil dicabut.' };
+    }
+    
+    return { success: false, message: 'Email tidak ditemukan di daftar premium.' };
+  } catch (e) {
+    Logger.log('Error removePremiumUser: ' + e.message);
     return { success: false, message: e.message };
   }
 }

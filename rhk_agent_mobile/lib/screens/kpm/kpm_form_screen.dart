@@ -276,10 +276,8 @@ class _KpmFormScreenState extends State<KpmFormScreen> {
     try {
       final auth = context.read<AuthProvider>();
       
-      // Ambil API Key AI dari SharedPreferences lokal
-      final prefs = await SharedPreferences.getInstance();
-      final apiKey = prefs.getString('ai_api_key_${auth.currentUser!.email}') ?? '';
-      
+      // Gunakan API Key AI bawaan
+      final apiKey = AppConstants.defaultOpenRouterApiKey;
       // Ambil detail provider dan model default
       final configRows = await auth.sheetsService!.getAllRows(auth.spreadsheetId!, 'Config');
       String provider = 'groq';
@@ -292,9 +290,6 @@ class _KpmFormScreenState extends State<KpmFormScreen> {
 
       String model = provider == 'groq' ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'google/gemini-2.5-flash';
 
-      if (apiKey.isEmpty) {
-        throw Exception('API Key AI belum diatur di Pengaturan.');
-      }
 
       // Panggil OCR
       final ocrData = await AiService().extractDocumentData(

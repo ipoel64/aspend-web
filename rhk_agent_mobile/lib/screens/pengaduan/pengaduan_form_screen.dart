@@ -703,23 +703,39 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
                   ),
                   const SizedBox(height: 8),
                   _buildMapPreview(),
-                  if (_latController.text.trim().isEmpty || _lngController.text.trim().isEmpty) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _getCurrentLocation,
-                        icon: const Icon(Icons.gps_fixed),
-                        label: const Text('Ambil GPS'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isLocating ? null : _getCurrentLocation,
+                      icon: _isLocating
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Icon(
+                              _latController.text.trim().isEmpty
+                                  ? Icons.gps_fixed
+                                  : Icons.my_location_rounded,
+                            ),
+                      label: Text(
+                        _isLocating
+                            ? 'Mengambil lokasi...'
+                            : (_latController.text.trim().isEmpty
+                                ? 'Ambil Lokasi GPS Saat Ini'
+                                : 'Perbarui Lokasi GPS Saat Ini'),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _latController.text.trim().isEmpty
+                            ? AppColors.navy
+                            : AppColors.navyDark,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                  ],
+                  ),
+                  const SizedBox(height: 12),
 
                   // ADUAN DESCRIPTION
                   const Text(

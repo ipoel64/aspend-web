@@ -711,7 +711,9 @@ class PdfService {
     final pdf = pw.Document();
 
     List<pw.TextSpan> parseNarrativeSpans(String text) {
-      String cleanText = text.replaceAll('**', '*').replaceAll('"', '').replaceAll('#', '');
+      // Strip problematic unicode symbols that PDF fonts cannot render
+      String cleanText = text.replaceAll(RegExp(r'[☒☑✓✔✗✘▪▫□■◆◇►➢➤➜→←↑↓⇒⇨⚫⚪●○◉◎★☆✦✧✩✪✫✬✭✮✯✰✱✲✳✴✵✶✷✸✹✺✻✼✽✾✿❀❁❂❃❄❅❆❇❈❉❊❋❌❍❎❏❐❑❒▶◀▲▼△▽◁▷♦♠♣♥♡♢♤♧]'), '');
+      cleanText = cleanText.replaceAll('**', '*').replaceAll('"', '').replaceAll('#', '');
       final List<pw.TextSpan> spans = [];
       final parts = cleanText.split('*');
       for (int i = 0; i < parts.length; i++) {
@@ -724,12 +726,28 @@ class PdfService {
       return spans;
     }
 
+    // Master regex to strip ALL known problematic unicode symbols
+    final _badSymbols = RegExp(r'[☒☑✓✔✗✘▪▫□■◆◇►➢➤➜→←↑↓⇒⇨⚫⚪●○◉◎★☆✦✧✩✪✫✬✭✮✯✰✱✲✳✴✵✶✷✸✹✺✻✼✽✾✿❀❁❂❃❄❅❆❇❈❉❊❋❌❍❎❏❐❑❒▶◀▲▼△▽◁▷♦♠♣♥♡♢♤♧]');
+
     List<pw.Widget> buildPengaduanNarrative(String text) {
       final List<pw.Widget> finalWidgets = [];
-      final lines = text.split('\n');
+      
+      // PHASE 1: Pre-clean entire text — replace unicode bullets with dash markers
+      // This handles cases where ☒ is wrapped in bold (**☒**) or appears mid-line
+      String cleanedText = text;
+      // Replace symbol-at-line-start patterns (with optional markdown) to "- "
+      cleanedText = cleanedText.replaceAllMapped(
+        RegExp(r'(^|\n)\s*\**\s*[☒☑✓✔✗✘▪▫□■◆◇►➢➤➜●○◉◎❑❒❐❏❌❍❎]\s*\**\s*', multiLine: true),
+        (m) => '${m.group(1) ?? '\n'}- ',
+      );
+      // Strip any remaining unicode symbols that are in the middle of text
+      cleanedText = cleanedText.replaceAll(_badSymbols, '');
+      
+      final lines = cleanedText.split('\n');
       
       double currentIndent = 0;
       double childIndent = 0;
+      int autoPointCounter = 0;
       
       pw.Widget? pendingHeader;
 
@@ -742,9 +760,6 @@ class PdfService {
 
       for (var line in lines) {
         var cleanLine = line.trim();
-        
-        // Replace weird unicode bullets (like ➢, ✓, ▪, □) with standard dash
-        cleanLine = cleanLine.replaceAll(RegExp(r'^([^\w\sa-zA-Z0-9(]+)\s+'), '- ');
         
         // Normalize bullet points
         if (cleanLine.startsWith('* ')) {
@@ -773,6 +788,11 @@ class PdfService {
         final romanRegExp = RegExp(r'^([IVX]+|[A-Z])\.\s*(.*)');
         final pointRegExp = RegExp(r'^(\d+)\.\s*(.*)');
         final bulletRegExp = RegExp(r'^[-•]\s*(.*)');
+        
+        // Reset auto-counter when hitting a new section header
+        if (romanRegExp.hasMatch(cleanLine)) {
+          autoPointCounter = 0;
+        }
 
         if (romanRegExp.hasMatch(cleanLine)) {
           // Roman Numeral or Alphabet Header (e.g., I. IDENTITAS, A. ANALISIS)
@@ -859,7 +879,8 @@ class PdfService {
             }
           }
         } else if (bulletRegExp.hasMatch(cleanLine)) {
-          // Bullet points
+          // Bullet points → convert to auto-numbered points
+          autoPointCounter++;
           final match = bulletRegExp.firstMatch(cleanLine)!;
           final content = match.group(1)!;
 
@@ -868,7 +889,7 @@ class PdfService {
             child: pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('• ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                pw.Text('$autoPointCounter. ', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
                 pw.Expanded(
                   child: pw.RichText(
                     textAlign: pw.TextAlign.justify,

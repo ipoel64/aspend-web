@@ -73,6 +73,40 @@ function parseRobustDate(dateStr, timeStr) {
  * dan Google Drive API (tanpa perantara Server/GAS)
  */
 
+// URL Web App dari deployment Code.gs (Wajib diisi oleh Admin agar fitur Premium berjalan)
+const WEB_APP_URL = "ISI_DENGAN_URL_WEB_APP_ANDA";
+
+/**
+ * Memanggil fungsi backend Code.gs via API (doPost)
+ */
+async function callGoogleScript(functionName, args, successCallback, errorCallback) {
+  if (WEB_APP_URL === "ISI_DENGAN_URL_WEB_APP_ANDA") {
+    console.warn("WEB_APP_URL belum diatur! Fitur backend (seperti Premium) tidak akan berjalan.");
+    if (errorCallback) errorCallback(new Error("WEB_APP_URL belum diatur."));
+    return;
+  }
+  
+  try {
+    const response = await fetch(WEB_APP_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        functionName: functionName,
+        arguments: args
+      })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      if (successCallback) successCallback(result);
+    } else {
+      if (errorCallback) errorCallback(new Error(result.message));
+    }
+  } catch (err) {
+    console.error("Gagal memanggil backend Code.gs:", err);
+    if (errorCallback) errorCallback(err);
+  }
+}
+
 // Konstanta API
 const API_KEY = ''; // Kosongkan, kita menggunakan OAuth Token (GSI)
 const DISCOVERY_DOCS = [
@@ -1046,4 +1080,36 @@ async function checkPremiumStatusClient(spreadsheetId, userEmail) {
     }
     return false;
   }
+}
+
+// ============================================
+// PREMIUM USERS API WRAPPERS
+// ============================================
+
+/**
+ * Mengecek status premium ke backend
+ */
+function apiCheckPremiumStatus(email, successCallback, errorCallback) {
+  callGoogleScript('checkPremiumStatusBackend', [email], successCallback, errorCallback);
+}
+
+/**
+ * Mengambil daftar pengguna premium (Hanya Admin)
+ */
+function apiGetPremiumUsers(adminEmail, successCallback, errorCallback) {
+  callGoogleScript('getPremiumUsers', [adminEmail], successCallback, errorCallback);
+}
+
+/**
+ * Menambahkan pengguna premium (Hanya Admin)
+ */
+function apiAddPremiumUser(adminEmail, targetEmail, successCallback, errorCallback) {
+  callGoogleScript('addPremiumUser', [adminEmail, targetEmail], successCallback, errorCallback);
+}
+
+/**
+ * Menghapus pengguna premium (Hanya Admin)
+ */
+function apiRemovePremiumUser(adminEmail, targetEmail, successCallback, errorCallback) {
+  callGoogleScript('removePremiumUser', [adminEmail, targetEmail], successCallback, errorCallback);
 }

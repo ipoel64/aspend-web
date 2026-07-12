@@ -133,20 +133,6 @@ class AuthProvider extends ChangeNotifier {
 
     await loadProfile();
 
-    // Fetch and cache the AI API Key locally for fast offline check completeness
-    try {
-      final configRows = await _sheetsService!.getAllRows(_spreadsheetId!, 'Config');
-      String apiKey = '';
-      for (var row in configRows) {
-        if (row.isNotEmpty && row[0] == 'AI_API_KEY' && row.length > 1) {
-          apiKey = row[1].toString();
-        }
-      }
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ai_api_key_${currentUser!.email}', apiKey);
-    } catch (e) {
-      debugPrint('Error caching AI API Key during init: $e');
-    }
 
     await checkProfileComplete();
     await syncRiwayatPoin();
@@ -345,17 +331,6 @@ class AuthProvider extends ChangeNotifier {
       _isProfileComplete = false;
       notifyListeners();
       return false;
-    }
-
-    // 2. Check and auto-initialize AI API Key in local SharedPreferences cache
-    final prefs = await SharedPreferences.getInstance();
-    String apiKey = prefs.getString('ai_api_key_${currentUser!.email}') ?? '';
-    
-    if (apiKey.trim().isEmpty) {
-      apiKey = AppConstants.defaultOpenRouterApiKey;
-      await prefs.setString('ai_api_key_${currentUser!.email}', apiKey);
-      await prefs.setString('ai_provider_${currentUser!.email}', 'openrouter');
-      await prefs.setString('ai_model_${currentUser!.email}', AppConstants.defaultOpenRouterModel);
     }
 
     // 3. Connection Test is no longer mandatory for profile completeness
