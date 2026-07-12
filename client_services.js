@@ -476,13 +476,22 @@ Data Kegiatan:
 
     // 4. Pilih Model dari Pengaturan (Gemini / Llama)
     let aiModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-flash-1.5';
-
+    let apiKey = '';
+    try {
+      const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
+      apiKey = keys.openrouter || '';
+    } catch(e) { console.error('Failed parsing aiKeys'); }
+    
+    if (!apiKey) {
+      throw new Error("Kunci API OpenRouter belum dikonfigurasi. Silakan atur di menu Pengaturan.");
+    }
+    
     // 5. Panggil OpenRouter API
     const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': 'https://aspend-web.app',
         'X-Title': 'ASPEND Web'
       },

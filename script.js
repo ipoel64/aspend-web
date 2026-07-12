@@ -1034,9 +1034,11 @@ function onJenisRHKChange() {
   if (!sel || !rs) return;
   
   rs.innerHTML = '<option value="">— Pilih Rencana Aksi —</option>';
+  var p2k2Fields = document.getElementById('p2k2-fields');
   var selectedId = sel.value; // Ini adalah RHK-1, RHK-2, dll
+  
   if (!selectedId) {
-    document.getElementById('p2k2-fields').classList.add('hidden');
+    if (p2k2Fields) p2k2Fields.classList.add('hidden');
     return;
   }
   
@@ -1049,10 +1051,10 @@ function onJenisRHKChange() {
   // Jika ini adalah modul P2K2
   var isP2K2 = matchedOptions.some(o => o.isP2K2 || (o.jenisRhk && o.jenisRhk.toLowerCase().includes('p2k2')));
   if (isP2K2) {
-    document.getElementById('p2k2-fields').classList.remove('hidden');
+    if (p2k2Fields) p2k2Fields.classList.remove('hidden');
     loadP2K2ModulOptions();
   } else {
-    document.getElementById('p2k2-fields').classList.add('hidden');
+    if (p2k2Fields) p2k2Fields.classList.add('hidden');
   }
 }
 
