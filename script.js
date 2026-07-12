@@ -354,21 +354,28 @@ async function loadUserProfile() {
       // Cek Status Premium ke Backend
       console.log("Checking premium status...");
       apiCheckPremiumStatus(email, function(res) {
-        if (res && res.data === true) {
+        if (res && res.success && res.data && res.data.isPremium) {
           localStorage.setItem('aspend_is_premium', 'true');
+          localStorage.setItem('aspend_premium_package', res.data.packageType || 'Bulanan');
+          localStorage.setItem('aspend_premium_expiry', res.data.expiryDate || '-');
           console.log("User is PREMIUM");
         } else {
           localStorage.setItem('aspend_is_premium', 'false');
+          localStorage.setItem('aspend_premium_package', '');
+          localStorage.setItem('aspend_premium_expiry', '');
           console.log("User is NOT PREMIUM");
         }
+        if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
       }, function(err) {
         console.warn("Failed to check premium status backend", err);
         // Default to not premium on error to be safe
         localStorage.setItem('aspend_is_premium', 'false');
+        if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
       });
     } catch(e) {
       console.warn("Premium check failed", e);
       localStorage.setItem('aspend_is_premium', 'false');
+      if (window.updatePremiumSettingsUI) window.updatePremiumSettingsUI();
     }
     
     state.user = profile;
@@ -3044,12 +3051,20 @@ function loadPremiumUsers() {
       
       let html = '';
       res.data.forEach(user => {
-        let dateObj = new Date(user.addedAt);
-        let dateStr = dateObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+        let expiryStr = '-';
+        if (user.expiryDate && user.expiryDate !== '-') {
+          let expObj = new Date(user.expiryDate);
+          expiryStr = expObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+        }
+        let packageLabel = (user.packageType || 'Permanen').toUpperCase();
+        
         html += `
           <tr class="hover:bg-surface-variant/20 transition-colors group">
             <td class="p-3 font-medium">${user.email}</td>
-            <td class="p-3 text-on-surface-variant">${dateStr}</td>
+            <td class="p-3 text-on-surface-variant">
+              <span class="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-bold border border-primary/20">${packageLabel}</span>
+            </td>
+            <td class="p-3 text-on-surface-variant">${expiryStr}</td>
             <td class="p-3 text-right">
               <button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded hover:bg-error/10 cursor-pointer opacity-0 group-hover:opacity-100" onclick="handleRemovePremiumUser('${user.email}')" title="Cabut Akses">
                 <span class="material-symbols-outlined text-[20px]">delete</span>
@@ -3060,21 +3075,21 @@ function loadPremiumUsers() {
       });
       tbody.innerHTML = html;
     } else {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal memuat: ${res.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="text-center p-6 text-error">Gagal memuat: ${res.message}</td></tr>`;
       showToast(res.message, 'error');
     }
   }, function(err) {
     if (err.message.includes('Pengguna tidak ditemukan')) {
-      tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Menyiapkan database server untuk pertama kali...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Menyiapkan database server untuk pertama kali...</td></tr>';
       callGoogleScript('setupDatabase', [adminEmail], function() {
         loadPremiumUsers();
       }, function(err2) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Gagal setup server: ${err2.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center p-6 text-error">Gagal setup server: ${err2.message}</td></tr>`;
       });
       return;
     }
     
-    tbody.innerHTML = `<tr><td colspan="3" class="text-center p-6 text-error">Koneksi gagal: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center p-6 text-error">Koneksi gagal: ${err.message}</td></tr>`;
     showToast('Koneksi gagal: ' + err.message, 'error');
   });
 }
@@ -3084,6 +3099,11 @@ function handleAddPremiumUser() {
   if (!emailInput) return;
   const targetEmail = emailInput.value.trim();
   
+  const packageInput = document.getElementById('input-premium-package');
+  const durationInput = document.getElementById('input-premium-duration');
+  const packageType = packageInput ? packageInput.value : 'bulanan';
+  const duration = durationInput ? parseInt(durationInput.value) || 1 : 1;
+  
   if (!targetEmail || !targetEmail.includes('@')) {
     showToast('Silakan masukkan alamat email yang valid.', 'error');
     return;
@@ -3092,11 +3112,13 @@ function handleAddPremiumUser() {
   const adminEmail = localStorage.getItem('aspend_clientEmail');
   showLoading('Menambahkan pengguna...');
   
-  apiAddPremiumUser(adminEmail, targetEmail, function(res) {
+  apiAddPremiumUser(adminEmail, targetEmail, packageType, duration, function(res) {
     hideLoading();
     if (res.success) {
       showToast(res.message, 'success');
       emailInput.value = '';
+      if (durationInput) durationInput.value = '1';
+      if (window.updatePremiumPrice) window.updatePremiumPrice();
       loadPremiumUsers();
     } else {
       showToast(res.message, 'error');
@@ -3126,3 +3148,54 @@ function handleRemovePremiumUser(targetEmail) {
     showToast('Gagal terhubung ke server', 'error');
   });
 }
+
+window.updatePremiumSettingsUI = function() {
+  const isPremium = localStorage.getItem('aspend_is_premium') === 'true';
+  const packageType = localStorage.getItem('aspend_premium_package') || '';
+  const expiryDate = localStorage.getItem('aspend_premium_expiry') || '';
+  
+  const btn = document.getElementById('btn-settings-premium');
+  const title = document.getElementById('premium-settings-title');
+  const subtitle = document.getElementById('premium-settings-subtitle');
+  
+  if (!btn) return;
+  
+  if (isPremium) {
+    btn.classList.remove('bg-[#1e466d]');
+    btn.classList.add('bg-gradient-to-r', 'from-amber-400', 'to-amber-600');
+    title.innerText = 'ASPEND Premium';
+    
+    let expiryStr = '-';
+    if (expiryDate && expiryDate !== '-') {
+      let expObj = new Date(expiryDate);
+      expiryStr = expObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+    }
+    
+    subtitle.innerText = `Status Aktif (${packageType}) • Sampai ${expiryStr}`;
+  } else {
+    btn.classList.add('bg-[#1e466d]');
+    btn.classList.remove('bg-gradient-to-r', 'from-amber-400', 'to-amber-600');
+    title.innerText = 'Aspend Premium';
+    subtitle.innerText = 'buka fitur lain • Mulai Rp 10.000/bulan';
+  }
+};
+
+window.handlePremiumSettingsClick = function() {
+  const isPremium = localStorage.getItem('aspend_is_premium') === 'true';
+  if (isPremium) {
+    const packageType = localStorage.getItem('aspend_premium_package') || 'Permanen';
+    const expiryDate = localStorage.getItem('aspend_premium_expiry') || '-';
+    
+    let expiryStr = '-';
+    if (expiryDate && expiryDate !== '-') {
+      let expObj = new Date(expiryDate);
+      expiryStr = expObj.toLocaleDateString('id-ID', {day: 'numeric', month: 'short', year: 'numeric'});
+    }
+    
+    document.getElementById('info-premium-package').innerText = packageType;
+    document.getElementById('info-premium-expiry').innerText = expiryStr;
+    openModal('modal-premium-info');
+  } else {
+    openModal('modal-premium');
+  }
+};

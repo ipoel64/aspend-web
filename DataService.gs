@@ -1202,10 +1202,25 @@ function deleteNotaDinas(id, clientEmail) {
 function checkPremiumStatusBackend(email) {
   try {
     var rowIndex = findRowByKey('PremiumUsers', email, 1);
-    return rowIndex !== -1;
+    if (rowIndex === -1) return { isPremium: false };
+    
+    var sheet = getSheet('PremiumUsers');
+    var row = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var packageType = row[2] || 'Permanen';
+    var expiryDateStr = row[4];
+    
+    if (expiryDateStr) {
+      var expiryDate = new Date(expiryDateStr);
+      var now = new Date();
+      if (now > expiryDate) {
+        return { isPremium: false, expired: true, expiryDate: expiryDateStr };
+      }
+    }
+    
+    return { isPremium: true, packageType: packageType, expiryDate: expiryDateStr };
   } catch (e) {
     Logger.log('Error checkPremiumStatusBackend: ' + e.message);
-    return false; // Aman jika error
+    return { isPremium: false };
   }
 }
 
@@ -1230,9 +1245,15 @@ function getPremiumUsers(adminEmail) {
     var lastRow = premiumSheet.getLastRow();
     if (lastRow <= 1) return { success: true, data: [] };
     
-    var data = premiumSheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    var data = premiumSheet.getRange(2, 1, lastRow - 1, 5).getValues();
     var result = data.map(function(row) {
-      return { email: row[0], addedAt: row[1] };
+      return { 
+        email: row[0], 
+        addedAt: row[1],
+        packageType: row[2] || 'Permanen',
+        duration: row[3] || '-',
+        expiryDate: row[4] || '-'
+      };
     });
     
     return { success: true, data: result };
@@ -1248,7 +1269,7 @@ function getPremiumUsers(adminEmail) {
  * @param {string} targetEmail - Email yang mau ditambahkan
  * @returns {Object} Hasil {success, message}
  */
-function addPremiumUser(adminEmail, targetEmail) {
+function addPremiumUser(adminEmail, targetEmail, packageType, duration) {
   try {
     if (!targetEmail) throw new Error('Email tidak valid.');
     
@@ -1265,11 +1286,22 @@ function addPremiumUser(adminEmail, targetEmail) {
     targetEmail = normalizeEmail(targetEmail);
     var existIndex = findRowByKey('PremiumUsers', targetEmail, 1);
     if (existIndex !== -1) {
-      return { success: true, message: 'Email sudah berstatus premium.' };
+      deleteRow('PremiumUsers', existIndex);
     }
     
-    appendRow('PremiumUsers', [targetEmail, new Date().toISOString()]);
-    return { success: true, message: 'Email berhasil ditambahkan ke daftar premium.' };
+    var addedAt = new Date().toISOString();
+    var expiryDate = new Date();
+    duration = parseInt(duration) || 1;
+    packageType = packageType || 'bulanan';
+    
+    if (packageType === 'bulanan') {
+      expiryDate.setMonth(expiryDate.getMonth() + duration);
+    } else if (packageType === 'tahunan') {
+      expiryDate.setFullYear(expiryDate.getFullYear() + duration);
+    }
+    
+    appendRow('PremiumUsers', [targetEmail, addedAt, packageType, duration, expiryDate.toISOString()]);
+    return { success: true, message: 'Akses premium berhasil diberikan.' };
   } catch (e) {
     Logger.log('Error addPremiumUser: ' + e.message);
     return { success: false, message: e.message };

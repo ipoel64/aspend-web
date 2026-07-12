@@ -1123,8 +1123,8 @@ function apiGetPremiumUsers(adminEmail, successCallback, errorCallback) {
 /**
  * Menambahkan pengguna premium (Hanya Admin)
  */
-function apiAddPremiumUser(adminEmail, targetEmail, successCallback, errorCallback) {
-  callGoogleScript('addPremiumUser', [adminEmail, targetEmail], successCallback, errorCallback);
+function apiAddPremiumUser(adminEmail, targetEmail, packageType, duration, successCallback, errorCallback) {
+  callGoogleScript('addPremiumUser', [adminEmail, targetEmail, packageType, duration], successCallback, errorCallback);
 }
 
 /**
