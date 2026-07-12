@@ -146,7 +146,7 @@ function initGoogleApiClient() {
 async function locateOrCreateSpreadsheet() {
   try {
     const response = await gapi.client.drive.files.list({
-      q: "name='Aspend Database' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+      q: "name='Aspend Database' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false and 'me' in owners",
       fields: 'files(id, name)'
     });
     

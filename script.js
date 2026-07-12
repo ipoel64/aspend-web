@@ -264,7 +264,7 @@ async function loadUserProfile() {
         // Gunakan nama depan email untuk pencarian agar lebih tahan terhadap filter tokenisasi Drive API
         const emailPrefix = email.split('@')[0];
         const response = await gapi.client.drive.files.list({
-          q: `name contains 'Profile_' and name contains '${emailPrefix}' and mimeType contains 'image/' and trashed=false`,
+          q: `name contains 'Profile_' and name contains '${emailPrefix}' and mimeType contains 'image/' and trashed=false and 'me' in owners`,
           fields: 'files(id, name)',
           pageSize: 1
         });
@@ -278,7 +278,7 @@ async function loadUserProfile() {
         // Coba ambil Tanda Tangan
         if (!localStorage.getItem('aspend_signature_base64')) {
           const sigResponse = await gapi.client.drive.files.list({
-            q: `name contains 'Signature_' and name contains '${emailPrefix}' and mimeType contains 'image/' and trashed=false`,
+            q: `name contains 'Signature_' and name contains '${emailPrefix}' and mimeType contains 'image/' and trashed=false and 'me' in owners`,
             fields: 'files(id, name)',
             pageSize: 1
           });
@@ -416,7 +416,7 @@ async function checkAdmin() {
   // Untuk migrasi awal Client-side, kita jadikan Admin by default atau cek daftar tertentu
   state.isAdmin = true;
   if (state.isAdmin) {
-    // document.getElementById('nav-admin').classList.remove('hidden');
+    document.getElementById('nav-admin').classList.remove('hidden');
     var logoCard = document.getElementById('logo-instansi-card');
     if (logoCard) logoCard.classList.remove('hidden');
   }
