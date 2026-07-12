@@ -2408,18 +2408,27 @@ function formatDateIndo(date) {
 }
 
 function logoutSession() {
-  const keys = Object.keys(localStorage);
-  for (let key of keys) {
-    if (key.startsWith('aspend_') || key === 'google_access_token') {
-      localStorage.removeItem(key);
+  const token = localStorage.getItem('google_access_token');
+  
+  const clearLocalAndReload = () => {
+    const keys = Object.keys(localStorage);
+    for (let key of keys) {
+      if (key.startsWith('aspend_') || key === 'google_access_token') {
+        localStorage.removeItem(key);
+      }
     }
+    state.clientEmail = '';
+    state.spreadsheetId = '';
+    window.location.reload();
+  };
+
+  if (token && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+    google.accounts.oauth2.revoke(token, () => {
+      clearLocalAndReload();
+    });
+  } else {
+    clearLocalAndReload();
   }
-  
-  state.clientEmail = '';
-  state.spreadsheetId = '';
-  
-  showToast('Sesi Anda berakhir.', 'info');
-  document.getElementById('login-overlay').classList.remove('hidden');
 }
 
 function processLogin() {
@@ -2505,7 +2514,7 @@ function showLoginOverlay() {
   localStorage.removeItem('aspend_clientEmail');
   localStorage.removeItem('google_access_token');
   state.clientEmail = '';
-  document.getElementById('login-overlay').classList.remove('hidden');
+  window.location.reload();
 }
 
 function processSpreadsheetRegistration() {
