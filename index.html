@@ -949,6 +949,50 @@
         <!-- ═══════════════════════════════════════════════
              PAGE: Preview & Edit Memo Nota Dinas
              ═══════════════════════════════════════════════ -->
+        <section class="page hidden" id="page-preview-nd">
+          <div class="mb-stack_lg flex items-center gap-4">
+            <button class="p-2 rounded-full hover:bg-surface-container transition-colors" onclick="navigateTo('form-nota-dinas')">
+              <span class="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div>
+              <h2 class="font-headline-lg text-headline-lg text-primary">Pratinjau Memo Nota Dinas</h2>
+              <p class="font-body-md text-body-md text-on-surface-variant">Sesuaikan hasil generate AI sebelum melampirkan kop surat dan tanda tangan.</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6 max-w-3xl mx-auto relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-secondary-fixed/10 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+            <div class="flex items-center gap-3 bg-secondary-fixed/10 border border-secondary-fixed-dim/30 p-4 rounded-lg mb-6">
+              <span class="material-symbols-outlined text-secondary">check_circle</span>
+              <p class="font-body-md text-sm text-secondary-fixed-variant font-medium">Memo disusun secara formal. Silakan edit jika diperlukan.</p>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label class="font-label-md text-label-md text-on-surface-variant">ISI MEMO DINAS</label>
+              <textarea class="w-full rounded-lg border border-outline-variant bg-white p-4 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors font-body-md leading-relaxed font-sans" id="textarea-nd-isi" rows="12"></textarea>
+            </div>
+
+            <div class="flex justify-between items-center gap-4 mt-6 border-t border-surface-variant pt-6">
+              <button class="px-5 py-3 border border-outline text-on-surface-variant rounded-lg hover:bg-surface-variant transition-colors flex items-center gap-2 font-label-md text-label-md font-bold cursor-pointer" onclick="regenerateMemoAI()">
+                <span class="material-symbols-outlined text-[20px]">refresh</span>
+                Susun Ulang Memo
+              </button>
+              <button class="px-6 py-3 bg-primary text-secondary-fixed rounded-lg hover:bg-primary-container hover:text-white transition-all active:scale-95 flex items-center gap-2 font-label-md text-label-md font-bold shadow-md cursor-pointer" onclick="saveAndGenerateNDPdf()">
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+                Simpan &amp; Unduh PDF Memo
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════════════════════════════════════
+             PAGE: Pengaturan & AI
+             ═══════════════════════════════════════════════ -->
+        <section class="page hidden" id="page-settings">
+          <div class="mb-stack_lg">
+            <h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Informasi Pengaturan dan Profil Pengguna</h2>
+          </div>
+
            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             
             <!-- Column 1 -->
@@ -1420,6 +1464,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=1783294505"></script>
+  <script src="script.js?v=1783294506"></script>
 </body>
 </html>
