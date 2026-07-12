@@ -413,12 +413,19 @@ async function loadUserProfile() {
 }
 
 async function checkAdmin() {
-  // Untuk migrasi awal Client-side, kita jadikan Admin by default atau cek daftar tertentu
-  state.isAdmin = true;
+  const adminEmails = ['binjaipkh@gmail.com'];
+  const userEmail = localStorage.getItem('aspend_clientEmail');
+  
+  state.isAdmin = adminEmails.includes(userEmail);
+  
   if (state.isAdmin) {
     document.getElementById('nav-admin').classList.remove('hidden');
     var logoCard = document.getElementById('logo-instansi-card');
     if (logoCard) logoCard.classList.remove('hidden');
+  } else {
+    document.getElementById('nav-admin').classList.add('hidden');
+    var logoCard = document.getElementById('logo-instansi-card');
+    if (logoCard) logoCard.classList.add('hidden');
   }
 }
 
