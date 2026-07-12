@@ -108,7 +108,16 @@ async function callGoogleScript(functionName, args, successCallback, errorCallba
     }
     
     if (result.success) {
-      if (successCallback) successCallback(result);
+      let finalResult = result;
+      if (result.data && typeof result.data === 'object' && typeof result.data.success !== 'undefined') {
+        finalResult = result.data;
+      }
+      
+      if (finalResult.success) {
+        if (successCallback) successCallback(finalResult);
+      } else {
+        if (errorCallback) errorCallback(new Error(finalResult.message));
+      }
     } else {
       if (errorCallback) errorCallback(new Error(result.message));
     }
