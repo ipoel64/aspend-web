@@ -126,7 +126,28 @@ async function locateOrCreateSpreadsheet() {
       const createRes = await gapi.client.sheets.spreadsheets.create({
         properties: { title: 'Aspend Database' }
       });
-      return createRes.result.spreadsheetId;
+      const ssId = createRes.result.spreadsheetId;
+      const defaultSheetId = createRes.result.sheets[0].properties.sheetId;
+      
+      // Inisialisasi tab yang dibutuhkan
+      const requests = [
+        {
+          updateSheetProperties: {
+            properties: { sheetId: defaultSheetId, title: 'Laporan_Log' },
+            fields: 'title'
+          }
+        },
+        { addSheet: { properties: { title: 'Profile' } } },
+        { addSheet: { properties: { title: 'Master' } } },
+        { addSheet: { properties: { title: 'Premium' } } }
+      ];
+      
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: ssId,
+        resource: { requests: requests }
+      });
+      
+      return ssId;
     }
   } catch (err) {
     console.error('Error mencari spreadsheet:', err);
