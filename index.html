@@ -993,10 +993,7 @@
             <h2 class="font-headline-lg text-headline-lg text-on-background mb-2">Informasi Pengaturan dan Profil Pengguna</h2>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
-            
-            <!-- Left Side -->
-            <div class="flex flex-col gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
               
               <!-- Profil Pengguna -->
               <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
@@ -1109,11 +1106,6 @@
                 </div>
               </div>
 
-            </div>
-            
-            <!-- Right Side -->
-            <div class="flex flex-col gap-6">
-
               <!-- Konfigurasi Asisten Pendamping -->
               <div class="bg-white rounded-xl shadow-sm border border-surface-variant p-6">
                 <h3 class="font-title-lg text-title-lg text-primary mb-4 font-bold flex items-center gap-2">
@@ -1124,11 +1116,7 @@
                 <div class="space-y-4 opacity-80 pointer-events-none">
                   <div>
                     <label class="block text-xs font-bold text-on-surface mb-2">Model Asisten</label>
-                    <select class="w-full rounded-xl bg-surface-container-lowest border border-outline-variant py-3 px-4 outline-none text-sm font-medium text-on-surface appearance-none" id="select-ai-provider" disabled readonly>
-                      <option value="google/gemini-1.5-flash">Google Gemini 1.5 Flash (Narasi Cerdas)</option>
-                      <option value="meta-llama/llama-3-8b-instruct">Meta LLaMA 3 (Bahasa Ringkas)</option>
-                      <option value="google/gemini-flash-1.5">Google Gemini Flash (Legacy)</option>
-                    </select>
+                    <input class="w-full rounded-xl bg-surface-container-lowest border border-outline-variant py-3 px-4 outline-none text-sm font-medium text-on-surface" type="text" id="input-ai-model-display" placeholder="Memuat model..." disabled readonly>
                     <p class="text-[10px] text-on-surface-variant mt-2">Disinkronkan dari pengaturan aplikasi ASPEND Mobile.</p>
                   </div>
                   
@@ -1178,7 +1166,6 @@
                 </div>
               </div>
 
-            </div>
           </div>
           
           </section>
@@ -1490,6 +1477,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=1783294503"></script>
+  <script src="script.js?v=1783294504"></script>
 </body>
 </html>

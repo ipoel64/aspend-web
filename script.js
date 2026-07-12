@@ -1945,8 +1945,8 @@ function loadProfileSettings() {
   
   // AI Settings
   let savedModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-1.5-flash';
-  let modelSelect = document.getElementById('select-ai-provider'); // Ini sebenarnya input model
-  if(modelSelect) modelSelect.value = savedModel;
+  let modelInput = document.getElementById('input-ai-model-display');
+  if(modelInput) modelInput.value = savedModel;
   
   let savedKey = localStorage.getItem('aspend_api_key_openrouter') || '';
   let keyInput = document.getElementById('input-key-openrouter');
@@ -2006,7 +2006,8 @@ function handleSignatureUpload(event) {
 
 
 function saveSettings() {
-  var model = document.getElementById('select-ai-provider').value;
+  var modelElement = document.getElementById('input-ai-model-display');
+  var model = modelElement ? modelElement.value : 'google/gemini-1.5-flash';
   var openrouter = document.getElementById('input-key-openrouter').value.trim();
   var prov = 'openrouter'; // Fixed to openrouter
   
