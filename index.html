@@ -124,7 +124,7 @@
     };
   </script>
   
-  <link rel="stylesheet" href="style.css?v=53">
+  <link rel="stylesheet" href="style.css?v=54">
     <script>
       window.addEventListener('error', function(e) {
         if (e.message && e.message.includes('ResizeObserver loop completed with undelivered notifications')) {
@@ -486,15 +486,8 @@
                   </div>
 
                   <div class="flex flex-col gap-2">
-                    <div class="flex justify-between items-center">
-                      <label class="font-label-md text-label-md text-on-surface-variant">POIN-POIN KEGIATAN <span class="text-error">*</span></label>
-                      <button class="flex items-center gap-1 px-3 py-1 border border-primary text-primary rounded-full hover:bg-primary/5 transition-all text-xs font-semibold" type="button" id="btn-voice" onclick="toggleVoiceInput()">
-                        <span class="material-symbols-outlined text-[16px]" id="voice-icon">mic</span>
-                        <span id="voice-text">Dikte Suara</span>
-                      </button>
-                    </div>
+                    <label class="font-label-md text-label-md text-on-surface-variant mb-1">POIN-POIN KEGIATAN <span class="text-error">*</span></label>
                     <textarea class="w-full rounded-lg border border-outline-variant bg-white py-3 px-4 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors font-body-md" id="input-poin" rows="4" placeholder="Tuliskan poin-poin kegiatan, seperti lokasi kegiatan; siapa saja yang terlibat; Kegiatan apa; Hasil Utamanya; Saran"></textarea>
-                    <p class="text-xs text-on-surface-variant" id="voice-status">Klik tombol "Dikte Suara" untuk mulai mendikte dalam Bahasa Indonesia.</p>
                   </div>
 
                   <!-- Dynamic P2K2 Section -->
@@ -1504,6 +1497,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=48"></script>
+  <script src="script.js?v=49"></script>
 </body>
 </html>

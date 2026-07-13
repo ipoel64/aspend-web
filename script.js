@@ -1127,7 +1127,7 @@ function onJenisRHKChange() {
   if (!sel || !rs) return;
   
   rs.innerHTML = '<option value="">— Pilih Rencana Aksi —</option>';
-  var p2k2Fields = document.getElementById('p2k2-fields');
+  var p2k2Fields = document.getElementById('p2k2-section');
   var selectedId = sel.value; // Ini adalah RHK-1, RHK-2, dll
   
   if (!selectedId) {
@@ -1152,7 +1152,7 @@ function onJenisRHKChange() {
 }
 
 function loadP2K2ModulOptions() {
-  var mod = document.getElementById('input-p2k2-modul');
+  var mod = document.getElementById('select-modul');
   if (!mod) return;
   mod.innerHTML = '<option value="">Memuat Modul...</option>';
   
@@ -1177,8 +1177,8 @@ function loadP2K2ModulOptions() {
 }
 
 function onModulChange() {
-  var mod = document.getElementById('input-p2k2-modul').value;
-  var ses = document.getElementById('input-p2k2-sesi');
+  var mod = document.getElementById('select-modul').value;
+  var ses = document.getElementById('select-sesi');
   if (!ses) return;
   ses.innerHTML = '<option value="">— Pilih Sesi —</option>';
   
