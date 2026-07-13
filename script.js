@@ -437,12 +437,32 @@ async function checkAdmin() {
   
   if (state.isAdmin) {
     document.getElementById('nav-admin').classList.remove('hidden');
+    document.getElementById('nav-admin').classList.add('flex');
     var logoCard = document.getElementById('logo-instansi-card');
     if (logoCard) logoCard.classList.remove('hidden');
+    
+    // Sembunyikan menu lain untuk admin
+    ['nav-dashboard', 'nav-pengaduan', 'nav-verkom', 'nav-nota-dinas', 'nav-settings'].forEach(id => {
+      let el = document.getElementById(id);
+      if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+      }
+    });
   } else {
     document.getElementById('nav-admin').classList.add('hidden');
+    document.getElementById('nav-admin').classList.remove('flex');
     var logoCard = document.getElementById('logo-instansi-card');
     if (logoCard) logoCard.classList.add('hidden');
+    
+    // Kembalikan menu lain untuk user biasa
+    ['nav-dashboard', 'nav-settings'].forEach(id => {
+      let el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+      }
+    });
   }
 }
 
@@ -3067,18 +3087,18 @@ function loadPremiumUsers() {
   const tbody = document.getElementById('admin-premium-tbody');
   if (!tbody) return;
   
-  tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Memuat data...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-on-surface-variant"><span class="material-symbols-outlined animate-spin mb-2 text-primary">sync</span><br>Memuat data...</td></tr>';
   
   const adminEmail = localStorage.getItem('aspend_clientEmail');
   if (!adminEmail) {
-    tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-error">Email admin tidak ditemukan.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-error">Email admin tidak ditemukan.</td></tr>';
     return;
   }
   
   apiGetPremiumUsers(adminEmail, function(res) {
     if (res.success) {
       if (!res.data || res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center p-6 text-on-surface-variant italic">Belum ada pengguna premium.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center p-6 text-on-surface-variant italic">Belum ada pengguna premium.</td></tr>';
         return;
       }
       
@@ -3126,7 +3146,7 @@ function loadPremiumUsers() {
       });
       tbody.innerHTML = html;
     } else {
-      tbody.innerHTML = `<tr><td colspan="4" class="text-center p-6 text-error">Gagal memuat: ${res.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center p-6 text-error">Gagal memuat: ${res.message}</td></tr>`;
       showToast(res.message, 'error');
     }
   }, function(err) {
@@ -3279,15 +3299,19 @@ window.handleEditPremiumUser = function(email, packageType, duration) {
   const emailInput = document.getElementById('input-premium-email');
   const packageSelect = document.getElementById('input-premium-package');
   const durationInput = document.getElementById('input-premium-duration');
+  const submitBtn = document.querySelector('button[onclick="handleAddPremiumUser()"]');
   
   if (emailInput) emailInput.value = email;
   if (packageSelect) {
-    packageSelect.value = packageType || 'bulanan';
+    packageSelect.value = (packageType && packageType.toLowerCase() === 'tahunan') ? 'tahunan' : 'bulanan';
   }
   if (durationInput) {
-    durationInput.value = duration || 1;
+    durationInput.value = parseInt(duration) || 1;
+  }
+  if (submitBtn) {
+    submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">save</span> Simpan Perubahan';
   }
   
-  window.scrollTo({ top: document.getElementById('admin-premium-tbody').offsetTop - 300, behavior: 'smooth' });
+  window.scrollTo({ top: document.getElementById('page-admin').offsetTop, behavior: 'smooth' });
   if (window.updatePremiumPrice) window.updatePremiumPrice();
 };
