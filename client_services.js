@@ -304,11 +304,19 @@ async function fetchDashboardDataClient(spreadsheetId, userEmail, options = {}) 
       FotoIds: (() => {
         let val = row[11];
         if (!val) return [];
-        try { 
-            let parsed = JSON.parse(val); 
-            if (Array.isArray(parsed)) return parsed.map(extractDriveId);
-        } catch(e) {} 
-        return [extractDriveId(val)];
+        if (typeof val === 'string') {
+          // Format Web App Lama (JSON Array)
+          if (val.trim().startsWith('[')) {
+            try { 
+              let parsed = JSON.parse(val); 
+              if (Array.isArray(parsed)) return parsed.map(extractDriveId).filter(Boolean);
+            } catch(e) {}
+          }
+          // Format Mobile App (String tunggal atau comma-separated)
+          let matches = val.match(/[-\w]{25,}/g);
+          if (matches && matches.length > 0) return matches;
+        }
+        return [extractDriveId(val)].filter(Boolean);
       })(),
       P2K2Data: (() => {
         try { return row[12] ? JSON.parse(row[12]) : null; } 
@@ -499,7 +507,7 @@ async function submitReportDataClient(spreadsheetId, userEmail, payload) {
       '',                       // 8: narasiEdited
       'Draft',                  // 9: status
       '',                       // 10: pdfFileId
-      JSON.stringify(fotoIds),  // 11: fotoIds
+      fotoIds.join(','),        // 11: fotoIds (Comma-separated agar kompatibel dengan Aspend Mobile)
       payload.p2k2 ? JSON.stringify(payload.p2k2) : '', // 12: p2k2Data
       payload.lokasi,           // 13: physicalLokasi
       nowStr                    // 14: createdAt
@@ -752,7 +760,7 @@ async function saveEditedReportClient(spreadsheetId, reportId, newData) {
       existingRow[8] = newData.narasiEdited || existingRow[8];
       existingRow[9] = 'Selesai';
       if (newData.fotoIds) {
-        existingRow[11] = Array.isArray(newData.fotoIds) ? JSON.stringify(newData.fotoIds) : newData.fotoIds;
+        existingRow[11] = Array.isArray(newData.fotoIds) ? newData.fotoIds.join(',') : newData.fotoIds;
       }
       if (newData.pdfFileId) {
         existingRow[10] = newData.pdfFileId;
