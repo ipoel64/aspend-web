@@ -574,7 +574,7 @@ Data Kegiatan:
       key = String(key).trim();
       if (key === 'undefined' || key === 'null' || key === 'NaN' || key.length < 5) key = '';
       
-      // Coba ambil langsung dari Sheet jika kosong
+    // Coba ambil langsung dari Sheet jika kosong
       if (!key) {
         console.warn('[AI] API Key kosong di localStorage. Mengambil ulang dari Config Sheet...');
         if (!configData) {
@@ -588,10 +588,25 @@ Data Kegiatan:
     };
 
     apiKey = await getApiKey(aiProvider);
+    
+    // Bersihkan kata "Bearer " jika user tidak sengaja memasukkannya
+    if (apiKey.toLowerCase().startsWith('bearer ')) {
+      apiKey = apiKey.substring(7).trim();
+    }
 
-    if (!apiKey) {
-      // Jika memang tidak ada, lempar error yang jelas
+    if (!apiKey || apiKey === '[object Object]' || apiKey === 'false' || apiKey === 'true') {
       throw new Error(`Kunci API untuk provider ${aiProvider.toUpperCase()} belum diatur. Silakan buka tab Pengaturan di Aspend Mobile atau Web dan simpan ulang API Key Anda.`);
+    }
+
+    // Validasi Format Ketat agar tidak mendapat error aneh dari server
+    if (aiProvider === 'openrouter' && !apiKey.startsWith('sk-or-')) {
+      throw new Error(`Format Kunci API OpenRouter salah (harus diawali dengan "sk-or-"). Kunci yang tersimpan saat ini tidak valid. Silakan simpan ulang di Pengaturan.`);
+    }
+    if (aiProvider === 'groq' && !apiKey.startsWith('gsk_')) {
+      throw new Error(`Format Kunci API Groq salah (harus diawali dengan "gsk_"). Kunci yang tersimpan saat ini tidak valid. Silakan simpan ulang di Pengaturan.`);
+    }
+    if (aiProvider === 'google' && apiKey.length < 30) {
+      throw new Error(`Format Kunci API Gemini salah (terlalu pendek). Kunci yang tersimpan saat ini tidak valid. Silakan simpan ulang di Pengaturan.`);
     }
 
     if (aiProvider === 'google') {
