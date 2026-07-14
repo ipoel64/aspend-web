@@ -57,7 +57,12 @@ class Report {
         final List<dynamic> decoded = jsonDecode(jsonString);
         return decoded.map((e) => e.toString()).toList();
       } catch (e) {
-        return [];
+        // Fallback for Web App format (comma-separated strings)
+        return jsonString
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
     }
 

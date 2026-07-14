@@ -501,6 +501,7 @@ function loadRHKOptions() {
   fetchAdminDataClient().then(data => {
     let rhkData = data.rhk && data.rhk.length > 0 ? data.rhk : defaultRhk;
     state.rhkOptions = rhkData.map(r => ({id: r.id, jenisRhk: r.jenis, rencanaAksi: r.rencana}));
+    state.riwayatPoin = data.riwayatPoin || [];
     
     if (data.p2k2 && data.p2k2.length > 0) {
       state.p2k2ModulOptions = data.p2k2.map(p => ({modul: p.modul, sesi: p.sesi}));
@@ -1206,10 +1207,52 @@ function onJenisRHKChange() {
   rs.innerHTML = '<option value="">— Pilih Rencana Aksi —</option>';
   var p2k2Fields = document.getElementById('p2k2-section');
   var selectedId = sel.value; // Ini adalah RHK-1, RHK-2, dll
+  var riwayatContainer = document.getElementById('riwayat-poin-container');
   
   if (!selectedId) {
     if (p2k2Fields) p2k2Fields.classList.add('hidden');
+    if (riwayatContainer) riwayatContainer.classList.add('hidden');
     return;
+  }
+  
+  // Render Riwayat Poin Chips
+  if (riwayatContainer) {
+    riwayatContainer.innerHTML = '';
+    let riwayatForRhk = (state.riwayatPoin || []).filter(r => r.idRhk === selectedId);
+    
+    // Hilangkan duplikat teks jika ada
+    let uniqueTexts = [];
+    riwayatForRhk.forEach(r => {
+      let t = r.poinText.trim();
+      if (t && !uniqueTexts.includes(t)) uniqueTexts.push(t);
+    });
+
+    if (uniqueTexts.length > 0) {
+      uniqueTexts.forEach(text => {
+        let chip = document.createElement('button');
+        chip.className = 'px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium rounded-full transition-colors border border-primary/20 text-left';
+        chip.textContent = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        chip.title = text;
+        chip.type = 'button';
+        chip.onclick = function() {
+          let inputPoin = document.getElementById('input-poin');
+          if (inputPoin) {
+            let currentVal = inputPoin.value.trim();
+            if (currentVal && !currentVal.endsWith('\\n')) {
+              inputPoin.value = currentVal + '\\n- ' + text;
+            } else if (currentVal) {
+              inputPoin.value = currentVal + '- ' + text;
+            } else {
+              inputPoin.value = '- ' + text;
+            }
+          }
+        };
+        riwayatContainer.appendChild(chip);
+      });
+      riwayatContainer.classList.remove('hidden');
+    } else {
+      riwayatContainer.classList.add('hidden');
+    }
   }
   
   // Ambil opsi dari state.rhkOptions
@@ -1457,6 +1500,18 @@ async function submitForm() {
     
     // FETCH LATEST DATA SILENTLY: Wajib dilakukan agar laporan baru masuk ke state.reports
     await loadDashboardData(true);
+    
+    // Cek apakah riwayat poin baru, jika iya simpan
+    let riwayatExists = (state.riwayatPoin || []).some(r => r.idRhk === payload.jenisRhkId && r.poinText.trim() === payload.poin.trim());
+    if (!riwayatExists) {
+      saveRiwayatPoinClient(payload.jenisRhkId, payload.poin);
+      if (!state.riwayatPoin) state.riwayatPoin = [];
+      state.riwayatPoin.push({
+        idRhk: payload.jenisRhkId,
+        poinText: payload.poin,
+        createdAt: new Date().toISOString()
+      });
+    }
     
     // Setelah sukses menyimpan data murni, baru susun narasi AI
     generateNarrativeText();

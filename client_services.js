@@ -278,6 +278,33 @@ async function saveConfigClient(spreadsheetId, configData) {
   }
 }
 
+async function saveRiwayatPoinClient(idRhk, poinText) {
+  try {
+    const ssId = localStorage.getItem('aspend_spreadsheetId');
+    if (!ssId || !idRhk || !poinText) return;
+
+    // Check if Riwayat_Poin exists, append to it
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const newRow = [
+      idRhk,
+      poinText,
+      nowStr
+    ];
+    
+    await gapi.client.sheets.spreadsheets.values.append({
+      spreadsheetId: ssId,
+      range: 'Riwayat_Poin!A:C',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      resource: {
+        values: [newRow]
+      }
+    });
+  } catch (err) {
+    console.warn('Gagal menyimpan ke Riwayat_Poin:', err);
+  }
+}
+
 /**
  * Mengambil rekap statistik dan daftar laporan RHK
  */
@@ -1218,6 +1245,17 @@ async function fetchAdminDataClient() {
       range: 'Master_P2K2!A2:B'
     });
 
+    let resRiwayatPoin;
+    try {
+      resRiwayatPoin = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: ssId,
+        range: 'Riwayat_Poin!A2:C'
+      });
+    } catch (e) {
+      console.warn("Sheet Riwayat_Poin belum ada atau gagal dimuat.");
+      resRiwayatPoin = { result: { values: [] } };
+    }
+
     const rhkRows = resRhk.result.values || [];
     let rhkList = rhkRows.map((row, index) => ({
       index: index + 2, // 1-based index (header is 1)
@@ -1233,7 +1271,14 @@ async function fetchAdminDataClient() {
       sesi: row[1] || ''
     }));
 
-    return { rhk: rhkList, p2k2: p2k2List };
+    const riwayatRows = resRiwayatPoin.result.values || [];
+    let riwayatList = riwayatRows.map(row => ({
+      idRhk: row[0] || '',
+      poinText: row[1] || '',
+      createdAt: row[2] || ''
+    }));
+
+    return { rhk: rhkList, p2k2: p2k2List, riwayatPoin: riwayatList };
   } catch (err) {
     console.error('Gagal memuat Data Admin:', err);
     throw err;
