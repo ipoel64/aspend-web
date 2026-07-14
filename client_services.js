@@ -1240,10 +1240,16 @@ async function fetchAdminDataClient() {
       range: 'Master_RHK!A2:C'
     });
     
-    const resP2k2 = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: ssId,
-      range: 'Master_P2K2!A2:B'
-    });
+    let resP2k2;
+    try {
+      resP2k2 = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: ssId,
+        range: 'Master_P2K2!A2:B'
+      });
+    } catch (e) {
+      console.warn("Sheet Master_P2K2 belum ada atau gagal dimuat.");
+      resP2k2 = { result: { values: [] } };
+    }
 
     let resRiwayatPoin;
     try {

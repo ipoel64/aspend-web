@@ -506,11 +506,23 @@ function loadRHKOptions() {
     if (data.p2k2 && data.p2k2.length > 0) {
       state.p2k2ModulOptions = data.p2k2.map(p => ({modul: p.modul, sesi: p.sesi}));
     } else {
-      // Default P2K2
+      // Default P2K2 Lengkap (Standar PKH)
       state.p2k2ModulOptions = [
         {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 1 - Pentingnya Gizi dan Layanan Kesehatan Ibu Hamil'},
+        {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 2 - Pentingnya Gizi Bagi Ibu Menyusui dan Balita'},
+        {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 3 - Kesakitan pada Anak dan Kesehatan Lingkungan'},
         {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 1 - Menjadi Orang Tua yang Lebih Baik'},
-        {modul: 'Modul Ekonomi', sesi: 'Sesi 1 - Mengelola Keuangan Keluarga'}
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 2 - Memahami Perilaku Anak Usia Dini'},
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 3 - Memahami Cara Anak Usia Dini Belajar'},
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 4 - Membantu Anak Sukses di Sekolah'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 1 - Mengelola Keuangan Keluarga'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 2 - Cermat Meminjam dan Menabung'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 3 - Memulai Usaha'},
+        {modul: 'Modul Perlindungan Anak', sesi: 'Sesi 1 - Upaya Pencegahan Kekerasan dan Perlakuan Salah pada Anak'},
+        {modul: 'Modul Perlindungan Anak', sesi: 'Sesi 2 - Penelantaran dan Eksploitasi Anak'},
+        {modul: 'Modul Kesejahteraan Sosial', sesi: 'Sesi 1 - Pelayanan Bagi Penyandang Disabilitas Berat'},
+        {modul: 'Modul Kesejahteraan Sosial', sesi: 'Sesi 2 - Pelayanan Bagi Lanjut Usia'},
+        {modul: 'Modul Pencegahan dan Penanganan Stunting', sesi: 'Sesi 1 - Permasalahan Stunting'}
       ];
     }
     
@@ -520,8 +532,20 @@ function loadRHKOptions() {
     state.rhkOptions = defaultRhk.map(r => ({id: r.id, jenisRhk: r.jenis, rencanaAksi: r.rencana}));
     state.p2k2ModulOptions = [
         {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 1 - Pentingnya Gizi dan Layanan Kesehatan Ibu Hamil'},
+        {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 2 - Pentingnya Gizi Bagi Ibu Menyusui dan Balita'},
+        {modul: 'Modul Kesehatan dan Gizi', sesi: 'Sesi 3 - Kesakitan pada Anak dan Kesehatan Lingkungan'},
         {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 1 - Menjadi Orang Tua yang Lebih Baik'},
-        {modul: 'Modul Ekonomi', sesi: 'Sesi 1 - Mengelola Keuangan Keluarga'}
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 2 - Memahami Perilaku Anak Usia Dini'},
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 3 - Memahami Cara Anak Usia Dini Belajar'},
+        {modul: 'Modul Pengasuhan dan Pendidikan Anak', sesi: 'Sesi 4 - Membantu Anak Sukses di Sekolah'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 1 - Mengelola Keuangan Keluarga'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 2 - Cermat Meminjam dan Menabung'},
+        {modul: 'Modul Ekonomi', sesi: 'Sesi 3 - Memulai Usaha'},
+        {modul: 'Modul Perlindungan Anak', sesi: 'Sesi 1 - Upaya Pencegahan Kekerasan dan Perlakuan Salah pada Anak'},
+        {modul: 'Modul Perlindungan Anak', sesi: 'Sesi 2 - Penelantaran dan Eksploitasi Anak'},
+        {modul: 'Modul Kesejahteraan Sosial', sesi: 'Sesi 1 - Pelayanan Bagi Penyandang Disabilitas Berat'},
+        {modul: 'Modul Kesejahteraan Sosial', sesi: 'Sesi 2 - Pelayanan Bagi Lanjut Usia'},
+        {modul: 'Modul Pencegahan dan Penanganan Stunting', sesi: 'Sesi 1 - Permasalahan Stunting'}
     ];
     populateDropdowns();
   });
