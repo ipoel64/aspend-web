@@ -558,8 +558,11 @@ Data Kegiatan:
     let aiModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-flash-1.5';
     let apiKey = '';
     try {
-      const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
-      apiKey = keys.openrouter || '';
+      apiKey = localStorage.getItem('aspend_api_key_openrouter') || '';
+      if (!apiKey) {
+        const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
+        apiKey = keys.openrouter || '';
+      }
     } catch(e) { console.error('Failed parsing aiKeys'); }
     
     if (!apiKey) {
