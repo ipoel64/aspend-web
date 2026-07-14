@@ -554,40 +554,86 @@ Data Kegiatan:
 - Lokasi: ${reportRow[13]}
 - Poin Uraian: ${reportRow[6]}`;
 
-    // 4. Pilih Model dari Pengaturan (Gemini / Llama)
-    let aiModel = localStorage.getItem('aspend_ai_model') || 'google/gemini-flash-1.5';
+    // 4. Pilih Model dan Provider dari Pengaturan
+    let aiProvider = localStorage.getItem('aspend_ai_provider') || 'openrouter';
+    let aiModel = localStorage.getItem('aspend_ai_model');
     let apiKey = '';
-    try {
-      apiKey = localStorage.getItem('aspend_api_key_openrouter') || '';
-      if (!apiKey) {
-        const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
-        apiKey = keys.openrouter || '';
-      }
-    } catch(e) { console.error('Failed parsing aiKeys'); }
+    const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
     
+    if (aiProvider === 'google') {
+      apiKey = localStorage.getItem('aspend_api_key_google') || keys.google || '';
+      if (!aiModel) aiModel = 'gemini-1.5-flash';
+    } else if (aiProvider === 'groq') {
+      apiKey = localStorage.getItem('aspend_api_key_groq') || keys.groq || '';
+      if (!aiModel) aiModel = 'llama3-8b-8192';
+    } else {
+      apiKey = localStorage.getItem('aspend_api_key_openrouter') || keys.openrouter || '';
+      if (!aiModel) aiModel = 'google/gemini-flash-1.5';
+    }
+
     if (!apiKey) {
-      throw new Error("Kunci API OpenRouter belum dikonfigurasi. Silakan atur di menu Pengaturan.");
+      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Silakan atur di Pengaturan atau tunggu sinkronisasi.`);
     }
     
-    // 5. Panggil OpenRouter API
-    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://aspend-web.app',
-        'X-Title': 'ASPEND Web'
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    
-    const resJson = await aiResponse.json();
-    if (resJson.choices && resJson.choices[0].message.content) {
-      let narasi = resJson.choices[0].message.content.trim();
+    let narasi = "";
+
+    // 5. Panggil API sesuai Provider
+    if (aiProvider === 'google') {
+      // Gemini API
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+      const resJson = await response.json();
+      if (resJson.error) {
+        throw new Error(resJson.error.message || "Gagal mendapatkan respon dari AI (Gemini).");
+      }
+      if (resJson.candidates && resJson.candidates[0].content.parts[0].text) {
+        narasi = resJson.candidates[0].content.parts[0].text.trim();
+      } else {
+        throw new Error("Gagal mendapatkan respon valid dari AI (Gemini).");
+      }
+    } else {
+      // Groq & OpenRouter (OpenAI Compatible)
+      const url = aiProvider === 'groq' 
+                  ? 'https://api.groq.com/openai/v1/chat/completions' 
+                  : 'https://openrouter.ai/api/v1/chat/completions';
       
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      };
+      
+      if (aiProvider === 'openrouter') {
+        headers['HTTP-Referer'] = 'https://aspend-web.app';
+        headers['X-Title'] = 'ASPEND Web';
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          model: aiModel,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      const resJson = await response.json();
+      
+      if (resJson.error) {
+        throw new Error(resJson.error.message || `Gagal mendapatkan respon dari AI (${aiProvider}).`);
+      }
+      if (resJson.choices && resJson.choices[0].message.content) {
+        narasi = resJson.choices[0].message.content.trim();
+      } else {
+        throw new Error(`Gagal mendapatkan respon valid dari AI (${aiProvider}).`);
+      }
+    }
+
+    if (narasi) {
       // Simpan narasi ke Sheet (Kolom H = NarasiAI)
       const rowIndex = rows.findIndex(r => r[0] === reportId) + 1;
       if (rowIndex > 0) {
@@ -599,8 +645,6 @@ Data Kegiatan:
         });
       }
       return narasi;
-    } else {
-      throw new Error("Gagal mendapatkan respon dari AI.");
     }
   } catch (err) {
     console.error("AI Error:", err);
