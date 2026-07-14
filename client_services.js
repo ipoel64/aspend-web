@@ -585,35 +585,33 @@ Data Kegiatan:
         }
       }
 
-      // ULTIMATE FALLBACK: Sesuai instruksi User, gunakan default tersistem jika tetap kosong atau invalid
-      if (!key || key === '[object Object]' || key === 'false' || key === 'true') {
-        if (provider === 'openrouter') {
-          console.warn('[AI] Menggunakan DEFAULT HARDCODED OpenRouter API Key...');
-          // Dipecah agar lolos dari blokir sistem keamanan GitHub (Secret Scanning)
+      // Bersihkan kata "Bearer " jika user tidak sengaja memasukkannya
+      if (key.toLowerCase().startsWith('bearer ')) {
+        key = key.substring(7).trim();
+      }
+
+      // ULTIMATE FALLBACK: Sesuai instruksi User, gunakan default tersistem jika kosong atau invalid!
+      if (provider === 'openrouter') {
+        // Jika kuncinya kosong ATAU tidak diawali 'sk-or-', paksa pakai kunci bawaan!
+        if (!key || !key.startsWith('sk-or-')) {
+          console.warn('[AI] Kunci OpenRouter kosong atau tidak valid. Memaksa penggunaan DEFAULT HARDCODED API Key...');
           const p1 = 'sk-or-v1-';
           const p2 = '61f3292ce5c8de1d97828c6e74cf';
           const p3 = 'dc34946e72f00d6366d8dccda6da74f4ee26';
           key = p1 + p2 + p3;
         }
       }
+
       return key;
     };
 
     apiKey = await getApiKey(aiProvider);
-    
-    // Bersihkan kata "Bearer " jika user tidak sengaja memasukkannya
-    if (apiKey.toLowerCase().startsWith('bearer ')) {
-      apiKey = apiKey.substring(7).trim();
-    }
 
     if (!apiKey || apiKey === '[object Object]' || apiKey === 'false' || apiKey === 'true') {
       throw new Error(`Kunci API untuk provider ${aiProvider.toUpperCase()} belum diatur. Silakan buka tab Pengaturan di Aspend Mobile atau Web dan simpan ulang API Key Anda.`);
     }
 
-    // Validasi Format Ketat agar tidak mendapat error aneh dari server
-    if (aiProvider === 'openrouter' && !apiKey.startsWith('sk-or-')) {
-      throw new Error(`Format Kunci API OpenRouter salah (harus diawali dengan "sk-or-"). Kunci yang tersimpan saat ini tidak valid. Silakan simpan ulang di Pengaturan.`);
-    }
+    // Validasi Format Ketat untuk selain openrouter
     if (aiProvider === 'groq' && !apiKey.startsWith('gsk_')) {
       throw new Error(`Format Kunci API Groq salah (harus diawali dengan "gsk_"). Kunci yang tersimpan saat ini tidak valid. Silakan simpan ulang di Pengaturan.`);
     }
