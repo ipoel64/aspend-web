@@ -1377,6 +1377,9 @@ async function submitForm() {
     
     state.currentReportId = result.reportId;
     
+    // FETCH LATEST DATA SILENTLY: Wajib dilakukan agar laporan baru masuk ke state.reports
+    await loadDashboardData(true);
+    
     // Setelah sukses menyimpan data murni, baru susun narasi AI
     generateNarrativeText();
   } catch (err) {
