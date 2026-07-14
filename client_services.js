@@ -563,6 +563,8 @@ Data Kegiatan:
     if (aiProvider === 'google') {
       apiKey = localStorage.getItem('aspend_api_key_google') || keys.google || '';
       if (!aiModel) aiModel = 'gemini-1.5-flash';
+      // Gemini models shouldn't have 'google/' prefix if coming from openrouter config previously
+      aiModel = aiModel.replace('google/', '');
     } else if (aiProvider === 'groq') {
       apiKey = localStorage.getItem('aspend_api_key_groq') || keys.groq || '';
       if (!aiModel) aiModel = 'llama3-8b-8192';
@@ -571,10 +573,14 @@ Data Kegiatan:
       if (!aiModel) aiModel = 'google/gemini-flash-1.5';
     }
 
-    if (!apiKey) {
-      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Silakan atur di Pengaturan atau tunggu sinkronisasi.`);
+    // Fix for "undefined" or "null" literal strings in localStorage
+    if (apiKey === 'undefined' || apiKey === 'null') apiKey = '';
+    
+    if (!apiKey || apiKey.trim() === '') {
+      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Pastikan API Key tersimpan dan tidak kosong.`);
     }
     
+    apiKey = apiKey.trim();
     let narasi = "";
 
     // 5. Panggil API sesuai Provider
