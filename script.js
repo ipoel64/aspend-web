@@ -1409,11 +1409,11 @@ function regenerateNarrative() {
 
 async function saveAndRegeneratePDF() {
   var narrativeText = '';
-  // Cek apakah sedang membuka modal edit, atau sedang di halaman preview AI
-  if (document.getElementById('modal-edit-narasi') && !document.getElementById('modal-edit-narasi').classList.contains('hidden')) {
-    narrativeText = document.getElementById('textarea-edit-narasi').value;
-  } else {
+  // FOOLPROOF CHECK: Gunakan state aplikasi alih-alih mengecek class CSS
+  if (state.currentPage === 'preview') {
     narrativeText = document.getElementById('textarea-narasi').value;
+  } else {
+    narrativeText = document.getElementById('textarea-edit-narasi').value;
   }
 
   if (!narrativeText) {
