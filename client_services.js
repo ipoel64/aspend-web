@@ -537,13 +537,33 @@ async function generateNarrativeClient(spreadsheetId, reportId) {
     const reportRow = rows.find(r => r[0] === reportId);
     if (!reportRow) throw new Error("Data laporan belum masuk ke database.");
     
-    // 2. Format Prompt Khusus
-    const prompt = `Buatkan narasi laporan kegiatan dengan aturan SANGAT KETAT:
-1. JANGAN gunakan teks pengantar apa pun (langsung isinya).
-2. Format tanggal sesuai nama hari (contoh: Jumat, 3 Juli 2026).
-3. Gunakan sub-judul numerik (1., 2., 3.).
-4. Judul poin referensi gunakan kata "Dasar" (bukan Dasar Hukum).
-5. Sejajarkan bullet point dengan rapi menggunakan strip (-) jika ada rincian.
+    // 2. Format Prompt Khusus sesuai permintaan terbaru
+    const prompt = `Buatkan narasi laporan kegiatan (formal dan profesional) berdasarkan data di bawah ini.
+ANDA WAJIB MENGGUNAKAN FORMAT STRUKTUR BERIKUT SECARA PERSIS TANPA TERKECUALI:
+
+A. PENDAHULUAN
+1. Gambaran Umum (Bahas secara singkat tentang kegiatan ini)
+2. Maksud dan Tujuan (Tujuan dari kegiatan ini)
+3. Ruang Lingkup (Ruang lingkup kegiatan)
+4. Dasar (Sebutkan Rencana Hasil Kerja (RHK) atau dasar kegiatan yang relevan, Kembangkan sedikit saja agar tidak kaku)
+
+B. KEGIATAN YANG DILAKSANAKAN
+(Uraikan pelaksanaan kegiatan dengan bahasa yang mengalir, rapi, dan sebutkan tanggal, waktu, lokasi, serta poin uraian di bawah ini)
+
+C. HASIL YANG DICAPAI
+(Sebutkan hasil yang dicapai dari kegiatan tersebut berdasarkan logika profesional)
+
+D. KESIMPULAN & SARAN
+(Tuliskan kesimpulan singkat dan saran yang relevan)
+
+E. PENUTUP
+(Tuliskan kalimat penutup laporan resmi)
+
+ATURAN TAMBAHAN:
+- JANGAN gunakan teks pengantar atau penutup di luar struktur A s.d E di atas.
+- Jangan tulis ulang "Data Kegiatan" di laporan akhir, gabungkan saja ke dalam narasi di bagian yang tepat (terutama di bagian B).
+- Format tanggal jadikan lebih manusiawi (misal: Selasa, 14 Juli 2026).
+- Jangan berhalusinasi, gunakan data di bawah ini sebagai acuan utama.
 
 Data Kegiatan:
 - Jenis Kegiatan: ${reportRow[2] || '-'}
