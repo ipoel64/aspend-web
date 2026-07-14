@@ -748,12 +748,12 @@ function renderDashboardTable() {
       }
       var photoHtml = '';
       if (Array.isArray(photos) && photos.length > 0) {
-        let thumbUrl = `https://drive.google.com/thumbnail?id=${photos[0]}&sz=w400`;
-        let fullUrl = `https://drive.google.com/uc?id=${photos[0]}&export=view`;
+        let fileId = photos[0];
         photoHtml = `
-          <div class="relative group w-[80px] h-[56px] mx-auto rounded border border-surface-variant overflow-hidden">
-            <img src="${thumbUrl}" class="w-full h-full object-cover" alt="Foto" onerror="this.src='${fullUrl}'; this.onerror=null;">
-            <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="relative group w-[80px] h-[56px] mx-auto rounded border border-surface-variant overflow-hidden bg-surface-variant/20 flex items-center justify-center">
+            <span class="loading-spinner material-symbols-outlined text-[16px] text-primary animate-spin absolute">progress_activity</span>
+            <img data-drive-id="${fileId}" class="drive-thumbnail w-full h-full object-cover opacity-0 transition-opacity duration-300 relative z-10" alt="Foto">
+            <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
               <span class="material-symbols-outlined text-white text-[20px]">zoom_in</span>
             </div>
           </div>
@@ -906,6 +906,47 @@ function renderDashboardTable() {
   if (paginationInfo) {
     paginationInfo.style.display = 'none';
   }
+  
+  // Panggil pemuat thumbnail setelah elemen ditambahkan ke DOM
+  setTimeout(loadDriveThumbnails, 100);
+}
+
+/**
+ * Memuat thumbnail foto dari Google Drive menggunakan API
+ */
+function loadDriveThumbnails() {
+  const token = localStorage.getItem('google_access_token');
+  if (!token) return;
+  
+  const imgs = document.querySelectorAll('img.drive-thumbnail');
+  imgs.forEach(img => {
+    const fileId = img.getAttribute('data-drive-id');
+    if (!fileId || img.src) return; // Sudah dimuat
+    
+    // Ambil tautan thumbnail menggunakan Google Drive API
+    fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.thumbnailLink) {
+        img.src = data.thumbnailLink;
+        img.classList.remove('opacity-0');
+        const spinner = img.parentElement.querySelector('.loading-spinner');
+        if (spinner) spinner.style.display = 'none';
+      } else {
+        throw new Error('No thumbnail');
+      }
+    })
+    .catch(err => {
+      console.warn('Gagal memuat thumbnail API, fallback ke default', err);
+      // Fallback
+      img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+      img.classList.remove('opacity-0');
+      const spinner = img.parentElement.querySelector('.loading-spinner');
+      if (spinner) spinner.style.display = 'none';
+    });
+  });
 }
 
 // Tambahkan fungsi ganti halaman ke global window
