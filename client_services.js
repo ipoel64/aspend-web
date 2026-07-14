@@ -501,7 +501,7 @@ async function submitReportDataClient(spreadsheetId, userEmail, payload) {
       'Laporan RHK',            // 2: jenisRHK
       payload.jenisRhkId,       // 3: idRHK
       payload.rencanaAksi,      // 4: rencanaAksi
-      '-',                      // 5: pukul
+      payload.pukul || '-',     // 5: pukul
       payload.poin,             // 6: poinKegiatan
       '',                       // 7: narasiAI
       '',                       // 8: narasiEdited

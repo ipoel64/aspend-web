@@ -1364,10 +1364,10 @@ async function submitForm() {
   var jenisRhkId = document.getElementById('select-jenis-rhk').value;
   var rencanaAksi = document.getElementById('select-rencana-aksi').value;
   var tanggal = document.getElementById('input-tanggal').value;
-  var lokasi = document.getElementById('input-lokasi').value;
+  var waktu = document.getElementById('input-waktu').value;
   var poin = document.getElementById('input-poin').value;
   
-  if (!jenisRhkId || !rencanaAksi || !tanggal || !lokasi || !poin) {
+  if (!jenisRhkId || !rencanaAksi || !tanggal || !waktu || !poin) {
     showToast('Mohon lengkapi semua field yang berbintang wajib (*)', 'error');
     return;
   }
@@ -1377,7 +1377,8 @@ async function submitForm() {
     jenisRhkId: jenisRhkId,
     rencanaAksi: rencanaAksi,
     tanggal: tanggal,
-    lokasi: lokasi,
+    pukul: waktu,
+    lokasi: '-',
     poin: poin,
     photos: state.selectedPhotos
   };
