@@ -1485,7 +1485,15 @@ async function saveAndRegeneratePDF() {
     
     // 3. Timpa PDF lama di Google Drive ATAU buat baru jika belum ada
     if (!report.PdfFileId || report.PdfFileId.length < 5) {
-        let fileName = 'Laporan_' + report.ReportId + '.pdf';
+        let dateStr = (report.Tanggal || '').replace(/-/g, '');
+        let timeStr = (report.Pukul || '').replace(':', '.');
+        if (timeStr.startsWith('0')) timeStr = timeStr.substring(1);
+        let rhkStr = report.IdRHK || '';
+        if (rhkStr && !rhkStr.toUpperCase().includes('RHK')) rhkStr = 'RHK-' + rhkStr;
+        let aksiStr = (report.RencanaAksi || 'Laporan').replace(/[\\/:*?"<>|]/g, '');
+        
+        let fileName = `${dateStr} - ${timeStr} - ${rhkStr} - ${aksiStr}.pdf`;
+        
         let newPdfId = await createPdfInDrive(fileName, pdfBlob);
         newData.pdfFileId = newPdfId;
         report.PdfFileId = newPdfId;
