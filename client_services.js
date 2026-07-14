@@ -806,14 +806,53 @@ async function updatePdfInDrive(fileId, blob) {
 }
 
 /**
- * Membuat File PDF baru di Google Drive
+ * Mencari atau membuat folder berdasarkan nama di Google Drive
+ */
+async function getOrCreateFolder(folderName) {
+  const accessToken = localStorage.getItem('google_access_token');
+  if (!accessToken) throw new Error("Sesi Google tidak valid.");
+
+  // 1. Cari folder
+  const query = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`;
+  const searchResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`, {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${accessToken}` }
+  });
+
+  const searchData = await searchResponse.json();
+  if (searchData.files && searchData.files.length > 0) {
+    return searchData.files[0].id; // Gunakan folder yang sudah ada
+  }
+
+  // 2. Jika tidak ada, buat folder baru
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder'
+    })
+  });
+
+  const createData = await createResponse.json();
+  return createData.id;
+}
+
+/**
+ * Membuat File PDF baru di Google Drive (di dalam folder Aspend_Output)
  */
 async function createPdfInDrive(fileName, blob) {
   try {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) throw new Error("Sesi Google tidak valid atau Token kedaluwarsa. Silakan masuk kembali.");
     
-    // 1. Buat metadata file kosong
+    // Cari atau buat folder Aspend_Output
+    const folderId = await getOrCreateFolder('Aspend_Output');
+    
+    // 1. Buat metadata file kosong dan masukkan ke dalam folder tersebut
     const metaResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
       method: 'POST',
       headers: {
@@ -822,7 +861,8 @@ async function createPdfInDrive(fileName, blob) {
       },
       body: JSON.stringify({
         name: fileName,
-        mimeType: 'application/pdf'
+        mimeType: 'application/pdf',
+        parents: [folderId]
       })
     });
     
