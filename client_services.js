@@ -573,14 +573,18 @@ Data Kegiatan:
       if (!aiModel) aiModel = 'google/gemini-flash-1.5';
     }
 
-    // Fix for "undefined" or "null" literal strings in localStorage
-    if (apiKey === 'undefined' || apiKey === 'null') apiKey = '';
-    
-    if (!apiKey || apiKey.trim() === '') {
-      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Pastikan API Key tersimpan dan tidak kosong.`);
+    if (!apiKey) apiKey = '';
+    apiKey = String(apiKey).trim();
+
+    // Fix for "undefined", "null", or weird strings in localStorage
+    if (apiKey === 'undefined' || apiKey === 'null' || apiKey === 'NaN' || apiKey.length < 5) {
+        apiKey = '';
     }
     
-    apiKey = apiKey.trim();
+    if (apiKey === '') {
+      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Pastikan API Key tersimpan dengan benar dan tidak kosong.`);
+    }
+    
     let narasi = "";
 
     // 5. Panggil API sesuai Provider
