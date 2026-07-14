@@ -462,7 +462,22 @@ async function uploadImageToDriveClient(base64Data, fileName) {
     });
     
     const response = await request;
-    return response.result.id;
+    const fileId = response.result.id;
+    
+    // Set file menjadi Public agar bisa diakses secara publik oleh Aspend Mobile
+    try {
+      await gapi.client.drive.permissions.create({
+        fileId: fileId,
+        resource: {
+          role: 'reader',
+          type: 'anyone'
+        }
+      });
+    } catch (permErr) {
+      console.warn('Gagal mengatur izin publik untuk file:', permErr);
+    }
+    
+    return fileId;
   } catch (err) {
     console.error('Gagal mengunggah gambar:', err);
     throw err;
