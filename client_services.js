@@ -525,137 +525,41 @@ async function submitReportDataClient(spreadsheetId, userEmail, payload) {
 
 async function generateNarrativeClient(spreadsheetId, reportId) {
   try {
-    // 1. API Key OpenRouter Ditanam Secara Permanen (Hardcoded)
-    const OPENROUTER_API_KEY = "sk-or-v1-xxxxxxxxxxxxxxxxx"; // <- Kunci API tersimpan di sini
+    // ═══════════════════════════════════════════════════════════════
+    // PENTING: API Key AI tersimpan di SERVER (PropertiesService GAS),
+    // BUKAN di browser. Oleh karena itu, kita HARUS memanggil 
+    // fungsi generateNarrative() di server melalui endpoint doPost,
+    // karena server-lah yang memiliki akses ke API Key tersebut.
+    // ═══════════════════════════════════════════════════════════════
     
-    // 2. Ambil data spesifik dari Laporan
-    const response = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: spreadsheetId,
-      range: 'Laporan_Log!A:O'
+    console.log('Memanggil AI melalui server backend (Code.gs → GeminiService.gs)...');
+    
+    const result = await new Promise((resolve, reject) => {
+      callGoogleScript('generateNarrative', [reportId], 
+        function(res) {
+          // Server mengembalikan { success: true, narrative: "...", message: "..." }
+          if (res && res.narrative) {
+            resolve(res.narrative);
+          } else if (res && res.success) {
+            // Kadang narrative bisa ada di level atas
+            resolve(res.narrative || res.message || '');
+          } else {
+            reject(new Error(res?.message || 'Server tidak mengembalikan narasi.'));
+          }
+        },
+        function(err) {
+          reject(err);
+        }
+      );
     });
     
-    const rows = response.result.values || [];
-    const reportRow = rows.find(r => r[0] === reportId);
-    if (!reportRow) throw new Error("Data laporan belum masuk ke database.");
-    
-    // 3. Format Prompt Khusus (Ketentuan Teks Ketat)
-    // Poin 1: Tanggal di-format, Poin 2: Dasar Hukum -> Dasar
-    const prompt = `Buatkan narasi laporan kegiatan dengan aturan SANGAT KETAT:
-1. JANGAN gunakan teks pengantar apa pun (langsung isinya).
-2. Format tanggal sesuai nama hari (contoh: Jumat, 3 Juli 2026).
-3. Gunakan sub-judul numerik (1., 2., 3.).
-4. Judul poin referensi gunakan kata "Dasar" (bukan Dasar Hukum).
-5. Sejajarkan bullet point dengan rapi menggunakan strip (-) jika ada rincian.
-
-Data Kegiatan:
-- Jenis Kegiatan: ${reportRow[2]}
-- Rencana Aksi: ${reportRow[4]}
-- Tanggal: ${reportRow[1]}
-- Lokasi: ${reportRow[13]}
-- Poin Uraian: ${reportRow[6]}`;
-
-    // 4. Pilih Model dan Provider dari Pengaturan
-    let aiProvider = localStorage.getItem('aspend_ai_provider') || 'openrouter';
-    let aiModel = localStorage.getItem('aspend_ai_model');
-    let apiKey = '';
-    const keys = JSON.parse(localStorage.getItem('aspend_aiKeys') || '{}');
-    
-    if (aiProvider === 'google') {
-      apiKey = localStorage.getItem('aspend_api_key_google') || keys.google || '';
-      if (!aiModel) aiModel = 'gemini-1.5-flash';
-      // Gemini models shouldn't have 'google/' prefix if coming from openrouter config previously
-      aiModel = aiModel.replace('google/', '');
-    } else if (aiProvider === 'groq') {
-      apiKey = localStorage.getItem('aspend_api_key_groq') || keys.groq || '';
-      if (!aiModel) aiModel = 'llama3-8b-8192';
-    } else {
-      apiKey = localStorage.getItem('aspend_api_key_openrouter') || keys.openrouter || '';
-      if (!aiModel) aiModel = 'google/gemini-flash-1.5';
-    }
-
-    if (!apiKey) apiKey = '';
-    apiKey = String(apiKey).trim();
-
-    // Fix for "undefined", "null", or weird strings in localStorage
-    if (apiKey === 'undefined' || apiKey === 'null' || apiKey === 'NaN' || apiKey.length < 5) {
-        apiKey = '';
+    if (!result || result.trim() === '') {
+      throw new Error('Server mengembalikan narasi kosong.');
     }
     
-    if (apiKey === '') {
-      throw new Error(`Kunci API ${aiProvider.toUpperCase()} belum dikonfigurasi. Pastikan API Key tersimpan dengan benar dan tidak kosong.`);
-    }
+    console.log('Narasi AI berhasil diterima dari server. Panjang:', result.length);
+    return result;
     
-    let narasi = "";
-
-    // 5. Panggil API sesuai Provider
-    if (aiProvider === 'google') {
-      // Gemini API
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      });
-      const resJson = await response.json();
-      if (resJson.error) {
-        throw new Error(resJson.error.message || "Gagal mendapatkan respon dari AI (Gemini).");
-      }
-      if (resJson.candidates && resJson.candidates[0].content.parts[0].text) {
-        narasi = resJson.candidates[0].content.parts[0].text.trim();
-      } else {
-        throw new Error("Gagal mendapatkan respon valid dari AI (Gemini).");
-      }
-    } else {
-      // Groq & OpenRouter (OpenAI Compatible)
-      const url = aiProvider === 'groq' 
-                  ? 'https://api.groq.com/openai/v1/chat/completions' 
-                  : 'https://openrouter.ai/api/v1/chat/completions';
-      
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      };
-      
-      if (aiProvider === 'openrouter') {
-        headers['HTTP-Referer'] = 'https://aspend-web.app';
-        headers['X-Title'] = 'ASPEND Web';
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({
-          model: aiModel,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      const resJson = await response.json();
-      
-      if (resJson.error) {
-        throw new Error(resJson.error.message || `Gagal mendapatkan respon dari AI (${aiProvider}).`);
-      }
-      if (resJson.choices && resJson.choices[0].message.content) {
-        narasi = resJson.choices[0].message.content.trim();
-      } else {
-        throw new Error(`Gagal mendapatkan respon valid dari AI (${aiProvider}).`);
-      }
-    }
-
-    if (narasi) {
-      // Simpan narasi ke Sheet (Kolom H = NarasiAI)
-      const rowIndex = rows.findIndex(r => r[0] === reportId) + 1;
-      if (rowIndex > 0) {
-        await gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: spreadsheetId,
-          range: `Laporan_Log!H${rowIndex}`,
-          valueInputOption: 'USER_ENTERED',
-          resource: { values: [[narasi]] }
-        });
-      }
-      return narasi;
-    }
   } catch (err) {
     console.error("AI Error:", err);
     throw err;
