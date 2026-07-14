@@ -1443,7 +1443,8 @@ async function saveAndRegeneratePDF() {
     let finalFotoIds = [];
     let hasChangesInPhotos = false;
     
-    if (window.editModalPhotos) {
+    // HANYA proses perubahan foto JIKA user benar-benar pernah memodifikasi foto di Modal Edit
+    if (typeof window.editModalPhotos !== 'undefined' && window.editModalPhotos !== null) {
       for (let i = 0; i < window.editModalPhotos.length; i++) {
         let photo = window.editModalPhotos[i];
         if (photo.type === 'base64') {
@@ -1451,18 +1452,17 @@ async function saveAndRegeneratePDF() {
           let uploadedId = await uploadImageToDriveClient(photo.data, 'Foto_' + report.ReportId + '_Edit_' + i + '.jpg');
           if (uploadedId) {
             finalFotoIds.push(uploadedId);
-            hasChangesInPhotos = true;
           }
         } else {
           finalFotoIds.push(photo.data);
         }
       }
-    }
-    
-    let originalPhotosStr = JSON.stringify(report.FotoIds || []);
-    let finalPhotosStr = JSON.stringify(finalFotoIds);
-    if (originalPhotosStr !== finalPhotosStr) {
-      hasChangesInPhotos = true;
+      
+      let originalPhotosStr = JSON.stringify(report.FotoIds || []);
+      let finalPhotosStr = JSON.stringify(finalFotoIds);
+      if (originalPhotosStr !== finalPhotosStr) {
+        hasChangesInPhotos = true;
+      }
     }
     
     // 1. Perbarui data secara lokal DAHULU agar PDF engine memakai teks baru
