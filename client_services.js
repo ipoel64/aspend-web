@@ -424,9 +424,13 @@ async function uploadImageToDriveClient(base64Data, fileName) {
     const mimeType = match[1];
     const base64Str = match[2];
 
+    // Cari atau buat folder Aspend_Bukti_Dukung
+    const folderId = await getOrCreateFolder('Aspend_Bukti_Dukung');
+
     const metadata = {
       'name': fileName,
-      'mimeType': mimeType
+      'mimeType': mimeType,
+      'parents': [folderId]
     };
 
     const multipartRequestBody =
