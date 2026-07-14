@@ -526,42 +526,89 @@ async function submitReportDataClient(spreadsheetId, userEmail, payload) {
 async function generateNarrativeClient(spreadsheetId, reportId) {
   try {
     // ═══════════════════════════════════════════════════════════════
-    // PENTING: API Key AI tersimpan di SERVER (PropertiesService GAS),
-    // BUKAN di browser. Oleh karena itu, kita HARUS memanggil 
-    // fungsi generateNarrative() di server melalui endpoint doPost,
-    // karena server-lah yang memiliki akses ke API Key tersebut.
+    // STRATEGI: 
+    // 1. Baca data laporan dari Sheet (client-side via GAPI)
+    // 2. Susun prompt di client
+    // 3. Kirim prompt ke server GAS via callAIService() 
+    //    (server punya API Key di PropertiesService)
+    // 4. Terima narasi dari server, simpan ke Sheet (client-side)
     // ═══════════════════════════════════════════════════════════════
     
-    console.log('Memanggil AI melalui server backend (Code.gs → GeminiService.gs)...');
+    console.log('[AI] Step 1: Membaca data laporan dari Sheet...');
     
-    const result = await new Promise((resolve, reject) => {
-      callGoogleScript('generateNarrative', [reportId], 
+    // 1. Ambil data laporan dari Sheet
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: spreadsheetId,
+      range: 'Laporan_Log!A:O'
+    });
+    
+    const rows = response.result.values || [];
+    const reportRow = rows.find(r => r[0] === reportId);
+    if (!reportRow) throw new Error("Data laporan belum masuk ke database.");
+    
+    // 2. Susun prompt ketat di client-side
+    const prompt = `Buatkan narasi laporan kegiatan dengan aturan SANGAT KETAT:
+1. JANGAN gunakan teks pengantar apa pun (langsung isinya).
+2. Format tanggal sesuai nama hari (contoh: Jumat, 3 Juli 2026).
+3. Gunakan sub-judul numerik (1., 2., 3.).
+4. Judul poin referensi gunakan kata "Dasar" (bukan Dasar Hukum).
+5. Sejajarkan bullet point dengan rapi menggunakan strip (-) jika ada rincian.
+
+Data Kegiatan:
+- Jenis Kegiatan: ${reportRow[2] || '-'}
+- Rencana Aksi: ${reportRow[4] || '-'}
+- Tanggal: ${reportRow[1] || '-'}
+- Lokasi: ${reportRow[13] || '-'}
+- Poin Uraian: ${reportRow[6] || '-'}`;
+
+    console.log('[AI] Step 2: Mengirim prompt ke server GAS (callAIService)...');
+    
+    // 3. Kirim prompt ke server GAS yang memiliki API Key
+    const narasi = await new Promise((resolve, reject) => {
+      callGoogleScript('callAIService', [prompt], 
         function(res) {
-          // Server mengembalikan { success: true, narrative: "...", message: "..." }
-          if (res && res.narrative) {
-            resolve(res.narrative);
-          } else if (res && res.success) {
-            // Kadang narrative bisa ada di level atas
-            resolve(res.narrative || res.message || '');
+          // callAIService mengembalikan string teks langsung
+          // doPost membungkusnya: { success: true, data: "teks narasi..." }
+          // callGoogleScript meneruskan: finalResult = { success: true, data: "..." }
+          console.log('[AI] Server response:', res);
+          
+          if (res && typeof res.data === 'string' && res.data.trim() !== '') {
+            resolve(res.data);
+          } else if (res && typeof res === 'string' && res.trim() !== '') {
+            resolve(res);
           } else {
-            reject(new Error(res?.message || 'Server tidak mengembalikan narasi.'));
+            reject(new Error('Server AI mengembalikan respon kosong.'));
           }
         },
         function(err) {
+          console.error('[AI] Server error:', err);
           reject(err);
         }
       );
     });
     
-    if (!result || result.trim() === '') {
+    if (!narasi || narasi.trim() === '') {
       throw new Error('Server mengembalikan narasi kosong.');
     }
     
-    console.log('Narasi AI berhasil diterima dari server. Panjang:', result.length);
-    return result;
+    console.log('[AI] Step 3: Menyimpan narasi ke Sheet (panjang: ' + narasi.length + ')...');
+    
+    // 4. Simpan narasi ke Sheet (Kolom H = NarasiAI)
+    const rowIndex = rows.findIndex(r => r[0] === reportId) + 1;
+    if (rowIndex > 0) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: spreadsheetId,
+        range: `Laporan_Log!H${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values: [[narasi]] }
+      });
+    }
+    
+    console.log('[AI] Selesai! Narasi berhasil.');
+    return narasi;
     
   } catch (err) {
-    console.error("AI Error:", err);
+    console.error("[AI] Error:", err);
     throw err;
   }
 }
