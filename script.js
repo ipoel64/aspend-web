@@ -807,7 +807,7 @@ function renderDashboardTable() {
 
       tableHtml += `
         <tr id="row-${r.ReportId}" class="rhk-row hover:bg-primary/10 transition-all duration-300 ease-in-out group cursor-pointer border-b border-surface-variant/50 relative" onclick="previewPdf('${r.ReportId}')">
-          <td class="px-1 py-2 align-top text-center" style="min-width: 90px;" onclick="event.stopPropagation(); ${(Array.isArray(photos)&&photos.length>0) ? `showLightbox('https://drive.google.com/thumbnail?id=${photos[0]}&sz=w1200')` : ''}">
+          <td class="px-1 py-2 align-top text-center" style="min-width: 90px;" onclick="event.stopPropagation(); ${(Array.isArray(photos)&&photos.length>0) ? `showLightbox('${photos[0]}')` : ''}">
             ${photoHtml}
           </td>
           <td class="px-1.5 py-2 align-top whitespace-normal" style="min-width: 95px;">
@@ -1050,25 +1050,61 @@ async function downloadPdf(reportId) {
 }
 
 // --- FUNGSI LIGHTBOX FOTO ---
-window.showLightbox = function(url) {
+window.showLightbox = function(fileId) {
   const modal = document.getElementById('lightbox-modal');
   const img = document.getElementById('lightbox-image');
   const loader = document.getElementById('lightbox-loading');
   const container = document.getElementById('lightbox-content-container');
   
-  if (!modal || !img) return;
+  if (!modal || !img || !fileId) return;
   
   img.classList.add('opacity-0');
   img.removeAttribute('src');
   loader.classList.remove('hidden');
-  
-  img.src = url;
   
   modal.classList.remove('hidden');
   void modal.offsetWidth; // trigger reflow untuk animasi
   modal.classList.remove('opacity-0');
   container.classList.remove('scale-95');
   container.classList.add('scale-100');
+  
+  // Try to find the already-loaded thumbnail URL from the table
+  const thumbImg = document.querySelector(`img.drive-thumbnail[data-drive-id="${fileId}"]`);
+  let highResUrl = '';
+  
+  if (thumbImg && thumbImg.src && !thumbImg.src.includes('thumbnail?id=')) {
+     highResUrl = thumbImg.src;
+     if (highResUrl.match(/=s\d+/)) {
+       highResUrl = highResUrl.replace(/=s\d+/, '=s1200');
+     } else {
+       highResUrl += '=s1200';
+     }
+     img.src = highResUrl;
+  } else {
+    // If not loaded yet or failed, fetch it now!
+    const token = localStorage.getItem('google_access_token');
+    if (!token) {
+       img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+    } else {
+       fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink`, {
+         headers: { 'Authorization': `Bearer ${token}` }
+       })
+       .then(res => res.json())
+       .then(data => {
+          if (data.thumbnailLink) {
+            highResUrl = data.thumbnailLink;
+            if (highResUrl.match(/=s\d+/)) highResUrl = highResUrl.replace(/=s\d+/, '=s1200');
+            else highResUrl += '=s1200';
+            img.src = highResUrl;
+          } else {
+            img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+          }
+       })
+       .catch(() => {
+          img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`;
+       });
+    }
+  }
   
   window.addEventListener('keydown', handleLightboxEsc);
 };
