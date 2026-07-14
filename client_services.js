@@ -750,6 +750,9 @@ async function saveEditedReportClient(spreadsheetId, reportId, newData) {
       if (newData.fotoIds) {
         existingRow[11] = Array.isArray(newData.fotoIds) ? JSON.stringify(newData.fotoIds) : newData.fotoIds;
       }
+      if (newData.pdfFileId) {
+        existingRow[10] = newData.pdfFileId;
+      }
       
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: spreadsheetId,
@@ -798,6 +801,43 @@ async function updatePdfInDrive(fileId, blob) {
     return await response.json();
   } catch(err) {
     console.error("Kesalahan updatePdfInDrive:", err);
+    throw err;
+  }
+}
+
+/**
+ * Membuat File PDF baru di Google Drive
+ */
+async function createPdfInDrive(fileName, blob) {
+  try {
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) throw new Error("Sesi Google tidak valid atau Token kedaluwarsa. Silakan masuk kembali.");
+    
+    // 1. Buat metadata file kosong
+    const metaResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: fileName,
+        mimeType: 'application/pdf'
+      })
+    });
+    
+    if (!metaResponse.ok) {
+      throw new Error("Gagal membuat metadata PDF di Google Drive.");
+    }
+    const metaData = await metaResponse.json();
+    const fileId = metaData.id;
+    
+    // 2. Unggah konten menggunakan fungsi update yang sudah ada
+    await updatePdfInDrive(fileId, blob);
+    
+    return fileId;
+  } catch(err) {
+    console.error("Kesalahan createPdfInDrive:", err);
     throw err;
   }
 }

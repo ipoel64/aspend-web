@@ -1465,8 +1465,13 @@ async function saveAndRegeneratePDF() {
       hasChangesInPhotos = true;
     }
     
-    showLoading('Menyimpan Perubahan ke Google Sheets...');
-    
+    // 1. Perbarui data secara lokal DAHULU agar PDF engine memakai teks baru
+    if (editTanggal) report.Tanggal = editTanggal;
+    if (editWaktu) report.Pukul = editWaktu;
+    report.NarasiEdited = narrativeText;
+    if (hasChangesInPhotos) report.FotoIds = finalFotoIds;
+    report.Status = 'Selesai';
+
     let newData = {
       tanggal: editTanggal,
       pukul: editWaktu,
@@ -1474,26 +1479,23 @@ async function saveAndRegeneratePDF() {
       fotoIds: hasChangesInPhotos ? finalFotoIds : null
     };
     
-    // 1. Simpan ke Google Sheet
-    await saveEditedReportClient(ssId, state.currentReportId, newData);
-    
-    // Perbarui data secara lokal agar PDF engine memakai teks baru
-    if (editTanggal) report.Tanggal = editTanggal;
-    if (editWaktu) report.Pukul = editWaktu;
-    report.NarasiEdited = narrativeText;
-    if (hasChangesInPhotos) report.FotoIds = finalFotoIds;
-    report.Status = 'Selesai';
-    
     // 2. Rakit PDF dalam bentuk Blob rahasia
-    if (!report.PdfFileId || report.PdfFileId.length < 5) {
-        throw new Error("Laporan ini belum memiliki file PDF asli di Google Drive untuk ditimpa. Buat PDF dari HP terlebih dahulu.");
-    }
-    
     showLoading('Mencetak ulang PDF & Mengunggah ke Google Drive...');
     const pdfBlob = await generateClientPDF(report, state.user, false, 'blob');
     
-    // 3. Timpa PDF lama di Google Drive
-    await updatePdfInDrive(report.PdfFileId, pdfBlob);
+    // 3. Timpa PDF lama di Google Drive ATAU buat baru jika belum ada
+    if (!report.PdfFileId || report.PdfFileId.length < 5) {
+        let fileName = 'Laporan_' + report.ReportId + '.pdf';
+        let newPdfId = await createPdfInDrive(fileName, pdfBlob);
+        newData.pdfFileId = newPdfId;
+        report.PdfFileId = newPdfId;
+    } else {
+        await updatePdfInDrive(report.PdfFileId, pdfBlob);
+    }
+    
+    // 4. Simpan ke Google Sheet (termasuk ID PDF baru jika ada)
+    showLoading('Menyimpan Perubahan ke Google Sheets...');
+    await saveEditedReportClient(ssId, state.currentReportId, newData);
     
     hideLoading();
     closeModal('modal-edit-narasi');
