@@ -486,13 +486,22 @@
                     </div>
                   </div>
 
-                  <div class="flex flex-col gap-2">
+                  <div class="flex flex-col gap-2 relative">
                     <label class="font-label-md text-label-md text-on-surface-variant mb-1 flex items-center justify-between">
                       <span>POIN-POIN KEGIATAN <span class="text-error">*</span></span>
+                      <button type="button" id="btn-riwayat-poin" class="text-primary text-[11px] font-bold flex items-center gap-1 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors hidden" onclick="toggleRiwayatPoin()">
+                        <span class="material-symbols-outlined text-[14px]">history</span> Riwayat Poin
+                      </button>
                     </label>
-                    <div id="riwayat-poin-container" class="flex flex-wrap gap-1.5 mb-1 hidden">
-                      <!-- Chips riwayat poin akan muncul di sini -->
+                    
+                    <!-- Container dropdown riwayat poin -->
+                    <div id="riwayat-poin-container" class="absolute z-10 right-0 top-7 w-64 bg-surface border border-outline-variant shadow-lg rounded-lg p-2 flex flex-col gap-1 hidden">
+                      <div class="text-xs font-bold text-on-surface-variant mb-1 px-1 border-b pb-1">Pilih Riwayat:</div>
+                      <div id="riwayat-poin-list" class="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                        <!-- Chips riwayat poin akan muncul di sini -->
+                      </div>
                     </div>
+                    
                     <textarea class="w-full rounded-lg border border-outline-variant bg-white py-3 px-4 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors font-body-md" id="input-poin" rows="4" placeholder="Tuliskan poin-poin kegiatan, seperti lokasi kegiatan; siapa saja yang terlibat; Kegiatan apa; Hasil Utamanya; Saran"></textarea>
                   </div>
 
@@ -1503,6 +1512,6 @@
           </button>
         </div>
       </div>
-  <script src="script.js?v=60"></script>
+  <script src="script.js?v=61"></script>
 </body>
 </html>

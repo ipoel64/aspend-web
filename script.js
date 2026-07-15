@@ -1231,17 +1231,20 @@ function onJenisRHKChange() {
   rs.innerHTML = '<option value="">— Pilih Rencana Aksi —</option>';
   var p2k2Fields = document.getElementById('p2k2-section');
   var selectedId = sel.value; // Ini adalah RHK-1, RHK-2, dll
+  var btnRiwayat = document.getElementById('btn-riwayat-poin');
+  var riwayatList = document.getElementById('riwayat-poin-list');
   var riwayatContainer = document.getElementById('riwayat-poin-container');
   
   if (!selectedId) {
     if (p2k2Fields) p2k2Fields.classList.add('hidden');
+    if (btnRiwayat) btnRiwayat.classList.add('hidden');
     if (riwayatContainer) riwayatContainer.classList.add('hidden');
     return;
   }
   
-  // Render Riwayat Poin Chips
-  if (riwayatContainer) {
-    riwayatContainer.innerHTML = '';
+  // Render Riwayat Poin ke Dropdown
+  if (riwayatList && btnRiwayat) {
+    riwayatList.innerHTML = '';
     let riwayatForRhk = (state.riwayatPoin || []).filter(r => r.idRhk === selectedId);
     
     // Hilangkan duplikat teks jika ada
@@ -1254,11 +1257,12 @@ function onJenisRHKChange() {
     if (uniqueTexts.length > 0) {
       uniqueTexts.forEach(text => {
         let chip = document.createElement('button');
-        chip.className = 'px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium rounded-full transition-colors border border-primary/20 text-left';
-        chip.textContent = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        chip.className = 'px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-medium rounded transition-colors text-left border-b border-primary/10 last:border-0';
+        chip.textContent = text.length > 100 ? text.substring(0, 100) + '...' : text;
         chip.title = text;
         chip.type = 'button';
-        chip.onclick = function() {
+        chip.onclick = function(e) {
+          e.stopPropagation(); // Mencegah dropdown tertutup otomatis jika belum diatur
           let inputPoin = document.getElementById('input-poin');
           if (inputPoin) {
             let currentVal = inputPoin.value.trim();
@@ -1270,12 +1274,15 @@ function onJenisRHKChange() {
               inputPoin.value = '- ' + text;
             }
           }
+          // Tutup dropdown setelah memilih
+          if (riwayatContainer) riwayatContainer.classList.add('hidden');
         };
-        riwayatContainer.appendChild(chip);
+        riwayatList.appendChild(chip);
       });
-      riwayatContainer.classList.remove('hidden');
+      btnRiwayat.classList.remove('hidden');
     } else {
-      riwayatContainer.classList.add('hidden');
+      btnRiwayat.classList.add('hidden');
+      if (riwayatContainer) riwayatContainer.classList.add('hidden');
     }
   }
   
@@ -1294,6 +1301,24 @@ function onJenisRHKChange() {
     if (p2k2Fields) p2k2Fields.classList.add('hidden');
   }
 }
+
+function toggleRiwayatPoin() {
+  var container = document.getElementById('riwayat-poin-container');
+  if (container) {
+    container.classList.toggle('hidden');
+  }
+}
+
+// Menutup dropdown riwayat saat klik di luar area
+document.addEventListener('click', function(e) {
+  var btn = document.getElementById('btn-riwayat-poin');
+  var container = document.getElementById('riwayat-poin-container');
+  if (btn && container) {
+    if (!btn.contains(e.target) && !container.contains(e.target)) {
+      container.classList.add('hidden');
+    }
+  }
+});
 
 function loadP2K2ModulOptions() {
   var mod = document.getElementById('select-modul');
