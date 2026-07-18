@@ -666,9 +666,19 @@ async function loadDashboardData(isSilent = false) {
       }
       hideLoading();
       
-      // Deteksi jika error karena otentikasi (Sesi Habis)
-      if (typeof errorMsg === 'string' && (errorMsg.includes('invalid authentication') || errorMsg.includes('OAuth') || err.status === 401)) {
-          showToast('Sesi login Google Anda telah habis. Silakan muat ulang halaman (Refresh) lalu Login kembali.', 'error');
+      // Deteksi jika error karena otentikasi (Sesi Habis) atau tidak ada akses
+      if (typeof errorMsg === 'string' && (
+          errorMsg.toLowerCase().includes('invalid authentication') || 
+          errorMsg.toLowerCase().includes('oauth') || 
+          errorMsg.toLowerCase().includes('permission') || 
+          err.status === 401 || 
+          err.status === 403
+      )) {
+          showToast('Sesi login Google Anda habis atau Anda tidak punya akses ke database. Memuat ulang...', 'error');
+          setTimeout(() => {
+              localStorage.removeItem('google_access_token');
+              window.location.reload();
+          }, 3000);
       } else {
           showToast('Gagal memuat Dashboard: ' + errorMsg, 'error');
       }
