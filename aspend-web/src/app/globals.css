@@ -1,0 +1,311 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-primary: #00BCD4;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #E0F7FA;
+  --color-on-primary-container: #006064;
+  --color-primary-fixed: #B2EBF2;
+  --color-on-primary-fixed: #00838F;
+  --color-secondary: #AB47BC;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #F3E5F5;
+  --color-on-secondary-container: #4A148C;
+  --color-tertiary: #00838F;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #80DEEA;
+  --color-on-tertiary-container: #004D40;
+  --color-error: #E53935;
+  --color-on-error: #ffffff;
+  --color-error-container: #FFCDD2;
+  --color-on-error-container: #B71C1C;
+  --color-background: #F5F7FA;
+  --color-on-background: #1A1D21;
+  --color-surface: #ffffff;
+  --color-on-surface: #1A1D21;
+  --color-surface-variant: #E0E3E6;
+  --color-on-surface-variant: #6B7280;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #F8FAFC;
+  --color-surface-container: #F1F5F9;
+  --color-surface-container-high: #E2E8F0;
+  --color-surface-container-highest: #CBD5E1;
+  --color-outline: #94A3B8;
+  --color-outline-variant: #CBD5E1;
+
+  --spacing-margin-desktop: 40px;
+  --spacing-stack-lg: 32px;
+  --spacing-gutter: 24px;
+  --spacing-stack-md: 16px;
+  --spacing-container-max-width: 1440px;
+  --spacing-sidebar-width: 280px;
+  --spacing-margin-mobile: 16px;
+  --spacing-stack-sm: 8px;
+  --spacing-bottom-nav-height: 72px;
+
+  --font-headline-lg: 32px;
+  --font-headline-md: 28px;
+  --font-title-lg: 22px;
+  --font-title-md: 16px;
+  --font-label-lg: 14px;
+  --font-label-md: 12px;
+  --font-body-lg: 16px;
+  --font-body-md: 14px;
+  
+  --font-weight-headline-lg: 400;
+  --font-weight-headline-md: 400;
+  --font-weight-title-lg: 400;
+  --font-weight-title-md: 500;
+  --font-weight-label-lg: 500;
+  --font-weight-label-md: 500;
+  --font-weight-body-lg: 400;
+  --font-weight-body-md: 400;
+}
+
+/* ── Loading Overlay ─────────────────────────────────────── */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 15, 34, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+  width: 48px; height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffe088;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-text {
+  font-size: 14px;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* ── Modal Overlay ───────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 15, 34, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.modal-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal {
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+.modal-overlay.show .modal {
+  transform: scale(1);
+}
+
+/* ── Toast Notifications ──────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  min-width: 280px;
+  max-width: 400px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+  animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+.toast.hide {
+  animation: toastOut 0.3s ease forwards;
+}
+.toast-success { background: #1e8449; }
+.toast-error   { background: #ba1a1a; }
+.toast-info    { background: #49607e; }
+.toast .toast-icon { font-size: 20px; flex-shrink: 0; }
+.toast .toast-msg  { flex: 1; }
+.toast .toast-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toast .toast-close:hover { color: #ffffff; }
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(50px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.9); }
+}
+
+/* ── Voice Input Pulse ────────────────────────────────────── */
+.pulse-recording {
+  animation: pulse-red 1.5s infinite;
+}
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(186, 26, 26, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0); }
+}
+
+/* ── Custom Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f7f9fc; }
+::-webkit-scrollbar-thumb { background: #c4c6ce; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #74777e; }
+
+/* ── Dark Mode (Invert Hack) ─────────────────────────────── */
+html.dark {
+  background-color: #1a1d21;
+}
+html.dark body {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark img, html.dark video, html.dark iframe, html.dark canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark #sidebar {
+  background-color: #f7f9fc; /* will invert to dark */
+}
+
+/* ── Selected Card Moving Light Animations ───────────────── */
+@keyframes beamMoveHorizontal {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes beamMoveHorizontalReverse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes beamMoveVertical {
+  0% {
+    background-position: 0 -200%;
+  }
+  100% {
+    background-position: 0 200%;
+  }
+}
+
+@keyframes beamMoveVerticalReverse {
+  0% {
+    background-position: 0 200%;
+  }
+  100% {
+    background-position: 0 -200%;
+  }
+}
+
+@keyframes arrowBounceX {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+.animate-arrow-bounce {
+  animation: arrowBounceX 1.4s ease-in-out infinite;
+}
+
+.card-light-beam-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(6, 182, 212, 0.4) 20%, #22d3ee 50%, #ffffff 55%, #22d3ee 60%, rgba(6, 182, 212, 0.4) 80%, transparent 100%);
+  background-size: 200% 100%;
+  animation: beamMoveHorizontal 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.card-light-beam-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(270deg, transparent 0%, rgba(6, 182, 212, 0.4) 20%, #22d3ee 50%, #ffffff 55%, #22d3ee 60%, rgba(6, 182, 212, 0.4) 80%, transparent 100%);
+  background-size: 200% 100%;
+  animation: beamMoveHorizontalReverse 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.card-light-beam-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2.5px;
+  background: linear-gradient(0deg, transparent 0%, rgba(6, 182, 212, 0.4) 20%, #22d3ee 50%, #ffffff 55%, #22d3ee 60%, rgba(6, 182, 212, 0.4) 80%, transparent 100%);
+  background-size: 100% 200%;
+  animation: beamMoveVerticalReverse 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.card-light-beam-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2.5px;
+  background: linear-gradient(180deg, transparent 0%, rgba(6, 182, 212, 0.4) 20%, #22d3ee 50%, #ffffff 55%, #22d3ee 60%, rgba(6, 182, 212, 0.4) 80%, transparent 100%);
+  background-size: 100% 200%;
+  animation: beamMoveVertical 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 20;
+}
