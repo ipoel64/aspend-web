@@ -104,7 +104,12 @@ function parseRobustDate(dateStr: string, timeStr: string = '00:00'): number {
 
 function toISODate(dateStr: string): string {
   if (!dateStr) return '';
-  const time = parseRobustDate(dateStr, '00:00');
+  const str = String(dateStr).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  const time = parseRobustDate(str, '00:00');
   if (time === 0) return '';
   const d = new Date(time);
   const yyyy = d.getFullYear();
@@ -285,7 +290,7 @@ export default function Home() {
 
   // Filtered reports
   const filteredReports = useMemo(() => {
-    return reports.filter(r => {
+    const list = reports.filter(r => {
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const match = 
@@ -307,6 +312,16 @@ export default function Home() {
         if (!iso || iso !== filterDate) return false;
       }
       return true;
+    });
+
+    return list.slice().sort((a, b) => {
+      const pukulA = (a.Pukul && a.Pukul !== '-') ? a.Pukul.toString().trim().substring(0, 5) : '00:00';
+      const pukulB = (b.Pukul && b.Pukul !== '-') ? b.Pukul.toString().trim().substring(0, 5) : '00:00';
+      let timeA = parseRobustDate(a.Tanggal, pukulA);
+      let timeB = parseRobustDate(b.Tanggal, pukulB);
+      if (timeA === 0) timeA = new Date(a.CreatedAt || 0).getTime();
+      if (timeB === 0) timeB = new Date(b.CreatedAt || 0).getTime();
+      return timeB - timeA;
     });
   }, [reports, searchTerm, filterJenis, filterAksi, filterMonth, filterDate]);
 
@@ -959,17 +974,35 @@ export default function Home() {
     );
   }
 
+  // Helper mendapatkan kunci tanggal grup terstandarisasi (YYYY-MM-DD)
+  const getDateGroupKey = (dateStr: string) => {
+    if (!dateStr) return "";
+    return toISODate(dateStr) || String(dateStr).trim().split('T')[0];
+  };
+
   // Format tanggal grup
   const formatDateGroup = (dateStr: string) => {
     if (!dateStr) return "TANGGAL TIDAK DIKETAHUI";
+    const iso = toISODate(dateStr);
+    const time = iso ? parseRobustDate(iso, '12:00') : parseRobustDate(dateStr, '12:00');
+    if (time > 0) {
+      return new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+      }).format(new Date(time)).toUpperCase();
+    }
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr.toUpperCase();
-    return new Intl.DateTimeFormat("id-ID", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    }).format(d).toUpperCase();
+    if (!isNaN(d.getTime())) {
+      return new Intl.DateTimeFormat("id-ID", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+      }).format(d).toUpperCase();
+    }
+    return String(dateStr).toUpperCase();
   };
 
   const userAvatarUrl = profile?.photoUrl || session?.user?.image;
@@ -1972,7 +2005,9 @@ export default function Home() {
                         {paginatedReports.map((report, idx) => {
                           const isSelected = selectedReport?.ReportId === report.ReportId;
                           const prevReport = idx > 0 ? paginatedReports[idx - 1] : null;
-                          const showGroupHeader = !prevReport || prevReport.Tanggal !== report.Tanggal;
+                          const prevDateKey = prevReport ? getDateGroupKey(prevReport.Tanggal) : null;
+                          const currentDateKey = getDateGroupKey(report.Tanggal);
+                          const showGroupHeader = !prevReport || prevDateKey !== currentDateKey;
                           const firstPhotoId = report.FotoIds && report.FotoIds.length > 0 ? report.FotoIds[0] : null;
 
                           const idText = report.IdRHK || report.JenisRHK || '';
@@ -2068,7 +2103,18 @@ export default function Home() {
 
                                   <div className="flex flex-col justify-between h-[88px]">
                                     <div className="font-bold text-xs text-gray-900 leading-tight">
-                                      {report.Tanggal ? new Date(report.Tanggal).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                      {(() => {
+                                        const t = parseRobustDate(report.Tanggal, report.Pukul || '00:00');
+                                        if (t > 0) {
+                                          return new Intl.DateTimeFormat('id-ID', {
+                                            weekday: 'short',
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric'
+                                          }).format(new Date(t));
+                                        }
+                                        return report.Tanggal || '-';
+                                      })()}
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className="text-[10px] text-cyan-800 font-bold bg-cyan-50 border border-cyan-200 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded">
