@@ -97,88 +97,116 @@ Jelaskan juga dalam paragraf bahwa materi telah disampaikan dengan baik kepada K
     }
 
     let generatedText = '';
-    const openRouterKey = process.env.OPENROUTER_API_KEY || OPENROUTER_DEFAULT_KEY;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY || '';
+    const groqKey = process.env.GROQ_API_KEY || '';
+    const openRouterKey = process.env.OPENROUTER_API_KEY || OPENROUTER_DEFAULT_KEY || '';
 
-    // 1. Coba OpenRouter API
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://aspend-web.app',
-          'X-Title': 'Aspend Web',
+    // Validasi keberadaan API Key
+    if (!geminiKey && !groqKey && !openRouterKey) {
+      return NextResponse.json(
+        {
+          error:
+            'Kunci API AI belum diatur di Vercel. Silakan tambahkan GEMINI_API_KEY atau OPENROUTER_API_KEY di Environment Variables Vercel.',
         },
-        body: JSON.stringify({
-          model: OPENROUTER_DEFAULT_MODEL,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 3000,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        generatedText = data.choices?.[0]?.message?.content || '';
-      } else {
-        console.warn('OpenRouter API response not ok:', response.status, await response.text());
-      }
-    } catch (err) {
-      console.warn('OpenRouter API request error:', err);
+        { status: 500 }
+      );
     }
 
-    // 2. Fallback ke OpenRouter model google/gemini-2.0-flash jika model pertama gagal
-    if (!generatedText) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openRouterKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://aspend-web.app',
-            'X-Title': 'Aspend Web',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.0-flash-001',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.7,
-            max_tokens: 3000,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          generatedText = data.choices?.[0]?.message?.content || '';
-        }
-      } catch (err) {
-        console.warn('OpenRouter fallback model error:', err);
-      }
-    }
-
-    // 3. Fallback ke Google Gemini Direct jika ada GEMINI_API_KEY
+    // 1. Coba Google Gemini API jika GEMINI_API_KEY tersedia (Paling Direkomendasikan & Gratis)
     if (!generatedText && geminiKey) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`;
-        const response = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 3000 },
-          }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+      for (const gModel of geminiModels) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${gModel}:generateContent?key=${geminiKey}`;
+          const response = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: 3000 },
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (generatedText) break;
+          } else {
+            console.warn(`Gemini (${gModel}) response not ok:`, response.status, await response.text());
+          }
+        } catch (err) {
+          console.warn(`Gemini API error (${gModel}):`, err);
         }
-      } catch (err) {
-        console.warn('Gemini direct API error:', err);
+      }
+    }
+
+    // 2. Coba Groq API jika GROQ_API_KEY tersedia (Super Cepat)
+    if (!generatedText && groqKey) {
+      const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+      for (const qModel of groqModels) {
+        try {
+          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${groqKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: qModel,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.7,
+              max_tokens: 3000,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            generatedText = data.choices?.[0]?.message?.content || '';
+            if (generatedText) break;
+          }
+        } catch (err) {
+          console.warn(`Groq API error (${qModel}):`, err);
+        }
+      }
+    }
+
+    // 3. Coba OpenRouter jika OPENROUTER_API_KEY tersedia
+    if (!generatedText && openRouterKey) {
+      const routerModels = [
+        'deepseek/deepseek-chat',
+        'meta-llama/llama-3.3-70b-instruct',
+        'mistralai/mistral-small-24b-instruct-2501',
+      ];
+      for (const rModel of routerModels) {
+        try {
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openRouterKey}`,
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://aspend-web.vercel.app',
+              'X-Title': 'ASPEND Web',
+            },
+            body: JSON.stringify({
+              model: rModel,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.7,
+              max_tokens: 3000,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            generatedText = data.choices?.[0]?.message?.content || '';
+            if (generatedText) break;
+          }
+        } catch (err) {
+          console.warn(`OpenRouter error (${rModel}):`, err);
+        }
       }
     }
 
     if (!generatedText) {
-      throw new Error('Gagal menghubungkan ke layanan AI. Mohon coba sesaat lagi.');
+      throw new Error(
+        'Gagal menghubungkan ke layanan AI. Pastikan kuota API Key (GEMINI_API_KEY atau OPENROUTER_API_KEY) masih aktif di Environment Variables Vercel.'
+      );
     }
 
     // 4. Ekstrak lokasi
