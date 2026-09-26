@@ -46,27 +46,31 @@ function parseRobustDate(dateStr: string, timeStr: string = '00:00'): number {
   if (!timeStr) timeStr = '00:00';
   let d = dateStr.toString().trim().toLowerCase();
   
-  // Hapus nama hari bahasa Indonesia & karakter tanda baca
-  d = d.replace(/senin,?|selasa,?|rabu,?|kamis,?|jumat,?|jum\'at,?|sabtu,?|minggu,?/g, '').trim();
+  // Hapus semua nama hari Indonesia/Inggris (baik panjang maupun singkatan: Jum, Sen, dll) beserta tanda baca
+  d = d.replace(/\b(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu|sen|sel|rab|kam|jum|sab|min|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b[,.]?/gi, '').trim();
   
-  const monthsId: Record<string, number> = {
-    'januari': 0, 'jan': 0,
-    'februari': 1, 'feb': 1,
-    'maret': 2, 'mar': 2,
-    'april': 3, 'apr': 3,
-    'mei': 4, 
-    'juni': 5, 'jun': 5,
-    'juli': 6, 'jul': 6,
-    'agustus': 7, 'agu': 7,
-    'september': 8, 'sep': 8,
-    'oktober': 9, 'okt': 9,
-    'november': 10, 'nov': 10,
-    'desember': 11, 'des': 11
-  };
-  
-  for (const m in monthsId) {
-    if (d.includes(m)) {
-      d = d.replace(m, ' ' + monthsId[m] + ' ');
+  const monthsId = [
+    { name: 'januari', short: 'jan', m: 0 },
+    { name: 'februari', short: 'feb', m: 1 },
+    { name: 'maret', short: 'mar', m: 2 },
+    { name: 'april', short: 'apr', m: 3 },
+    { name: 'mei', short: 'may', m: 4 },
+    { name: 'juni', short: 'jun', m: 5 },
+    { name: 'juli', short: 'jul', m: 6 },
+    { name: 'agustus', short: 'agu', m: 7 },
+    { name: 'august', short: 'aug', m: 7 },
+    { name: 'september', short: 'sep', m: 8 },
+    { name: 'oktober', short: 'okt', m: 9 },
+    { name: 'october', short: 'oct', m: 9 },
+    { name: 'november', short: 'nov', m: 10 },
+    { name: 'desember', short: 'des', m: 11 },
+    { name: 'december', short: 'dec', m: 11 }
+  ];
+
+  for (const item of monthsId) {
+    const regex = new RegExp('\\b(' + item.name + '|' + item.short + ')\\b', 'i');
+    if (regex.test(d)) {
+      d = d.replace(regex, ' ' + item.m + ' ');
       const p = d.trim().split(/\s+/);
       if (p.length >= 3) {
         const day = parseInt(p[0]);
@@ -98,7 +102,7 @@ function parseRobustDate(dateStr: string, timeStr: string = '00:00'): number {
     const res = new Date(year, month, day, hour, min, 0).getTime();
     if (!isNaN(res)) return res;
   }
-  const raw = new Date(dateStr + ' ' + timeStr).getTime();
+  const raw = new Date(dateStr + (timeStr ? ' ' + timeStr : '')).getTime();
   return isNaN(raw) ? 0 : raw;
 }
 
@@ -974,17 +978,10 @@ export default function Home() {
     );
   }
 
-  // Helper mendapatkan kunci tanggal grup terstandarisasi (YYYY-MM-DD)
-  const getDateGroupKey = (dateStr: string) => {
-    if (!dateStr) return "";
-    return toISODate(dateStr) || String(dateStr).trim().split('T')[0];
-  };
-
-  // Format tanggal grup
+  // Format tanggal grup (misal: "JUMAT, 25 SEPTEMBER 2026")
   const formatDateGroup = (dateStr: string) => {
     if (!dateStr) return "TANGGAL TIDAK DIKETAHUI";
-    const iso = toISODate(dateStr);
-    const time = iso ? parseRobustDate(iso, '12:00') : parseRobustDate(dateStr, '12:00');
+    const time = parseRobustDate(dateStr, '12:00');
     if (time > 0) {
       return new Intl.DateTimeFormat("id-ID", {
         weekday: "long",
@@ -992,6 +989,18 @@ export default function Home() {
         month: "long",
         year: "numeric"
       }).format(new Date(time)).toUpperCase();
+    }
+    const iso = toISODate(dateStr);
+    if (iso) {
+      const timeIso = parseRobustDate(iso, '12:00');
+      if (timeIso > 0) {
+        return new Intl.DateTimeFormat("id-ID", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric"
+        }).format(new Date(timeIso)).toUpperCase();
+      }
     }
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
@@ -1002,7 +1011,13 @@ export default function Home() {
         year: "numeric"
       }).format(d).toUpperCase();
     }
-    return String(dateStr).toUpperCase();
+    return String(dateStr).toUpperCase().trim();
+  };
+
+  // Kunci perbandingan grup tanggal (menggunakan teks grup formatDateGroup agar 100% sinkron dan tidak mungkin terpisah)
+  const getDateGroupKey = (dateStr: string) => {
+    if (!dateStr) return "";
+    return formatDateGroup(dateStr).trim().toUpperCase();
   };
 
   const userAvatarUrl = profile?.photoUrl || session?.user?.image;
