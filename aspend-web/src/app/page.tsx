@@ -2008,14 +2008,6 @@ export default function Home() {
                     </div>
                   ) : (
                     <table className="w-full text-left border-separate border-spacing-y-2.5 px-2.5">
-                      <thead>
-                        <tr className="text-[10px] text-gray-400 uppercase tracking-wider">
-                          <th className="px-3 py-1 font-bold text-center w-28 md:w-32">FOTO</th>
-                          <th className="px-3 py-1 font-bold whitespace-nowrap w-[130px] md:w-[140px]">WAKTU & TANGGAL</th>
-                          <th className="px-3 py-1 font-bold">RHK & RENCANA AKSI</th>
-                          <th className="px-2 py-1 font-bold text-center w-20">AKSI</th>
-                        </tr>
-                      </thead>
                       <tbody className="text-xs">
                         {paginatedReports.map((report, idx) => {
                           const isSelected = selectedReport?.ReportId === report.ReportId;
@@ -2284,32 +2276,7 @@ export default function Home() {
 
                 {/* KANAN: PDF PREVIEW (52%) */}
                 <div className="w-full lg:w-[52%] bg-gray-50 relative flex flex-col">
-                  <div className="px-3 py-1.5 border-b border-gray-200 bg-white flex justify-between items-center h-[34px]">
-                    <div className="text-[11px] font-bold text-gray-700 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px] text-cyan-600">preview</span>
-                      Pratinjau Laporan PDF
-                    </div>
-                    {selectedReport?.PdfFileId && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleDownloadPdf(selectedReport)}
-                          className="p-1 text-gray-500 hover:text-cyan-600 rounded hover:bg-gray-100 flex items-center"
-                          title="Unduh PDF"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">download</span>
-                        </button>
-                        <a 
-                          href={`https://drive.google.com/file/d/${selectedReport.PdfFileId}/view`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="p-1 text-gray-500 hover:text-cyan-600 rounded hover:bg-gray-100 flex items-center"
-                          title="Buka di tab baru"
-                        >
-                          <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-                        </a>
-                      </div>
-                    )}
-                  </div>
+
 
                   <div className="flex-grow flex items-center justify-center p-2 min-h-[460px]">
                     {selectedReport && selectedReport.PdfFileId ? (
