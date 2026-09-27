@@ -1994,8 +1994,8 @@ export default function Home() {
               {/* Split Screen Layout */}
               <div className="flex flex-col lg:flex-row w-full min-h-[520px]">
                 
-                {/* KIRI: TABEL LAPORAN (48%) */}
-                <div className="w-full lg:w-[48%] border-r border-gray-200 overflow-x-hidden overflow-y-auto">
+                {/* KIRI: TABEL LAPORAN (50%) */}
+                <div className="w-full lg:w-[50%] border-r border-gray-200 overflow-x-hidden overflow-y-auto p-1 sm:p-1.5">
                   {isLoading ? (
                     <div className="flex flex-col items-center justify-center p-16 text-center">
                       <div className="spinner mb-3 border-t-cyan-500 w-8 h-8 border-3 border-solid rounded-full animate-spin"></div>
@@ -2007,7 +2007,13 @@ export default function Home() {
                       <p className="text-gray-500 text-xs font-medium">Tidak ada laporan yang sesuai dengan filter.</p>
                     </div>
                   ) : (
-                    <table className="w-full text-left border-separate border-spacing-y-2 px-2.5">
+                    <table className="w-full table-fixed text-left border-separate border-spacing-y-2">
+                      <colgroup>
+                        <col className="w-[82px] sm:w-[88px]" />
+                        <col className="w-[100px] sm:w-[110px]" />
+                        <col />
+                        <col className="w-[68px] sm:w-[72px]" />
+                      </colgroup>
                       <tbody className="text-xs">
                         {paginatedReports.map((report, idx) => {
                           const isSelected = selectedReport?.ReportId === report.ReportId;
@@ -2048,7 +2054,7 @@ export default function Home() {
                                 }`}
                               >
                                 {/* Photo (Tinggi 68px Sejajar Kolom Tengah & Tombol Unduh + Fitur Preview) */}
-                                <td className={`relative px-2 py-1.5 align-middle text-center w-24 md:w-28 rounded-l-xl border-l-2 border-t-2 border-b-2 overflow-hidden ${
+                                <td className={`relative px-1 py-1.5 align-middle text-center rounded-l-xl border-l-2 border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2061,7 +2067,7 @@ export default function Home() {
 
                                   {firstPhotoId ? (
                                     <div 
-                                      className="relative group/foto cursor-zoom-in w-20 h-[66px] md:w-24 md:h-[68px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
+                                      className="relative group/foto cursor-zoom-in w-[74px] h-[64px] sm:w-[80px] sm:h-[66px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setPreviewPhotoModalUrl(`/api/image-proxy?id=${firstPhotoId}`);
@@ -2084,21 +2090,21 @@ export default function Home() {
                                         <span className="material-symbols-outlined text-white text-base drop-shadow-md">zoom_in</span>
                                       </div>
                                       {report.FotoIds && report.FotoIds.length > 1 && (
-                                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[8.5px] font-bold px-1.5 py-0.2 rounded-md backdrop-blur-xs">
+                                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[8px] font-bold px-1 py-0.2 rounded-md backdrop-blur-xs">
                                           +{report.FotoIds.length - 1}
                                         </div>
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="w-20 h-[66px] md:w-24 md:h-[68px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
-                                      <span className="material-symbols-outlined text-[18px]">hide_image</span>
-                                      <span className="text-[8.5px] text-gray-400 mt-0.5">Tanpa Foto</span>
+                                    <div className="w-[74px] h-[64px] sm:w-[80px] sm:h-[66px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
+                                      <span className="material-symbols-outlined text-[16px]">hide_image</span>
+                                      <span className="text-[8px] text-gray-400 mt-0.5">Tanpa Foto</span>
                                     </div>
                                   )}
                                 </td>
 
                                 {/* Waktu & Tanggal */}
-                                <td className={`relative px-2 py-1.5 align-middle whitespace-normal w-[125px] md:w-[135px] border-t-2 border-b-2 overflow-hidden ${
+                                <td className={`relative px-1.5 py-1.5 align-middle whitespace-normal border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2109,7 +2115,7 @@ export default function Home() {
                                   )}
 
                                   <div className="flex flex-col justify-between h-[68px] py-0.5">
-                                    <div className="font-bold text-[11px] md:text-xs text-gray-900 leading-tight">
+                                    <div className="font-bold text-[10px] sm:text-[11px] text-gray-900 leading-tight truncate">
                                       {(() => {
                                         const t = parseRobustDate(report.Tanggal, report.Pukul || '00:00');
                                         if (t > 0) {
@@ -2124,20 +2130,20 @@ export default function Home() {
                                       })()}
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-[9.5px] text-cyan-800 font-bold bg-cyan-50 border border-cyan-200 inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded">
-                                        <span className="material-symbols-outlined text-[9.5px]">schedule</span>
-                                        {report.Pukul || '14:00'}
+                                      <span className="text-[8px] sm:text-[8.5px] text-cyan-800 font-bold bg-cyan-50 border border-cyan-200 inline-flex items-center gap-0.5 px-1 py-0.5 rounded leading-none shrink-0">
+                                        <span className="material-symbols-outlined shrink-0" style={{ fontSize: '10px', lineHeight: 1 }}>schedule</span>
+                                        <span>{report.Pukul || '14:00'}</span>
                                       </span>
-                                      <span className="text-[8.5px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                      <span className="text-[8px] sm:text-[8.5px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded leading-none inline-flex items-center shrink-0">
                                         SELESAI
                                       </span>
                                     </div>
                                     {report.Lokasi ? (
                                       <div 
-                                        className="text-[9.5px] text-gray-500 max-w-[125px] md:max-w-[135px] truncate whitespace-nowrap overflow-hidden flex items-center gap-0.5 leading-none" 
+                                        className="text-[8.5px] sm:text-[9px] text-gray-500 max-w-full truncate whitespace-nowrap overflow-hidden flex items-center gap-0.5 leading-none" 
                                         title={report.Lokasi}
                                       >
-                                        <span className="material-symbols-outlined text-[10px] text-gray-400 shrink-0">location_on</span>
+                                        <span className="material-symbols-outlined text-gray-400 shrink-0" style={{ fontSize: '10px', lineHeight: 1 }}>location_on</span>
                                         <span className="truncate">{report.Lokasi}</span>
                                       </div>
                                     ) : (
@@ -2146,8 +2152,8 @@ export default function Home() {
                                   </div>
                                 </td>
 
-                                {/* RHK & Rencana Aksi: JENIS RHK DI ATAS, RENCANA AKSI DI BAWAH */}
-                                <td className={`relative px-2.5 py-1.5 align-middle border-t-2 border-b-2 overflow-hidden ${
+                                {/* RHK & Rencana Aksi: JENIS RHK DI ATAS, RENCANA AKSI DI BAWAH (Font Lebih Kompak & Bersambung) */}
+                                <td className={`relative px-2 py-1.5 align-middle border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2157,24 +2163,24 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className="flex flex-col justify-between h-[68px] py-0.5">
+                                  <div className="flex flex-col justify-between h-[68px] py-0.5 min-w-0 overflow-hidden">
                                     {/* 1. Posisi Atas: Kotak Jenis RHK & Tulisannya */}
-                                    <div className={`px-2 py-0.5 rounded-md border flex items-center gap-1.5 max-w-full ${rhkStyle.bg} ${rhkStyle.border}`}>
-                                      <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded shadow-xs shrink-0 ${rhkStyle.numBg} ${rhkStyle.numText}`}>
+                                    <div className={`px-1.5 py-0.5 rounded-md border flex items-center gap-1 min-w-0 max-w-full overflow-hidden ${rhkStyle.bg} ${rhkStyle.border}`}>
+                                      <span className={`text-[8px] font-black px-1 py-0.2 rounded shadow-2xs shrink-0 ${rhkStyle.numBg} ${rhkStyle.numText}`}>
                                         RHK-{angkaRHK}
                                       </span>
                                       <p 
-                                        className={`text-[10.5px] font-bold leading-tight truncate ${rhkStyle.text}`} 
+                                        className={`text-[9.5px] sm:text-[10px] font-bold leading-tight truncate min-w-0 ${rhkStyle.text}`} 
                                         title={report.JenisRHK}
                                       >
                                         {report.JenisRHK || '-'}
                                       </p>
                                     </div>
 
-                                    {/* 2. Posisi Bawah: Rencana Aksi */}
-                                    <div className="mt-0.5">
+                                    {/* 2. Posisi Bawah: Rencana Aksi (Bersambung Rapi 2 Baris) */}
+                                    <div className="mt-0.5 overflow-hidden">
                                       <h4 
-                                        className="font-semibold text-gray-900 text-[11px] md:text-xs leading-snug line-clamp-2" 
+                                        className="font-semibold text-gray-900 text-[10px] sm:text-[10.5px] leading-snug line-clamp-2 break-words" 
                                         title={report.RencanaAksi || report.JenisRHK}
                                       >
                                         {report.RencanaAksi || report.JenisRHK || '-'}
@@ -2184,7 +2190,7 @@ export default function Home() {
                                 </td>
 
                                 {/* Aksi (Tombol Disable jika belum dipilih; Aktif saat baris dipilih) */}
-                                <td className={`relative px-1.5 py-1.5 align-middle text-center w-[74px] md:w-20 rounded-r-xl border-r-2 border-t-2 border-b-2 ${
+                                <td className={`relative px-1 py-1.5 align-middle text-center rounded-r-xl border-r-2 border-t-2 border-b-2 ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`} onClick={(e) => {
                                   if (!isSelected) {
@@ -2202,8 +2208,8 @@ export default function Home() {
 
                                       {/* Tanda Panah Bergerak Menunjuk ke Lembar Pratinjau Laporan PDF */}
                                       <div className="hidden lg:flex absolute -right-2 top-1/2 -translate-y-1/2 z-30 items-center pointer-events-none animate-arrow-bounce">
-                                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md border-2 border-white">
-                                          <span className="material-symbols-outlined text-[13px] font-black leading-none">arrow_forward</span>
+                                        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md border-2 border-white">
+                                          <span className="material-symbols-outlined text-[11px] font-black leading-none">arrow_forward</span>
                                         </div>
                                       </div>
                                     </>
@@ -2213,7 +2219,7 @@ export default function Home() {
                                     isSelected ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none select-none'
                                   }`}>
                                     {/* Tombol Edit & Hapus (Disable jika baris tidak dipilih) */}
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center justify-center gap-1">
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2253,7 +2259,7 @@ export default function Home() {
                                         if (isSelected) handleDownloadPdf(report);
                                       }}
                                       disabled={!isSelected}
-                                      className={`px-1.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-1 shadow-xs w-full ${
+                                      className={`px-1 py-1 rounded-md text-[9.5px] font-bold transition-all flex items-center justify-center gap-0.5 shadow-xs w-full ${
                                         isSelected 
                                           ? 'bg-cyan-600 hover:bg-cyan-700 text-white cursor-pointer active:scale-95' 
                                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -2261,7 +2267,7 @@ export default function Home() {
                                       title={isSelected ? "Unduh PDF" : "Pilih laporan terlebih dahulu"}
                                     >
                                       <span className="material-symbols-outlined text-[12px]">download</span>
-                                      Unduh
+                                      <span>Unduh</span>
                                     </button>
                                   </div>
                                 </td>
@@ -2274,8 +2280,8 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* KANAN: PDF PREVIEW (52%) */}
-                <div className="w-full lg:w-[52%] bg-gray-50 relative flex flex-col">
+                {/* KANAN: PDF PREVIEW (50%) */}
+                <div className="w-full lg:w-[50%] bg-gray-50 relative flex flex-col">
 
 
                   <div className="flex-grow flex items-center justify-center p-2 min-h-[460px]">
