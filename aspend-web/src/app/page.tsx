@@ -2053,7 +2053,7 @@ export default function Home() {
                                     : 'bg-white hover:bg-gray-50/80 shadow-xs hover:shadow-sm'
                                 }`}
                               >
-                                {/* Photo (Tinggi 68px Sejajar Kolom Tengah & Tombol Unduh + Fitur Preview) */}
+                                {/* Photo (Tinggi 72px Sejajar Kolom Tengah & Tombol Unduh + Fitur Preview) */}
                                 <td className={`relative px-1 py-1.5 align-middle text-center rounded-l-xl border-l-2 border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
@@ -2067,7 +2067,7 @@ export default function Home() {
 
                                   {firstPhotoId ? (
                                     <div 
-                                      className="relative group/foto cursor-zoom-in w-[74px] h-[64px] sm:w-[80px] sm:h-[66px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
+                                      className="relative group/foto cursor-zoom-in w-[76px] h-[66px] sm:w-[82px] sm:h-[68px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setPreviewPhotoModalUrl(`/api/image-proxy?id=${firstPhotoId}`);
@@ -2096,7 +2096,7 @@ export default function Home() {
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="w-[74px] h-[64px] sm:w-[80px] sm:h-[66px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
+                                    <div className="w-[76px] h-[66px] sm:w-[82px] sm:h-[68px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
                                       <span className="material-symbols-outlined text-[16px]">hide_image</span>
                                       <span className="text-[8px] text-gray-400 mt-0.5">Tanpa Foto</span>
                                     </div>
@@ -2114,8 +2114,8 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className="flex flex-col justify-between h-[68px] py-0.5">
-                                    <div className="font-bold text-[10px] sm:text-[11px] text-gray-900 leading-tight truncate">
+                                  <div className="flex flex-col justify-between h-[72px] py-0.5">
+                                    <div className="font-bold text-[10.5px] sm:text-[11px] text-gray-900 leading-tight truncate">
                                       {(() => {
                                         const t = parseRobustDate(report.Tanggal, report.Pukul || '00:00');
                                         if (t > 0) {
@@ -2152,7 +2152,7 @@ export default function Home() {
                                   </div>
                                 </td>
 
-                                {/* RHK & Rencana Aksi: JENIS RHK DI ATAS, RENCANA AKSI DI BAWAH (Font Lebih Kompak & Bersambung) */}
+                                {/* RHK & Rencana Aksi: JENIS RHK DI ATAS (2 Baris, Nomor Lebih Besar & Mencolok, Align Center Left) */}
                                 <td className={`relative px-2 py-1.5 align-middle border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
@@ -2163,24 +2163,24 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className="flex flex-col justify-between h-[68px] py-0.5 min-w-0 overflow-hidden">
-                                    {/* 1. Posisi Atas: Kotak Jenis RHK & Tulisannya */}
-                                    <div className={`px-1.5 py-0.5 rounded-md border flex items-center gap-1 min-w-0 max-w-full overflow-hidden ${rhkStyle.bg} ${rhkStyle.border}`}>
-                                      <span className={`text-[8px] font-black px-1 py-0.2 rounded shadow-2xs shrink-0 ${rhkStyle.numBg} ${rhkStyle.numText}`}>
+                                  <div className="flex flex-col justify-between h-[72px] py-0.5 min-w-0 overflow-hidden">
+                                    {/* 1. Posisi Atas: Kotak Jenis RHK & Tulisannya (2 Baris, Nomor RHK Lebih Besar & Mencolok, Align Center Left) */}
+                                    <div className={`px-2 py-1 rounded-md border flex items-center text-left gap-1.5 min-w-0 max-w-full overflow-hidden ${rhkStyle.bg} ${rhkStyle.border}`}>
+                                      <span className={`text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded shadow-xs shrink-0 tracking-tight leading-none ${rhkStyle.numBg} ${rhkStyle.numText}`}>
                                         RHK-{angkaRHK}
                                       </span>
                                       <p 
-                                        className={`text-[9.5px] sm:text-[10px] font-bold leading-tight truncate min-w-0 ${rhkStyle.text}`} 
+                                        className={`text-[9.5px] sm:text-[10px] font-bold text-left leading-snug line-clamp-2 break-words min-w-0 ${rhkStyle.text}`} 
                                         title={report.JenisRHK}
                                       >
                                         {report.JenisRHK || '-'}
                                       </p>
                                     </div>
 
-                                    {/* 2. Posisi Bawah: Rencana Aksi (Bersambung Rapi 2 Baris) */}
+                                    {/* 2. Posisi Bawah: Rencana Aksi (Bersambung Rapi) */}
                                     <div className="mt-0.5 overflow-hidden">
                                       <h4 
-                                        className="font-semibold text-gray-900 text-[10px] sm:text-[10.5px] leading-snug line-clamp-2 break-words" 
+                                        className="font-semibold text-gray-900 text-[10px] sm:text-[10.5px] leading-snug line-clamp-2 break-words text-left" 
                                         title={report.RencanaAksi || report.JenisRHK}
                                       >
                                         {report.RencanaAksi || report.JenisRHK || '-'}
@@ -2215,7 +2215,7 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className={`flex flex-col justify-between h-[68px] items-center py-0.5 transition-all duration-200 ${
+                                  <div className={`flex flex-col justify-between h-[72px] items-center py-0.5 transition-all duration-200 ${
                                     isSelected ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none select-none'
                                   }`}>
                                     {/* Tombol Edit & Hapus (Disable jika baris tidak dipilih) */}
@@ -2252,21 +2252,21 @@ export default function Home() {
                                       </button>
                                     </div>
 
-                                    {/* Tombol Unduh (Disable jika baris tidak dipilih) */}
+                                    {/* Tombol Unduh (Diperkecil sedikit agar tidak mepet ke pinggir) */}
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         if (isSelected) handleDownloadPdf(report);
                                       }}
                                       disabled={!isSelected}
-                                      className={`px-1 py-1 rounded-md text-[9.5px] font-bold transition-all flex items-center justify-center gap-0.5 shadow-xs w-full ${
+                                      className={`w-[54px] sm:w-[58px] mx-auto py-0.5 px-1 rounded-md text-[9px] font-bold transition-all flex items-center justify-center gap-0.5 shadow-xs ${
                                         isSelected 
                                           ? 'bg-cyan-600 hover:bg-cyan-700 text-white cursor-pointer active:scale-95' 
                                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                       }`}
                                       title={isSelected ? "Unduh PDF" : "Pilih laporan terlebih dahulu"}
                                     >
-                                      <span className="material-symbols-outlined text-[12px]">download</span>
+                                      <span className="material-symbols-outlined text-[11px]">download</span>
                                       <span>Unduh</span>
                                     </button>
                                   </div>
