@@ -2177,10 +2177,10 @@ export default function Home() {
                                       </p>
                                     </div>
 
-                                    {/* 2. Posisi Bawah: Rencana Aksi (Bersambung Rapi) */}
-                                    <div className="mt-0.5 overflow-hidden">
+                                    {/* 2. Posisi Bawah: Rencana Aksi (Tebal & Align Center Left) */}
+                                    <div className="flex items-center text-left flex-grow mt-0.5 overflow-hidden">
                                       <h4 
-                                        className="font-semibold text-gray-900 text-[10px] sm:text-[10.5px] leading-snug line-clamp-2 break-words text-left" 
+                                        className="font-bold text-gray-900 text-[10px] sm:text-[10.5px] leading-snug line-clamp-2 break-words text-left" 
                                         title={report.RencanaAksi || report.JenisRHK}
                                       >
                                         {report.RencanaAksi || report.JenisRHK || '-'}
