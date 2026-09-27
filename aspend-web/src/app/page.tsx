@@ -2007,7 +2007,7 @@ export default function Home() {
                       <p className="text-gray-500 text-xs font-medium">Tidak ada laporan yang sesuai dengan filter.</p>
                     </div>
                   ) : (
-                    <table className="w-full text-left border-separate border-spacing-y-2.5 px-2.5">
+                    <table className="w-full text-left border-separate border-spacing-y-2 px-2.5">
                       <tbody className="text-xs">
                         {paginatedReports.map((report, idx) => {
                           const isSelected = selectedReport?.ReportId === report.ReportId;
@@ -2026,7 +2026,7 @@ export default function Home() {
                               {/* Group Date Header */}
                               {showGroupHeader && (
                                 <tr>
-                                  <td colSpan={4} className={`px-1 ${idx > 0 ? 'pt-8 pb-2.5' : 'pt-1.5 pb-2'}`}>
+                                  <td colSpan={4} className={`px-1 ${idx > 0 ? 'pt-5 pb-1.5' : 'pt-1 pb-1.5'}`}>
                                     <div className="flex items-center gap-2.5">
                                       <div className="h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent flex-grow"></div>
                                       <span className="text-[10px] font-extrabold text-cyan-800 uppercase tracking-wider bg-cyan-50/90 px-3 py-0.5 rounded-full border border-cyan-200/90 shadow-2xs">
@@ -2047,8 +2047,8 @@ export default function Home() {
                                     : 'bg-white hover:bg-gray-50/80 shadow-xs hover:shadow-sm'
                                 }`}
                               >
-                                {/* Photo (Tinggi 88px Sejajar Kolom Tengah & Tombol Unduh + Fitur Preview) */}
-                                <td className={`relative px-2.5 py-2.5 align-middle text-center w-28 md:w-32 rounded-l-xl border-l-2 border-t-2 border-b-2 overflow-hidden ${
+                                {/* Photo (Tinggi 68px Sejajar Kolom Tengah & Tombol Unduh + Fitur Preview) */}
+                                <td className={`relative px-2 py-1.5 align-middle text-center w-24 md:w-28 rounded-l-xl border-l-2 border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2061,7 +2061,7 @@ export default function Home() {
 
                                   {firstPhotoId ? (
                                     <div 
-                                      className="relative group/foto cursor-zoom-in w-24 h-[86px] md:w-26 md:h-[88px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
+                                      className="relative group/foto cursor-zoom-in w-20 h-[66px] md:w-24 md:h-[68px] rounded-lg overflow-hidden border border-gray-300 shadow-xs mx-auto"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setPreviewPhotoModalUrl(`/api/image-proxy?id=${firstPhotoId}`);
@@ -2081,24 +2081,24 @@ export default function Home() {
                                         }}
                                       />
                                       <div className="absolute inset-0 bg-black/0 group-hover/foto:bg-black/30 flex items-center justify-center transition-all opacity-0 group-hover/foto:opacity-100">
-                                        <span className="material-symbols-outlined text-white text-lg drop-shadow-md">zoom_in</span>
+                                        <span className="material-symbols-outlined text-white text-base drop-shadow-md">zoom_in</span>
                                       </div>
                                       {report.FotoIds && report.FotoIds.length > 1 && (
-                                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-md backdrop-blur-xs">
+                                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[8.5px] font-bold px-1.5 py-0.2 rounded-md backdrop-blur-xs">
                                           +{report.FotoIds.length - 1}
                                         </div>
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="w-24 h-[86px] md:w-26 md:h-[88px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
-                                      <span className="material-symbols-outlined text-[20px]">hide_image</span>
-                                      <span className="text-[9px] text-gray-400 mt-0.5">Tanpa Foto</span>
+                                    <div className="w-20 h-[66px] md:w-24 md:h-[68px] rounded-lg bg-gray-100 flex flex-col items-center justify-center text-gray-400 border border-gray-200 mx-auto">
+                                      <span className="material-symbols-outlined text-[18px]">hide_image</span>
+                                      <span className="text-[8.5px] text-gray-400 mt-0.5">Tanpa Foto</span>
                                     </div>
                                   )}
                                 </td>
 
                                 {/* Waktu & Tanggal */}
-                                <td className={`relative px-2.5 py-2.5 align-middle whitespace-normal w-[130px] md:w-[140px] border-t-2 border-b-2 overflow-hidden ${
+                                <td className={`relative px-2 py-1.5 align-middle whitespace-normal w-[125px] md:w-[135px] border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2108,8 +2108,8 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className="flex flex-col justify-between h-[88px]">
-                                    <div className="font-bold text-xs text-gray-900 leading-tight">
+                                  <div className="flex flex-col justify-between h-[68px] py-0.5">
+                                    <div className="font-bold text-[11px] md:text-xs text-gray-900 leading-tight">
                                       {(() => {
                                         const t = parseRobustDate(report.Tanggal, report.Pukul || '00:00');
                                         if (t > 0) {
@@ -2124,30 +2124,30 @@ export default function Home() {
                                       })()}
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-[10px] text-cyan-800 font-bold bg-cyan-50 border border-cyan-200 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded">
-                                        <span className="material-symbols-outlined text-[10px]">schedule</span>
+                                      <span className="text-[9.5px] text-cyan-800 font-bold bg-cyan-50 border border-cyan-200 inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded">
+                                        <span className="material-symbols-outlined text-[9.5px]">schedule</span>
                                         {report.Pukul || '14:00'}
                                       </span>
-                                      <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                      <span className="text-[8.5px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
                                         SELESAI
                                       </span>
                                     </div>
                                     {report.Lokasi ? (
                                       <div 
-                                        className="text-[10px] text-gray-500 max-w-[130px] truncate whitespace-nowrap overflow-hidden flex items-center gap-0.5 leading-none" 
+                                        className="text-[9.5px] text-gray-500 max-w-[125px] md:max-w-[135px] truncate whitespace-nowrap overflow-hidden flex items-center gap-0.5 leading-none" 
                                         title={report.Lokasi}
                                       >
-                                        <span className="material-symbols-outlined text-[11px] text-gray-400 shrink-0">location_on</span>
+                                        <span className="material-symbols-outlined text-[10px] text-gray-400 shrink-0">location_on</span>
                                         <span className="truncate">{report.Lokasi}</span>
                                       </div>
                                     ) : (
-                                      <div className="h-[10px]"></div>
+                                      <div className="h-[8px]"></div>
                                     )}
                                   </div>
                                 </td>
 
-                                {/* RHK & Rencana Aksi (Mendukung hingga 3 baris utuh & Kotak RHK Sejajar Tombol Unduh) */}
-                                <td className={`relative px-3 py-2.5 align-middle border-t-2 border-b-2 overflow-hidden ${
+                                {/* RHK & Rencana Aksi: JENIS RHK DI ATAS, RENCANA AKSI DI BAWAH */}
+                                <td className={`relative px-2.5 py-1.5 align-middle border-t-2 border-b-2 overflow-hidden ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`}>
                                   {isSelected && (
@@ -2157,34 +2157,34 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className="flex flex-col justify-between h-[88px]">
-                                    {/* Rencana Aksi (Mendukung hingga 3 baris teks secara utuh) */}
-                                    <div>
-                                      <h4 
-                                        className="font-bold text-gray-900 text-[11px] md:text-xs leading-snug line-clamp-3" 
-                                        title={report.RencanaAksi || report.JenisRHK}
-                                      >
-                                        {report.RencanaAksi || report.JenisRHK || '-'}
-                                      </h4>
-                                    </div>
-
-                                    {/* Kotak Jenis RHK & Tulisannya (Lebih kompak, sejajar presisi dengan tombol unduh) */}
-                                    <div className={`px-2 py-1 rounded-md border flex items-center gap-1.5 ${rhkStyle.bg} ${rhkStyle.border}`}>
-                                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-xs shrink-0 ${rhkStyle.numBg} ${rhkStyle.numText}`}>
+                                  <div className="flex flex-col justify-between h-[68px] py-0.5">
+                                    {/* 1. Posisi Atas: Kotak Jenis RHK & Tulisannya */}
+                                    <div className={`px-2 py-0.5 rounded-md border flex items-center gap-1.5 max-w-full ${rhkStyle.bg} ${rhkStyle.border}`}>
+                                      <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded shadow-xs shrink-0 ${rhkStyle.numBg} ${rhkStyle.numText}`}>
                                         RHK-{angkaRHK}
                                       </span>
                                       <p 
-                                        className={`text-[11px] font-semibold leading-tight line-clamp-1 ${rhkStyle.text}`} 
+                                        className={`text-[10.5px] font-bold leading-tight truncate ${rhkStyle.text}`} 
                                         title={report.JenisRHK}
                                       >
                                         {report.JenisRHK || '-'}
                                       </p>
                                     </div>
+
+                                    {/* 2. Posisi Bawah: Rencana Aksi */}
+                                    <div className="mt-0.5">
+                                      <h4 
+                                        className="font-semibold text-gray-900 text-[11px] md:text-xs leading-snug line-clamp-2" 
+                                        title={report.RencanaAksi || report.JenisRHK}
+                                      >
+                                        {report.RencanaAksi || report.JenisRHK || '-'}
+                                      </h4>
+                                    </div>
                                   </div>
                                 </td>
 
                                 {/* Aksi (Tombol Disable jika belum dipilih; Aktif saat baris dipilih) */}
-                                <td className={`relative px-2 py-2.5 align-middle text-center w-20 rounded-r-xl border-r-2 border-t-2 border-b-2 ${
+                                <td className={`relative px-1.5 py-1.5 align-middle text-center w-[74px] md:w-20 rounded-r-xl border-r-2 border-t-2 border-b-2 ${
                                   isSelected ? 'border-cyan-400' : 'border-gray-300'
                                 }`} onClick={(e) => {
                                   if (!isSelected) {
@@ -2209,25 +2209,25 @@ export default function Home() {
                                     </>
                                   )}
 
-                                  <div className={`flex flex-col justify-between h-[88px] items-center transition-all duration-200 ${
+                                  <div className={`flex flex-col justify-between h-[68px] items-center py-0.5 transition-all duration-200 ${
                                     isSelected ? 'opacity-100 pointer-events-auto' : 'opacity-30 pointer-events-none select-none'
                                   }`}>
                                     {/* Tombol Edit & Hapus (Disable jika baris tidak dipilih) */}
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1">
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           if (isSelected) handleOpenEdit(report);
                                         }}
                                         disabled={!isSelected}
-                                        className={`w-7 h-7 flex items-center justify-center rounded-lg border shadow-xs transition-all ${
+                                        className={`w-6 h-6 flex items-center justify-center rounded-md border shadow-xs transition-all ${
                                           isSelected 
                                             ? 'text-cyan-700 hover:text-cyan-800 bg-white border-cyan-200 hover:bg-cyan-50 cursor-pointer active:scale-95' 
                                             : 'text-gray-400 bg-gray-100 border-gray-200 cursor-not-allowed'
                                         }`}
                                         title={isSelected ? "Edit Data" : "Pilih laporan terlebih dahulu"}
                                       >
-                                        <span className="material-symbols-outlined text-[15px]">edit</span>
+                                        <span className="material-symbols-outlined text-[13px]">edit</span>
                                       </button>
                                       <button 
                                         onClick={(e) => {
@@ -2235,14 +2235,14 @@ export default function Home() {
                                           if (isSelected) handleOpenDelete(report);
                                         }}
                                         disabled={!isSelected}
-                                        className={`w-7 h-7 flex items-center justify-center rounded-lg border shadow-xs transition-all ${
+                                        className={`w-6 h-6 flex items-center justify-center rounded-md border shadow-xs transition-all ${
                                           isSelected 
                                             ? 'text-rose-600 hover:text-rose-700 bg-white border-rose-200 hover:bg-rose-50 cursor-pointer active:scale-95' 
                                             : 'text-gray-400 bg-gray-100 border-gray-200 cursor-not-allowed'
                                         }`}
                                         title={isSelected ? "Hapus Data" : "Pilih laporan terlebih dahulu"}
                                       >
-                                        <span className="material-symbols-outlined text-[15px]">delete</span>
+                                        <span className="material-symbols-outlined text-[13px]">delete</span>
                                       </button>
                                     </div>
 
@@ -2253,14 +2253,14 @@ export default function Home() {
                                         if (isSelected) handleDownloadPdf(report);
                                       }}
                                       disabled={!isSelected}
-                                      className={`px-2 py-1.5 rounded-lg text-[10.5px] font-bold transition-all flex items-center justify-center gap-1 shadow-xs w-full ${
+                                      className={`px-1.5 py-1 rounded-md text-[10px] font-bold transition-all flex items-center justify-center gap-1 shadow-xs w-full ${
                                         isSelected 
                                           ? 'bg-cyan-600 hover:bg-cyan-700 text-white cursor-pointer active:scale-95' 
                                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                       }`}
                                       title={isSelected ? "Unduh PDF" : "Pilih laporan terlebih dahulu"}
                                     >
-                                      <span className="material-symbols-outlined text-[13px]">download</span>
+                                      <span className="material-symbols-outlined text-[12px]">download</span>
                                       Unduh
                                     </button>
                                   </div>
