@@ -697,20 +697,18 @@ export default function KpmTableView({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50/90 border-b border-gray-200 text-[11px] text-gray-600 uppercase tracking-wider font-bold">
-                  <th className="px-2 py-3 text-center w-9">No</th>
-                  <th className="px-2.5 py-3 text-left min-w-[125px]">Nama Pengurus</th>
-                  <th className="px-2 py-3 text-left whitespace-nowrap min-w-[140px]">NIK & No. KK</th>
-                  <th className="px-2 py-3 text-left min-w-[115px]">Kelompok</th>
-                  <th className="px-2 py-3 text-left min-w-[115px]">Wilayah</th>
-                  <th className="px-2 py-3 text-center whitespace-nowrap min-w-[85px]">Tahap</th>
-                  <th className="px-2 py-3 text-center whitespace-nowrap min-w-[120px]">Data Lainnya</th>
-                  <th className="px-2 py-3 text-center whitespace-nowrap min-w-[80px]">Aksi</th>
-                  <th className="px-2.5 py-3 text-center min-w-[160px]">KELENGKAPAN DATA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
+              <colgroup>
+                <col className="w-9" />
+                <col className="min-w-[130px]" />
+                <col className="min-w-[140px]" />
+                <col className="min-w-[115px]" />
+                <col className="min-w-[115px]" />
+                <col className="min-w-[85px]" />
+                <col className="min-w-[120px]" />
+                <col className="min-w-[80px]" />
+                <col className="min-w-[160px]" />
+              </colgroup>
+              <tbody className="divide-y divide-slate-300 text-xs">
                 {paginatedData.map((kpm, idx) => {
                   const absoluteIndex = (currentPage - 1) * pageSize + idx + 1;
                   const prevKpm = idx > 0 ? paginatedData[idx - 1] : null;
@@ -772,7 +770,7 @@ export default function KpmTableView({
                       })()}
 
                       <tr
-                        className={`transition-all ${
+                        className={`transition-all border-b border-slate-300 ${
                           isGraduasiOrInactive
                             ? 'bg-slate-100/80 text-slate-400 opacity-60 border-l-4 border-l-slate-400 hover:bg-slate-100'
                             : isDupNik || isDupKK
