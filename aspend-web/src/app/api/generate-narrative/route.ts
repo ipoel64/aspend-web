@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_KEY_B64 = 'c2stb3ItdjEtMDMxMjU3NDI2NjQwYTM3NWEyYjExMDM3ZmQ0YWE1NWM4MjQ1ZTVlZjkxNzM1NzU5NjcyOWM3NThlOTZiYTI0Nw==';
 const OPENROUTER_DEFAULT_KEY = Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf-8');
 const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';

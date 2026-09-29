@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getOrCreateFolder, uploadFileToDrive } from '@/lib/google-drive';
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const session = await auth();

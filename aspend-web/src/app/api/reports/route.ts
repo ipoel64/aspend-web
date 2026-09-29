@@ -4,6 +4,9 @@ import { findAspendSpreadsheet, getDriveClient } from '@/lib/google-drive';
 import { getSheetData, deleteSheetRow, updateSheetRow, appendSheetData } from '@/lib/google-sheets';
 import { generateReportPDF } from '@/lib/pdf-generator';
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 function extractDriveId(str: string) {
   if (!str) return '';
   const match = str.match(/[-\w]{25,}/);

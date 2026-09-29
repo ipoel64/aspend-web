@@ -122,6 +122,108 @@ function toISODate(dateStr: string): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * Kompresi gambar client-side menggunakan HTML5 Canvas
+ * Mengubah resolusi maksimal ke 1200x1200px dan mengompres ke JPEG 0.8
+ * Mengurangi ukuran file dari 5-10MB menjadi ~150-250KB tanpa kehilangan ketajaman visual untuk PDF
+ */
+async function compressImageFile(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<File> {
+  if (typeof window === 'undefined') return file;
+  if (!file.type || !file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+    return file;
+  }
+  // Jika ukuran file sudah sangat kecil (< 150KB), tidak perlu kompresi ulang
+  if (file.size < 150 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const img = document.createElement('img');
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        try {
+          URL.revokeObjectURL(objectUrl);
+          let { width, height } = img;
+
+          if (width > maxWidth || height > maxHeight) {
+            if (width / maxWidth > height / maxHeight) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob || blob.size >= file.size) {
+                resolve(file);
+              } else {
+                const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                const compressedFile = new File([blob], newName, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                });
+                resolve(compressedFile);
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        } catch {
+          resolve(file);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+
+      img.src = objectUrl;
+    } catch {
+      resolve(file);
+    }
+  });
+}
+
+/**
+ * Parsing respon HTTP ke JSON secara aman.
+ * Menghindari error runtime "JSON.parse: unexpected character at line 1 column 1"
+ * saat server atau Vercel mengembalikan pesan HTML (413 Payload Too Large, 504 Gateway Timeout, 401, dll.)
+ */
+async function safeJsonParse(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (res.status === 413) {
+      throw new Error('Ukuran foto atau data terlalu besar untuk diproses server (HTTP 413 Payload Too Large).');
+    }
+    if (res.status === 504) {
+      throw new Error('Batas waktu proses server habis (HTTP 504 Gateway Timeout). Silakan refresh halaman untuk mengecek status dokumen Anda.');
+    }
+    if (res.status === 401) {
+      throw new Error('Sesi login telah berakhir (HTTP 401). Silakan login ulang.');
+    }
+    throw new Error(`Terjadi kendala pada server (Status HTTP ${res.status}). Silakan coba beberapa saat lagi.`);
+  }
+}
+
 export default function Home() {
   const { data: session, status } = useSession();
   const [activePage, setActivePage] = useState<'dashboard' | 'profile' | 'form' | 'kpm-dashboard' | 'kpm-data' | 'kpm-aset' | 'kpm-graduasi' | 'kpm-masalah' | 'kpm-analisa-tahap' | 'kpm-profil-detail'>('dashboard');
@@ -231,7 +333,7 @@ export default function Home() {
     setError("");
     try {
       const res = await fetch("/api/dashboard");
-      const result = await res.json();
+      const result = await safeJsonParse(res);
       
       if (res.ok && result.success) {
         setReports(result.reports || []);
@@ -419,7 +521,7 @@ export default function Home() {
       const res = await fetch(`/api/reports?reportId=${reportToDelete.ReportId}`, {
         method: 'DELETE',
       });
-      const result = await res.json();
+      const result = await safeJsonParse(res);
       if (res.ok && result.success) {
         showToast("Laporan berhasil dihapus dari database!", "success");
         // Update local state
@@ -478,14 +580,28 @@ export default function Home() {
     setEditModalOpen(true);
   };
 
-  const handleAddEditPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAddEditPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newItems = Array.from(files).map(file => ({
-      file,
-      previewUrl: URL.createObjectURL(file)
-    }));
-    setEditNewPhotos(prev => [...prev, ...newItems]);
+    const selected = Array.from(files);
+    try {
+      const compressedItems = await Promise.all(
+        selected.map(async (file) => {
+          const compressed = await compressImageFile(file, 1200, 1200, 0.8);
+          return {
+            file: compressed,
+            previewUrl: URL.createObjectURL(compressed)
+          };
+        })
+      );
+      setEditNewPhotos(prev => [...prev, ...compressedItems]);
+    } catch {
+      const fallbackItems = selected.map(file => ({
+        file,
+        previewUrl: URL.createObjectURL(file)
+      }));
+      setEditNewPhotos(prev => [...prev, ...fallbackItems]);
+    }
     e.target.value = '';
   };
 
@@ -511,25 +627,30 @@ export default function Home() {
     try {
       let finalFotoIds = [...editExistingPhotos];
 
-      // Unggah foto baru ke Google Drive jika ada
+      // Unggah foto baru ke Google Drive jika ada (batching per 3 foto dan kompresi untuk menghindari 413)
       if (editNewPhotos.length > 0) {
         setIsUploadingEditPhoto(true);
-        const formData = new FormData();
-        editNewPhotos.forEach(item => {
-          formData.append('files', item.file);
-        });
-        formData.append('folderName', 'RHK-agent_FotoKegiatan');
+        const BATCH_SIZE = 3;
+        for (let i = 0; i < editNewPhotos.length; i += BATCH_SIZE) {
+          const batch = editNewPhotos.slice(i, i + BATCH_SIZE);
+          const formData = new FormData();
+          formData.append('folderName', 'RHK-agent_FotoKegiatan');
+          for (const item of batch) {
+            const compressed = await compressImageFile(item.file, 1200, 1200, 0.8);
+            formData.append('files', compressed);
+          }
 
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (uploadRes.ok && uploadData.files && uploadData.files.length > 0) {
-          const newIds = uploadData.files.map((f: any) => f.id);
-          finalFotoIds = [...finalFotoIds, ...newIds];
-        } else {
-          throw new Error(uploadData.error || 'Gagal mengunggah foto baru ke Google Drive.');
+          const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          const uploadData = await safeJsonParse(uploadRes);
+          if (uploadRes.ok && uploadData.files && uploadData.files.length > 0) {
+            const newIds = uploadData.files.map((f: any) => f.id);
+            finalFotoIds = [...finalFotoIds, ...newIds];
+          } else {
+            throw new Error(uploadData.error || 'Gagal mengunggah foto baru ke Google Drive.');
+          }
         }
       }
 
@@ -549,7 +670,7 @@ export default function Home() {
           fotoIds: finalFotoIds
         })
       });
-      const result = await res.json();
+      const result = await safeJsonParse(res);
       if (res.ok && result.success) {
         showToast("Laporan & dokumen PDF berhasil diperbarui!", "success");
         
@@ -611,7 +732,7 @@ export default function Home() {
   };
 
   // ─── Handler Upload & Hapus Foto Form Baru ────────────
-  const handleCreatePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCreatePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
     const remainingSlots = 100 - createPhotos.length;
@@ -620,11 +741,24 @@ export default function Home() {
       return;
     }
     const selected = files.slice(0, remainingSlots);
-    const newItems = selected.map(file => ({
-      file,
-      previewUrl: URL.createObjectURL(file)
-    }));
-    setCreatePhotos(prev => [...prev, ...newItems]);
+    try {
+      const compressedItems = await Promise.all(
+        selected.map(async (file) => {
+          const compressed = await compressImageFile(file, 1200, 1200, 0.8);
+          return {
+            file: compressed,
+            previewUrl: URL.createObjectURL(compressed)
+          };
+        })
+      );
+      setCreatePhotos(prev => [...prev, ...compressedItems]);
+    } catch {
+      const fallbackItems = selected.map(file => ({
+        file,
+        previewUrl: URL.createObjectURL(file)
+      }));
+      setCreatePhotos(prev => [...prev, ...fallbackItems]);
+    }
     e.target.value = '';
   };
 
@@ -790,7 +924,7 @@ export default function Home() {
         }),
       });
 
-      const result = await res.json();
+      const result = await safeJsonParse(res);
       if (res.ok && result.success) {
         setGeneratedNarrative(result.narrative);
         if (result.lokasi) {
@@ -835,21 +969,28 @@ export default function Home() {
       // 1. Unggah foto bukti dukung ke Google Drive folder RHK-agent_FotoKegiatan
       let uploadedFotoIds: string[] = [];
       if (createPhotos.length > 0) {
-        const formData = new FormData();
-        formData.append('folderName', 'RHK-agent_FotoKegiatan');
-        createPhotos.forEach(p => {
-          formData.append('files', p.file);
-        });
+        const BATCH_SIZE = 3;
+        for (let i = 0; i < createPhotos.length; i += BATCH_SIZE) {
+          const batch = createPhotos.slice(i, i + BATCH_SIZE);
+          const formData = new FormData();
+          formData.append('folderName', 'RHK-agent_FotoKegiatan');
+          for (const p of batch) {
+            const compressed = await compressImageFile(p.file, 1200, 1200, 0.8);
+            formData.append('files', compressed);
+          }
 
-        const upRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const upResult = await upRes.json();
-        if (!upRes.ok || !upResult.success) {
-          throw new Error(upResult.error || 'Gagal mengunggah foto bukti dukung ke Google Drive.');
+          const upRes = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          const upResult = await safeJsonParse(upRes);
+          if (!upRes.ok || !upResult.success) {
+            throw new Error(upResult.error || 'Gagal mengunggah foto bukti dukung ke Google Drive.');
+          }
+          if (upResult.files && Array.isArray(upResult.files)) {
+            uploadedFotoIds.push(...upResult.files.map((f: any) => f.id));
+          }
         }
-        uploadedFotoIds = upResult.files.map((f: any) => f.id);
       }
 
       // 2. Data P2K2 jika relevan
@@ -881,7 +1022,7 @@ export default function Home() {
         }),
       });
 
-      const reportResult = await reportRes.json();
+      const reportResult = await safeJsonParse(reportRes);
       if (reportRes.ok && reportResult.success) {
         showToast('Laporan RHK dan dokumen PDF resmi berhasil disimpan ke Google Drive!', 'success');
 
