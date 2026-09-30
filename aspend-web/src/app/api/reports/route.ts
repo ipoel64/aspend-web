@@ -153,14 +153,17 @@ export async function PUT(request: Request) {
       nip: '',
       jabatan: 'Penata Layanan Operasional',
       kabupaten: '',
+      provinsi: '',
+      kecamatan: '',
+      jenisSdm: 'SDM PKH',
       photoFileId: '',
       signatureFileId: ''
     };
 
     try {
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:H');
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:I');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
       }
       if (profileRows && profileRows.length > 0) {
         let matchedRow = profileRows[0];
@@ -170,12 +173,21 @@ export async function PUT(request: Request) {
             break;
           }
         }
+        const rawJenisSdm = matchedRow[8] ? String(matchedRow[8]).trim() : '';
+        const jenisSdm = rawJenisSdm.toUpperCase().includes('TKSK') ? 'TKSK' : 'SDM PKH';
+        let rawJabatan = matchedRow[3] || '';
+        if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
+        const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
-          jabatan: matchedRow[3] || 'Penata Layanan Operasional',
+          jabatan,
           kabupaten: matchedRow[4] || '',
+          provinsi: matchedRow[9] || '',
+          kecamatan: matchedRow[10] || '',
+          jenisSdm,
           photoFileId: matchedRow[6] ? extractDriveId(matchedRow[6]) : '',
           signatureFileId: matchedRow[5] ? extractDriveId(matchedRow[5]) : ''
         };
@@ -346,14 +358,17 @@ export async function POST(request: Request) {
       nip: '',
       jabatan: 'Penata Layanan Operasional',
       kabupaten: '',
+      provinsi: '',
+      kecamatan: '',
+      jenisSdm: 'SDM PKH',
       photoFileId: '',
       signatureFileId: ''
     };
 
     try {
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:H');
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:I');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
       }
       if (profileRows && profileRows.length > 0) {
         let matchedRow = profileRows[0];
@@ -363,12 +378,21 @@ export async function POST(request: Request) {
             break;
           }
         }
+        const rawJenisSdm = matchedRow[8] ? String(matchedRow[8]).trim() : '';
+        const jenisSdm = rawJenisSdm.toUpperCase().includes('TKSK') ? 'TKSK' : 'SDM PKH';
+        let rawJabatan = matchedRow[3] || '';
+        if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
+        const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
-          jabatan: matchedRow[3] || 'Penata Layanan Operasional',
+          jabatan,
           kabupaten: matchedRow[4] || '',
+          provinsi: matchedRow[9] || '',
+          kecamatan: matchedRow[10] || '',
+          jenisSdm,
           photoFileId: matchedRow[6] ? extractDriveId(matchedRow[6]) : '',
           signatureFileId: matchedRow[5] ? extractDriveId(matchedRow[5]) : ''
         };

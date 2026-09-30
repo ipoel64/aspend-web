@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findAspendSpreadsheet } from '@/lib/google-drive';
 import { getSheetData } from '@/lib/google-sheets';
-import { MASTER_RHK_DATA } from '@/lib/master-rhk';
+import { MASTER_RHK_DATA, getMasterRHKData } from '@/lib/master-rhk';
 
 function extractDriveId(str: string) {
   if (!str) return '';
@@ -158,8 +158,11 @@ export async function GET(request: Request) {
       nama: session.user?.name || '',
       email: session.user?.email || '',
       nip: '',
+      jenisSdm: 'SDM PKH',
       jabatan: 'Pendamping PKH',
+      provinsi: '',
       kabupaten: '',
+      kecamatan: '',
       photoFileId: '',
       photoUrl: session.user?.image || '',
       signatureFileId: '',
@@ -168,10 +171,10 @@ export async function GET(request: Request) {
     };
 
     try {
-      // Coba baca dari sheet Profile dulu (format Aspend Mobile)
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:H');
+      // Coba baca dari sheet Profile dulu (format Aspend Mobile: Email, Nama, NIP, Jabatan, Kab/Kota, SigId, PhotoId, LogoId, JenisSDM, Provinsi, Kecamatan)
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:I');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
       }
       
       if (profileRows && profileRows.length > 0) {
@@ -196,12 +199,21 @@ export async function GET(request: Request) {
           }
         }
 
+        const rawJenisSdm = matchedRow[8] ? String(matchedRow[8]).trim() : '';
+        const jenisSdm = rawJenisSdm.toUpperCase().includes('TKSK') ? 'TKSK' : 'SDM PKH';
+        let rawJabatan = matchedRow[3] || '';
+        if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
+        const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
-          jabatan: matchedRow[3] || 'Pendamping PKH',
+          jenisSdm,
+          jabatan,
+          provinsi: matchedRow[9] || '',
           kabupaten: matchedRow[4] || '',
+          kecamatan: matchedRow[10] || '',
           photoFileId: photoId,
           photoUrl: photoId ? `/api/image-proxy?id=${photoId}` : (session.user?.image || ''),
           signatureFileId: sigId,
@@ -213,8 +225,9 @@ export async function GET(request: Request) {
       console.warn('Gagal membaca sheet Users/Profile:', err);
     }
 
-    // 3. Baca Master RHK (Fallback ke MASTER_RHK_DATA standar ASPEND)
-    let rhkList: any[] = MASTER_RHK_DATA.flatMap(m => 
+    // 3. Baca Master RHK (Fallback ke master data aktif berdasarkan Jenis SDM: SDM PKH vs TKSK)
+    const activeMasterRhk = getMasterRHKData(userProfile.jenisSdm);
+    let rhkList: any[] = activeMasterRhk.flatMap(m => 
       m.rencanaList.map(rencana => ({
         id: m.id,
         jenis: m.jenis,

@@ -3,7 +3,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
-import { MASTER_RHK_DATA, getRHKByIdOrJenis, getRencanaAksiListForRHK, isP2K2, getUniqueModulP2K2, getSesiByModul } from "@/lib/master-rhk";
+import { 
+  MASTER_RHK_DATA, 
+  MASTER_TKSK_RHK_DATA, 
+  getMasterRHKData, 
+  getRHKByIdOrJenis, 
+  getRencanaAksiListForRHK, 
+  isP2K2, 
+  getUniqueModulP2K2, 
+  getSesiByModul 
+} from "@/lib/master-rhk";
+import * as XLSX from "xlsx";
 import KpmTableView from "@/components/kpm/KpmTableView";
 import KpmDashboardView from "@/components/kpm/KpmDashboardView";
 import KpmPermasalahanView from "@/components/kpm/KpmPermasalahanView";
@@ -34,6 +44,9 @@ interface UserProfile {
   nip: string;
   jabatan: string;
   kabupaten: string;
+  provinsi?: string;
+  kecamatan?: string;
+  jenisSdm?: string;
   photoFileId?: string;
   photoUrl?: string;
   signatureFileId?: string;
@@ -282,10 +295,44 @@ export default function Home() {
   // ─── Modal Premium Access Lock State ──────────────────
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
+  // ─── Profile Form & Wilayah State ─────────────────────
+  const [profileForm, setProfileForm] = useState({
+    nama: '',
+    nip: '',
+    jenisSdm: 'SDM PKH',
+    jabatan: 'Pendamping PKH',
+    provinsi: '',
+    kabupaten: '',
+    kecamatan: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [provincesList, setProvincesList] = useState<{ id: string; name: string }[]>([]);
+  const [regenciesList, setRegenciesList] = useState<{ id: string; name: string }[]>([]);
+  const [districtsList, setDistrictsList] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingWilayah, setIsLoadingWilayah] = useState(false);
+
+  // ─── SDM PKH Dampingan (Katim) State ─────────────────
+  const [sdmPkhList, setSdmPkhList] = useState<{ id: string; nama: string; nip: string }[]>([]);
+  const [isLoadingSdmPkh, setIsLoadingSdmPkh] = useState(false);
+  const [sdmModalOpen, setSdmModalOpen] = useState(false);
+  const [editingSdm, setEditingSdm] = useState<{ id: string; nama: string; nip: string } | null>(null);
+  const [sdmInputForm, setSdmInputForm] = useState({ nama: '', nip: '' });
+  const [isSavingSdm, setIsSavingSdm] = useState(false);
+
+  // Supervisi P2K2 Selection & Wilayah State
+  const [selectedSdmPkhId, setSelectedSdmPkhId] = useState('');
+  const [isManualPendamping, setIsManualPendamping] = useState(false);
+  const [supervisiRegencies, setSupervisiRegencies] = useState<{ id: string; name: string }[]>([]);
+  const [supervisiDistricts, setSupervisiDistricts] = useState<{ id: string; name: string }[]>([]);
+  const [supervisiVillages, setSupervisiVillages] = useState<{ id: string; name: string }[]>([]);
+  const [isManualKelurahan, setIsManualKelurahan] = useState(false);
+  const [isLoadingSupervisiWilayah, setIsLoadingSupervisiWilayah] = useState(false);
+
   // ─── Form Buat Laporan RHK Baru State ─────────────────
   const [createForm, setCreateForm] = useState({
     tanggal: new Date().toISOString().substring(0, 10),
     pukul: '14:00',
+    lokasi: '',
     jenisRHK: '',
     idRHK: '',
     rencanaAksi: '',
@@ -296,7 +343,21 @@ export default function Home() {
     p2k2Kelompok: '',
     p2k2Ketua: '',
     p2k2Hadir: '',
-    p2k2Total: ''
+    p2k2Sakit: '',
+    p2k2Alpa: '',
+    p2k2JamSelesai: '',
+    p2k2TempatPelaksanaan: '',
+    isPemateriDiriSendiri: true,
+    p2k2NamaPemateri: '',
+    p2k2JabatanPemateri: '',
+    // Field Supervisi P2K2 (Katim)
+    p2k2NamaKetuaTim: '',
+    p2k2NamaPendamping: '',
+    p2k2NipPendamping: '',
+    p2k2DesaKelurahan: '',
+    p2k2Kecamatan: '',
+    p2k2Kabupaten: '',
+    p2k2Provinsi: ''
   });
   const [createPhotos, setCreatePhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [generatedNarrative, setGeneratedNarrative] = useState('');
@@ -364,25 +425,422 @@ export default function Home() {
     setCurrentPage(1);
   }, [searchTerm, filterJenis, filterAksi, filterMonth, filterDate, pageSize]);
 
+  // Load provinces on mount
+  useEffect(() => {
+    const loadProvinces = async () => {
+      try {
+        const res = await fetch('/api/kpm/wilayah?level=provinces');
+        const json = await safeJsonParse(res);
+        if (json.data) setProvincesList(json.data);
+      } catch (e) {
+        console.warn('Gagal memuat provinsi:', e);
+      }
+    };
+    loadProvinces();
+  }, []);
+
+  // Fetch SDM PKH list
+  const fetchSdmPkhList = useCallback(async () => {
+    setIsLoadingSdmPkh(true);
+    try {
+      const res = await fetch('/api/sdm-pkh');
+      const json = await safeJsonParse(res);
+      if (res.ok && json.success) {
+        setSdmPkhList(json.data || []);
+      }
+    } catch (e) {
+      console.warn('Gagal memuat SDM PKH:', e);
+    } finally {
+      setIsLoadingSdmPkh(false);
+    }
+  }, []);
+
+  // Sync profile to profileForm and fetch SDM PKH if Katim
+  useEffect(() => {
+    if (profile) {
+      const pJenis = profile.jenisSdm || 'SDM PKH';
+      setProfileForm({
+        nama: profile.nama || '',
+        nip: profile.nip || '',
+        jenisSdm: pJenis,
+        jabatan: pJenis === 'TKSK' ? '' : (profile.jabatan || 'Pendamping PKH'),
+        provinsi: profile.provinsi || '',
+        kabupaten: profile.kabupaten || '',
+        kecamatan: profile.kecamatan || '',
+      });
+
+      if (profile.jabatan === 'Katim Kab/Kota' || profile.jabatan === 'Katim Provinsi') {
+        fetchSdmPkhList();
+      }
+    }
+  }, [profile, fetchSdmPkhList]);
+
+  // Load regencies if province selected
+  useEffect(() => {
+    if (profile?.provinsi && provincesList.length > 0) {
+      const prov = provincesList.find(p => p.name.toLowerCase() === profile.provinsi?.toLowerCase());
+      if (prov?.id) {
+        fetch(`/api/kpm/wilayah?level=regencies&provinceId=${prov.id}`)
+          .then(r => r.json())
+          .then(d => { if (d.data) setRegenciesList(d.data); })
+          .catch(() => {});
+      }
+    }
+  }, [profile?.provinsi, provincesList]);
+
+  // Load districts if kabupaten selected
+  useEffect(() => {
+    if (profile?.kabupaten && regenciesList.length > 0) {
+      const reg = regenciesList.find(r => r.name.toLowerCase() === profile.kabupaten?.toLowerCase());
+      if (reg?.id) {
+        fetch(`/api/kpm/wilayah?level=districts&regencyId=${reg.id}`)
+          .then(r => r.json())
+          .then(d => { if (d.data) setDistrictsList(d.data); })
+          .catch(() => {});
+      }
+    }
+  }, [profile?.kabupaten, regenciesList]);
+
+  const handleProvinceChange = async (provName: string) => {
+    setProfileForm(prev => ({ ...prev, provinsi: provName, kabupaten: '', kecamatan: '' }));
+    setRegenciesList([]);
+    setDistrictsList([]);
+    const provObj = provincesList.find(p => p.name.toLowerCase() === provName.toLowerCase());
+    if (provObj?.id) {
+      try {
+        setIsLoadingWilayah(true);
+        const res = await fetch(`/api/kpm/wilayah?level=regencies&provinceId=${provObj.id}`);
+        const json = await safeJsonParse(res);
+        if (json.data) setRegenciesList(json.data);
+      } catch (e) {
+        console.warn('Gagal memuat kab/kota:', e);
+      } finally {
+        setIsLoadingWilayah(false);
+      }
+    }
+  };
+
+  const handleRegencyChange = async (regName: string) => {
+    setProfileForm(prev => ({ ...prev, kabupaten: regName, kecamatan: '' }));
+    setDistrictsList([]);
+    const regObj = regenciesList.find(r => r.name.toLowerCase() === regName.toLowerCase());
+    if (regObj?.id) {
+      try {
+        setIsLoadingWilayah(true);
+        const res = await fetch(`/api/kpm/wilayah?level=districts&regencyId=${regObj.id}`);
+        const json = await safeJsonParse(res);
+        if (json.data) setDistrictsList(json.data);
+      } catch (e) {
+        console.warn('Gagal memuat kecamatan:', e);
+      } finally {
+        setIsLoadingWilayah(false);
+      }
+    }
+  };
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!profileForm.nama.trim()) {
+      showToast('Nama Lengkap wajib diisi.', 'error');
+      return;
+    }
+    if (!profileForm.nip.trim()) {
+      showToast('NIP / Nomor Identitas Pegawai wajib diisi.', 'error');
+      return;
+    }
+    if (profileForm.jenisSdm === 'SDM PKH' && !profileForm.jabatan.trim()) {
+      showToast('Jabatan wajib dipilih untuk SDM PKH.', 'error');
+      return;
+    }
+    if (!profileForm.provinsi.trim() || !profileForm.kabupaten.trim() || !profileForm.kecamatan.trim()) {
+      showToast('Wilayah tugas (Provinsi, Kab/Kota, Kecamatan) wajib diisi.', 'error');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: profileForm.nama.trim(),
+          nip: profileForm.nip.trim(),
+          jenisSdm: profileForm.jenisSdm,
+          jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
+          provinsi: profileForm.provinsi.trim(),
+          kabupaten: profileForm.kabupaten.trim(),
+          kecamatan: profileForm.kecamatan.trim(),
+        })
+      });
+      const result = await safeJsonParse(res);
+      if (res.ok && result.success) {
+        showToast('Profil Anda berhasil disimpan ke Google Drive!', 'success');
+        setProfile(prev => prev ? {
+          ...prev,
+          nama: profileForm.nama.trim(),
+          nip: profileForm.nip.trim(),
+          jenisSdm: profileForm.jenisSdm,
+          jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
+          provinsi: profileForm.provinsi.trim(),
+          kabupaten: profileForm.kabupaten.trim(),
+          kecamatan: profileForm.kecamatan.trim(),
+        } : null);
+        if (profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi') {
+          fetchSdmPkhList();
+        }
+      } else {
+        showToast(result.error || 'Gagal menyimpan profil.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menyimpan profil.', 'error');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveSdm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sdmInputForm.nama.trim()) {
+      showToast('Nama pendamping wajib diisi.', 'error');
+      return;
+    }
+    setIsSavingSdm(true);
+    try {
+      let res;
+      if (editingSdm) {
+        res = await fetch('/api/sdm-pkh', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingSdm.id, nama: sdmInputForm.nama.trim(), nip: sdmInputForm.nip.trim() })
+        });
+      } else {
+        res = await fetch('/api/sdm-pkh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: sdmInputForm.nama.trim(), nip: sdmInputForm.nip.trim() })
+        });
+      }
+      const json = await safeJsonParse(res);
+      if (res.ok && json.success) {
+        showToast(editingSdm ? 'Data SDM PKH diperbarui!' : 'SDM PKH ditambahkan!', 'success');
+        setSdmModalOpen(false);
+        setEditingSdm(null);
+        setSdmInputForm({ nama: '', nip: '' });
+        fetchSdmPkhList();
+      } else {
+        showToast(json.error || 'Gagal menyimpan data SDM PKH.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan saat menyimpan SDM PKH.', 'error');
+    } finally {
+      setIsSavingSdm(false);
+    }
+  };
+
+  const handleDeleteSdm = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data SDM PKH ini?')) return;
+    try {
+      const res = await fetch(`/api/sdm-pkh?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await safeJsonParse(res);
+      if (res.ok && json.success) {
+        showToast('Data SDM PKH berhasil dihapus!', 'success');
+        fetchSdmPkhList();
+      } else {
+        showToast(json.error || 'Gagal menghapus data.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Terjadi kesalahan.', 'error');
+    }
+  };
+
+  const downloadTemplateSdmPkh = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Nama SDM', 'NIP'],
+      ['Budi Santoso', '198501012020121001'],
+      ['Siti Rahma', '199002022020122002'],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'SDM_PKH');
+    XLSX.writeFile(wb, 'Template_SDM_PKH.xlsx');
+  };
+
+  const handleImportExcelSdmPkh = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const items = [];
+      for (let i = 1; i < json.length; i++) {
+        const row = json[i];
+        if (row && row[0]) {
+          items.push({
+            nama: String(row[0]).trim(),
+            nip: row[1] ? String(row[1]).trim() : ''
+          });
+        }
+      }
+      if (items.length === 0) {
+        showToast('Tidak ada data yang ditemukan di file Excel.', 'error');
+        return;
+      }
+      const res = await fetch('/api/sdm-pkh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      const result = await safeJsonParse(res);
+      if (res.ok && result.success) {
+        showToast(result.message || 'Data SDM PKH berhasil diimpor!', 'success');
+        fetchSdmPkhList();
+      } else {
+        showToast(result.error || 'Gagal mengimpor data.', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gagal membaca file Excel.', 'error');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const isProfileIncomplete = useMemo(() => {
+    if (!profile) return false;
+    if (!profile.nama?.trim() || !profile.nip?.trim() || !profile.kabupaten?.trim() || !profile.provinsi?.trim() || !profile.kecamatan?.trim()) {
+      return true;
+    }
+    if (profile.jenisSdm !== 'TKSK' && !profile.jabatan?.trim()) {
+      return true;
+    }
+    return false;
+  }, [profile]);
+
+  const isKatimSupervisiP2K2 = useMemo(() => {
+    return Boolean(
+      (profile?.jabatan === 'Katim Kab/Kota' || profile?.jabatan === 'Katim Provinsi') &&
+      createForm.rencanaAksi?.toLowerCase().includes('supervisi')
+    );
+  }, [profile?.jabatan, createForm.rencanaAksi]);
+
+  // Efek memuat data wilayah supervisi Katim
+  useEffect(() => {
+    if (!isKatimSupervisiP2K2) return;
+
+    if (profile?.nama && !createForm.p2k2NamaKetuaTim) {
+      setCreateForm(prev => ({ ...prev, p2k2NamaKetuaTim: profile.nama || '' }));
+    }
+    if (profile?.provinsi && !createForm.p2k2Provinsi) {
+      setCreateForm(prev => ({ ...prev, p2k2Provinsi: profile.provinsi || '' }));
+    }
+    if (profile?.kabupaten && !createForm.p2k2Kabupaten) {
+      setCreateForm(prev => ({ ...prev, p2k2Kabupaten: profile.kabupaten || '' }));
+    }
+
+    // Jika Katim Provinsi, load regencies dari provinsi Katim
+    if (profile?.jabatan === 'Katim Provinsi' && profile?.provinsi && provincesList.length > 0) {
+      const provObj = provincesList.find(p => p.name.toLowerCase() === profile.provinsi?.toLowerCase());
+      if (provObj?.id) {
+        setIsLoadingSupervisiWilayah(true);
+        fetch(`/api/kpm/wilayah?level=regencies&provinceId=${provObj.id}`)
+          .then(r => r.json())
+          .then(d => { if (d.data) setSupervisiRegencies(d.data); })
+          .catch(() => {})
+          .finally(() => setIsLoadingSupervisiWilayah(false));
+      }
+    }
+
+    // Jika Katim Kab/Kota, langsung load districts dari kabupaten Katim
+    if (profile?.jabatan === 'Katim Kab/Kota' && profile?.kabupaten) {
+      const regObj = regenciesList.find(r => r.name.toLowerCase() === profile.kabupaten?.toLowerCase());
+      if (regObj?.id) {
+        setIsLoadingSupervisiWilayah(true);
+        fetch(`/api/kpm/wilayah?level=districts&regencyId=${regObj.id}`)
+          .then(r => r.json())
+          .then(d => { if (d.data) setSupervisiDistricts(d.data); })
+          .catch(() => {})
+          .finally(() => setIsLoadingSupervisiWilayah(false));
+      }
+    }
+  }, [isKatimSupervisiP2K2, profile, provincesList, regenciesList]);
+
+  const handleSupervisiRegencyChange = async (regName: string) => {
+    setCreateForm(prev => ({ ...prev, p2k2Kabupaten: regName, p2k2Kecamatan: '', p2k2DesaKelurahan: '' }));
+    setSupervisiDistricts([]);
+    setSupervisiVillages([]);
+    const regObj = supervisiRegencies.find(r => r.name.toLowerCase() === regName.toLowerCase());
+    if (regObj?.id) {
+      try {
+        setIsLoadingSupervisiWilayah(true);
+        const res = await fetch(`/api/kpm/wilayah?level=districts&regencyId=${regObj.id}`);
+        const json = await safeJsonParse(res);
+        if (json.data) setSupervisiDistricts(json.data);
+      } catch (e) {
+        console.warn('Gagal memuat kecamatan supervisi:', e);
+      } finally {
+        setIsLoadingSupervisiWilayah(false);
+      }
+    }
+  };
+
+  const handleSupervisiDistrictChange = async (distName: string) => {
+    setCreateForm(prev => ({ ...prev, p2k2Kecamatan: distName, p2k2DesaKelurahan: '' }));
+    setSupervisiVillages([]);
+    const distObj = supervisiDistricts.find(d => d.name.toLowerCase() === distName.toLowerCase());
+    if (distObj?.id) {
+      try {
+        setIsLoadingSupervisiWilayah(true);
+        const res = await fetch(`/api/kpm/wilayah?level=villages&districtId=${distObj.id}`);
+        const json = await safeJsonParse(res);
+        if (json.data) setSupervisiVillages(json.data);
+      } catch (e) {
+        console.warn('Gagal memuat desa supervisi:', e);
+      } finally {
+        setIsLoadingSupervisiWilayah(false);
+      }
+    }
+  };
+
+  const handleSelectSupervisiPendamping = (val: string) => {
+    if (val === '__custom__') {
+      setIsManualPendamping(true);
+      setSelectedSdmPkhId('__custom__');
+      setCreateForm(prev => ({
+        ...prev,
+        p2k2NamaPendamping: '',
+        p2k2NipPendamping: ''
+      }));
+    } else {
+      setSelectedSdmPkhId(val);
+      const sdm = sdmPkhList.find(s => s.id === val);
+      if (sdm) {
+        setCreateForm(prev => ({
+          ...prev,
+          p2k2NamaPendamping: sdm.nama,
+          p2k2NipPendamping: sdm.nip || ''
+        }));
+      }
+    }
+  };
+
   // Unique options for filter dropdowns
   const jenisRHKOptions = useMemo(() => {
     const set = new Set<string>();
-    // Tambahkan dari master data
-    MASTER_RHK_DATA.forEach(m => set.add(m.jenis));
-    // Tambahkan dari laporan
+    getMasterRHKData(profile?.jenisSdm).forEach(m => set.add(m.jenis));
     reports.forEach(r => {
       if (r.JenisRHK) set.add(r.JenisRHK);
     });
     return Array.from(set);
-  }, [reports]);
+  }, [reports, profile?.jenisSdm]);
 
   const rencanaAksiOptions = useMemo(() => {
     const set = new Set<string>();
     if (filterJenis) {
-      const masterRencana = getRencanaAksiListForRHK(filterJenis);
+      const masterRencana = getRencanaAksiListForRHK(filterJenis, profile?.jenisSdm);
       masterRencana.forEach(aksi => set.add(aksi));
     } else {
-      MASTER_RHK_DATA.forEach(m => m.rencanaList.forEach(aksi => set.add(aksi)));
+      getMasterRHKData(profile?.jenisSdm).forEach(m => m.rencanaList.forEach(aksi => set.add(aksi)));
     }
     reports.forEach(r => {
       if (r.RencanaAksi) {
@@ -392,7 +850,7 @@ export default function Home() {
       }
     });
     return Array.from(set);
-  }, [reports, filterJenis]);
+  }, [reports, filterJenis, profile?.jenisSdm]);
 
   // Filtered reports
   const filteredReports = useMemo(() => {
@@ -892,7 +1350,7 @@ export default function Home() {
       showToast('Silakan isi poin-poin kegiatan.', 'error');
       return;
     }
-    if (isP2K2(createForm.jenisRHK)) {
+    if (isP2K2(createForm.jenisRHK, profile?.jenisSdm)) {
       if (!createForm.p2k2Modul || !createForm.p2k2Sesi) {
         showToast('Mohon pilih Modul dan Sesi P2K2.', 'error');
         return;
@@ -901,13 +1359,49 @@ export default function Home() {
 
     setIsGeneratingNarrative(true);
     try {
-      const p2k2Data = isP2K2(createForm.jenisRHK) ? {
+      const isSupervisi = Boolean(
+        profile?.jabatan &&
+        (profile.jabatan === 'Katim Kab/Kota' || profile.jabatan === 'Katim Provinsi') &&
+        createForm.rencanaAksi.toLowerCase().includes('supervisi')
+      );
+
+      const hadirNum = parseInt(createForm.p2k2Hadir) || 0;
+      const sakitNum = parseInt(createForm.p2k2Sakit) || 0;
+      const alpaNum = parseInt(createForm.p2k2Alpa) || 0;
+      const totalDampingan = hadirNum + sakitNum + alpaNum;
+
+      const namaPemateri = createForm.isPemateriDiriSendiri
+        ? (profile?.nama || '')
+        : createForm.p2k2NamaPemateri;
+
+      const jabatanPemateri = createForm.isPemateriDiriSendiri
+        ? (profile?.jabatan || 'Pendamping PKH')
+        : createForm.p2k2JabatanPemateri;
+
+      const isCurrentRhkP2K2 = isP2K2(createForm.jenisRHK, profile?.jenisSdm);
+
+      const p2k2Data = isCurrentRhkP2K2 ? {
         modul: createForm.p2k2Modul,
         sesi: createForm.p2k2Sesi,
         namaKelompok: createForm.p2k2Kelompok,
         ketuaKelompok: createForm.p2k2Ketua,
         jumlahHadir: createForm.p2k2Hadir,
-        jumlahKPM: createForm.p2k2Total,
+        jumlahSakit: createForm.p2k2Sakit,
+        jumlahAlpa: createForm.p2k2Alpa,
+        totalDampingan,
+        jamSelesai: createForm.p2k2JamSelesai,
+        tempatPelaksanaan: createForm.p2k2TempatPelaksanaan,
+        namaPemateri,
+        jabatanPemateri,
+        isPemateriDiriSendiri: createForm.isPemateriDiriSendiri,
+        isSupervisi,
+        namaKetuaTim: createForm.p2k2NamaKetuaTim || profile?.nama || '',
+        namaPendamping: createForm.p2k2NamaPendamping,
+        nipPendamping: createForm.p2k2NipPendamping,
+        desaKelurahan: createForm.p2k2DesaKelurahan,
+        kecamatan: createForm.p2k2Kecamatan || profile?.kecamatan || '',
+        kabupatenKota: createForm.p2k2Kabupaten || profile?.kabupaten || '',
+        provinsi: createForm.p2k2Provinsi || profile?.provinsi || ''
       } : null;
 
       const res = await fetch('/api/generate-narrative', {
@@ -919,6 +1413,12 @@ export default function Home() {
           rencanaAksi: createForm.rencanaAksi,
           tanggal: createForm.tanggal,
           pukul: createForm.pukul,
+          lokasi: isCurrentRhkP2K2 ? createForm.p2k2TempatPelaksanaan : createForm.lokasi,
+          kecamatan: profile?.kecamatan || '',
+          kabupatenKota: profile?.kabupaten || '',
+          provinsi: profile?.provinsi || '',
+          namaPetugas: profile?.nama || '',
+          jabatanPetugas: profile?.jabatan || '',
           poinKegiatan: createForm.poinKegiatan,
           p2k2Data,
         }),
@@ -994,13 +1494,48 @@ export default function Home() {
       }
 
       // 2. Data P2K2 jika relevan
-      const p2k2Data = isP2K2(createForm.jenisRHK) ? {
+      const isCurrentRhkP2K2 = isP2K2(createForm.jenisRHK, profile?.jenisSdm);
+      const isSupervisi = Boolean(
+        profile?.jabatan &&
+        (profile.jabatan === 'Katim Kab/Kota' || profile.jabatan === 'Katim Provinsi') &&
+        createForm.rencanaAksi.toLowerCase().includes('supervisi')
+      );
+
+      const hadirNum = parseInt(createForm.p2k2Hadir) || 0;
+      const sakitNum = parseInt(createForm.p2k2Sakit) || 0;
+      const alpaNum = parseInt(createForm.p2k2Alpa) || 0;
+      const totalDampingan = hadirNum + sakitNum + alpaNum;
+
+      const namaPemateri = createForm.isPemateriDiriSendiri
+        ? (profile?.nama || '')
+        : createForm.p2k2NamaPemateri;
+
+      const jabatanPemateri = createForm.isPemateriDiriSendiri
+        ? (profile?.jabatan || 'Pendamping PKH')
+        : createForm.p2k2JabatanPemateri;
+
+      const p2k2Data = isCurrentRhkP2K2 ? {
         modul: createForm.p2k2Modul,
         sesi: createForm.p2k2Sesi,
         namaKelompok: createForm.p2k2Kelompok,
         ketuaKelompok: createForm.p2k2Ketua,
         jumlahHadir: createForm.p2k2Hadir,
-        jumlahKPM: createForm.p2k2Total,
+        jumlahSakit: createForm.p2k2Sakit,
+        jumlahAlpa: createForm.p2k2Alpa,
+        totalDampingan,
+        jamSelesai: createForm.p2k2JamSelesai,
+        tempatPelaksanaan: createForm.p2k2TempatPelaksanaan,
+        namaPemateri,
+        jabatanPemateri,
+        isPemateriDiriSendiri: createForm.isPemateriDiriSendiri,
+        isSupervisi,
+        namaKetuaTim: createForm.p2k2NamaKetuaTim || profile?.nama || '',
+        namaPendamping: createForm.p2k2NamaPendamping,
+        nipPendamping: createForm.p2k2NipPendamping,
+        desaKelurahan: createForm.p2k2DesaKelurahan,
+        kecamatan: createForm.p2k2Kecamatan || profile?.kecamatan || '',
+        kabupatenKota: createForm.p2k2Kabupaten || profile?.kabupaten || '',
+        provinsi: createForm.p2k2Provinsi || profile?.provinsi || ''
       } : null;
 
       // 3. Simpan laporan & Buat PDF resmi di Google Drive folder RHK-agent_Output
@@ -1016,7 +1551,7 @@ export default function Home() {
           poinKegiatan: createForm.poinKegiatan,
           narasiAI: generatedNarrative,
           narasiEdited: generatedNarrative,
-          lokasi: extractedLocation,
+          lokasi: isCurrentRhkP2K2 ? createForm.p2k2TempatPelaksanaan : (createForm.lokasi || extractedLocation),
           p2k2Data,
           fotoIds: uploadedFotoIds,
         }),
@@ -1043,6 +1578,7 @@ export default function Home() {
         setCreateForm({
           tanggal: new Date().toISOString().substring(0, 10),
           pukul: '14:00',
+          lokasi: '',
           jenisRHK: '',
           idRHK: '',
           rencanaAksi: '',
@@ -1052,7 +1588,20 @@ export default function Home() {
           p2k2Kelompok: '',
           p2k2Ketua: '',
           p2k2Hadir: '',
-          p2k2Total: ''
+          p2k2Sakit: '',
+          p2k2Alpa: '',
+          p2k2JamSelesai: '',
+          p2k2TempatPelaksanaan: '',
+          isPemateriDiriSendiri: true,
+          p2k2NamaPemateri: '',
+          p2k2JabatanPemateri: '',
+          p2k2NamaKetuaTim: '',
+          p2k2NamaPendamping: '',
+          p2k2NipPendamping: '',
+          p2k2DesaKelurahan: '',
+          p2k2Kecamatan: '',
+          p2k2Kabupaten: '',
+          p2k2Provinsi: ''
         });
         setCreatePhotos([]);
         setGeneratedNarrative('');
@@ -1704,6 +2253,99 @@ export default function Home() {
         </div>
       )}
 
+      {/* ─── Modal Tambah / Edit SDM PKH Dampingan ─────────── */}
+      {sdmModalOpen && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full p-6 my-6 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-teal-50 text-teal-600 rounded-xl material-symbols-outlined text-xl">
+                  {editingSdm ? 'edit' : 'person_add'}
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    {editingSdm ? 'Edit SDM PKH Dampingan' : 'Tambah SDM PKH Dampingan'}
+                  </h3>
+                  <p className="text-[11px] text-gray-500">Master anggota tim pendamping PKH</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSdmModalOpen(false);
+                  setEditingSdm(null);
+                  setSdmInputForm({ nama: '', nip: '' });
+                }}
+                className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-500 block mb-1">
+                  Nama Lengkap SDM PKH <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={sdmInputForm.nama}
+                  onChange={(e) => setSdmInputForm(prev => ({ ...prev, nama: e.target.value }))}
+                  placeholder="Contoh: Budi Santoso, S.Sos"
+                  className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-500 block mb-1">
+                  NIP / Nomor Identitas (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={sdmInputForm.nip}
+                  onChange={(e) => setSdmInputForm(prev => ({ ...prev, nip: e.target.value }))}
+                  placeholder="Contoh: 198501012019031001"
+                  className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setSdmModalOpen(false);
+                  setEditingSdm(null);
+                  setSdmInputForm({ nama: '', nip: '' });
+                }}
+                disabled={isSavingSdm}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSdm}
+                disabled={isSavingSdm || !sdmInputForm.nama.trim()}
+                className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingSdm ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">save</span>
+                    <span>Simpan</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── Backdrop Overlay untuk Sidebar Drawer ─────────── */}
       <div 
         onClick={() => setIsSidebarOpen(false)}
@@ -2004,6 +2646,25 @@ export default function Home() {
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'dashboard' && (
           <main className="flex-grow p-3 md:p-4 w-full max-w-[1440px] mx-auto">
+            {isProfileIncomplete && (
+              <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-amber-600 text-2xl mt-0.5">warning</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900">Profil Anda Belum Lengkap</h4>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      Lengkapi data profil Anda (Nama, NIP, Wilayah Tugas, dan Jabatan) di menu Profil Pengguna terlebih dahulu agar dokumen PDF laporan diterbitkan dengan data yang sah.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActivePage('profile')}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs"
+                >
+                  Lengkapi Profil Sekarang
+                </button>
+              </div>
+            )}
             
             {/* Header Title & Stats */}
             <div className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -2563,134 +3224,438 @@ export default function Home() {
             PAGE: PROFIL PENGGUNA (SETTINGS)
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'profile' && (
-          <main className="flex-grow p-4 md:p-6 w-full max-w-[1100px] mx-auto">
+          <main className="flex-grow p-4 md:p-6 w-full max-w-[1200px] mx-auto pb-24">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-[#1A1D21] mb-1 font-['Outfit']">Profil Pengguna</h2>
-                <p className="text-sm text-gray-500">Data profil dan tanda tangan digital yang tersinkronisasi dari Google Drive & Mobile.</p>
+                <p className="text-sm text-gray-500">Kelola identitas, jenis SDM, jabatan, wilayah tugas, serta data pendamping dampingan.</p>
               </div>
               <button 
                 onClick={() => setActivePage('dashboard')}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-xs"
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                 Kembali ke Dashboard
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* Kolom 1: Informasi Profil */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center">
-                <div className="relative mb-4">
-                  <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-cyan-100 shadow-md bg-white flex items-center justify-center">
-                    {userAvatarUrl ? (
-                      <img src={userAvatarUrl} alt="Foto Profil" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-4xl uppercase text-cyan-600 font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
+              {/* Kolom Kiri: Kartu Identitas & Akun */}
+              <div className="space-y-6">
+                {/* Kartu Ringkasan Akun */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center">
+                  <div className="relative mb-4">
+                    <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-cyan-100 shadow-md bg-white flex items-center justify-center">
+                      {userAvatarUrl ? (
+                        <img src={userAvatarUrl} alt="Foto Profil" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-4xl uppercase text-cyan-600 font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
+                      )}
+                    </div>
+                    <div className="absolute bottom-1 right-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-full p-1 shadow-md border-2 border-white flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[14px]">workspace_premium</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
+                    <span className="text-xs font-bold text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
+                      {profile?.jenisSdm || 'SDM PKH'}
+                    </span>
+                    {profile?.jenisSdm !== 'TKSK' && profile?.jabatan && (
+                      <span className="text-xs font-bold text-indigo-800 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                        {profile.jabatan}
+                      </span>
                     )}
                   </div>
-                  <div className="absolute bottom-1 right-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-full p-1 shadow-md border-2 border-white flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[14px]">workspace_premium</span>
+                  <p className="text-xs text-gray-400 font-mono mt-1">{profile?.email || session?.user?.email}</p>
+
+                  <div className="w-full border-t border-gray-100 my-4"></div>
+
+                  <div className="w-full text-left space-y-2 text-xs">
+                    <div className="flex justify-between py-1 border-b border-gray-50">
+                      <span className="text-gray-400 font-medium">NIP</span>
+                      <span className="font-semibold text-gray-800 font-mono">{profile?.nip || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-gray-50">
+                      <span className="text-gray-400 font-medium">Provinsi</span>
+                      <span className="font-semibold text-gray-800">{profile?.provinsi || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-gray-50">
+                      <span className="text-gray-400 font-medium">Kabupaten/Kota</span>
+                      <span className="font-semibold text-gray-800">{profile?.kabupaten || '-'}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-gray-400 font-medium">Kecamatan</span>
+                      <span className="font-semibold text-gray-800">{profile?.kecamatan || '-'}</span>
+                    </div>
                   </div>
                 </div>
 
-                <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
-                <p className="text-xs font-semibold text-cyan-700 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200 mt-1">
-                  {profile?.jabatan || 'Pendamping PKH'}
-                </p>
-                <p className="text-xs text-gray-400 font-mono mt-1">{profile?.email || session?.user?.email}</p>
-
-                <div className="w-full border-t border-gray-100 my-4"></div>
-
-                <div className="w-full text-left space-y-3">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">NIP</label>
-                    <p className="text-sm font-semibold text-gray-800 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                      {profile?.nip || 'Belum disetel'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Kabupaten / Kota</label>
-                    <p className="text-sm font-semibold text-gray-800 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                      {profile?.kabupaten || 'Belum disetel'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Kolom 2: Tanda Tangan Digital */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-cyan-600 text-[20px]">draw</span>
+                {/* Kartu Tanda Tangan */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <h3 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-cyan-600 text-[18px]">draw</span>
                     Tanda Tangan Digital
                   </h3>
-                  <p className="text-xs text-gray-500 mb-4">Tanda tangan yang akan tertera pada lembar dokumen PDF laporan RHK Anda.</p>
+                  <p className="text-xs text-gray-500 mb-3">Tanda tangan resmi yang tertera pada dokumen PDF.</p>
 
-                  <div className="w-full h-44 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 flex items-center justify-center p-3 overflow-hidden">
+                  <div className="w-full h-36 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 flex items-center justify-center p-2 overflow-hidden">
                     {profile?.signatureUrl ? (
                       <img src={profile.signatureUrl} alt="Tanda Tangan" className="max-h-full max-w-full object-contain" />
                     ) : (
                       <div className="text-center text-gray-400">
-                        <span className="material-symbols-outlined text-4xl mb-1 block opacity-40">gesture</span>
-                        <p className="text-xs">Belum ada tanda tangan</p>
-                        <p className="text-[10px] text-gray-400 mt-1">Unggah melalui aplikasi Aspend Mobile</p>
+                        <span className="material-symbols-outlined text-3xl mb-1 block opacity-40">gesture</span>
+                        <p className="text-[11px]">Belum ada tanda tangan</p>
+                        <p className="text-[10px] text-gray-400">Sinkronkan melalui Google Drive / Aspend Mobile</p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-4 p-3 bg-cyan-50/60 rounded-lg border border-cyan-100 flex items-start gap-2">
-                  <span className="material-symbols-outlined text-cyan-700 text-[18px] shrink-0 mt-0.5">info</span>
-                  <p className="text-[11px] text-cyan-800 leading-tight">
-                    Data tanda tangan disinkronkan langsung dari Google Drive Anda.
-                  </p>
-                </div>
-              </div>
-
-              {/* Kolom 3: Status Database & Akun */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-cyan-600 text-[20px]">database</span>
-                    Informasi Akun
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">Koneksi penyimpanan cloud pribadi Anda.</p>
-
-                  <div className="space-y-3">
-                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Penyimpanan Database</span>
-                      <p className="text-xs font-bold text-gray-800 mt-0.5 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        Google Sheets (Drive Pribadi)
-                      </p>
-                    </div>
-
-                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Status Akun</span>
-                      <p className="text-xs font-bold text-amber-600 mt-0.5 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[14px]">verified</span>
-                        ASPEND Verified Member
-                      </p>
-                    </div>
-
-                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 block">Sinkronisasi</span>
-                      <p className="text-xs font-medium text-gray-700 mt-0.5">
-                        Tersambung dengan Aspend Mobile
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
+                {/* Tombol Logout */}
                 <button 
                   onClick={() => signOut()}
-                  className="mt-6 w-full py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[16px]">logout</span>
                   Keluar dari Akun
                 </button>
+              </div>
+
+              {/* Kolom Kanan: Form Edit Profil & Wilayah & SDM PKH Dampingan */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Form Edit Profil */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center gap-2.5 mb-5 pb-3 border-b border-gray-100">
+                    <div className="p-2 bg-teal-50 text-teal-700 rounded-xl">
+                      <span className="material-symbols-outlined text-xl">manage_accounts</span>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900">Perbarui Data Profil & Wilayah Tugas</h3>
+                      <p className="text-xs text-gray-500">Perubahan akan langsung disimpan ke Google Sheets (Profile!A2:K).</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleSaveProfile} className="space-y-4">
+                    {/* Jenis SDM Selector */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1.5">
+                        Jenis SDM <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                          profileForm.jenisSdm === 'SDM PKH' 
+                            ? 'border-cyan-600 bg-cyan-50/50 text-cyan-950 font-bold' 
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="jenisSdm"
+                            value="SDM PKH"
+                            checked={profileForm.jenisSdm === 'SDM PKH'}
+                            onChange={() => setProfileForm(prev => ({ 
+                              ...prev, 
+                              jenisSdm: 'SDM PKH',
+                              jabatan: prev.jabatan || 'Pendamping PKH'
+                            }))}
+                            className="text-cyan-600 focus:ring-cyan-500 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs block">SDM PKH</span>
+                            <span className="text-[10px] text-gray-500 font-normal">Pendamping PKH / Katim</span>
+                          </div>
+                        </label>
+
+                        <label className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                          profileForm.jenisSdm === 'TKSK' 
+                            ? 'border-cyan-600 bg-cyan-50/50 text-cyan-950 font-bold' 
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="jenisSdm"
+                            value="TKSK"
+                            checked={profileForm.jenisSdm === 'TKSK'}
+                            onChange={() => setProfileForm(prev => ({ 
+                              ...prev, 
+                              jenisSdm: 'TKSK',
+                              jabatan: ''
+                            }))}
+                            className="text-cyan-600 focus:ring-cyan-500 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs block">TKSK</span>
+                            <span className="text-[10px] text-gray-500 font-normal">Tenaga Kesejahteraan Sosial</span>
+                          </div>
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1.5">
+                        {profileForm.jenisSdm === 'TKSK' 
+                          ? '💡 TKSK menggunakan format 6 RHK khusus. Jabatan otomatis dikosongkan.' 
+                          : '💡 SDM PKH menggunakan 5 RHK utama dan memiliki pilihan jabatan (Pendamping / Katim).'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Nama */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
+                          Nama Lengkap <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.nama}
+                          onChange={(e) => setProfileForm(prev => ({ ...prev, nama: e.target.value }))}
+                          placeholder="Nama lengkap beserta gelar"
+                          className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      {/* NIP */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
+                          NIP / Nomor Identitas Pegawai <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={profileForm.nip}
+                          onChange={(e) => setProfileForm(prev => ({ ...prev, nip: e.target.value }))}
+                          placeholder="Contoh: 198901012022031001"
+                          className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Jabatan (hanya aktif untuk SDM PKH) */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
+                        Jabatan {profileForm.jenisSdm === 'SDM PKH' && <span className="text-rose-500">*</span>}
+                      </label>
+                      {profileForm.jenisSdm === 'TKSK' ? (
+                        <input
+                          type="text"
+                          disabled
+                          value="-"
+                          className="w-full text-xs font-medium border border-gray-200 rounded-xl p-2.5 bg-gray-100 text-gray-400 cursor-not-allowed"
+                        />
+                      ) : (
+                        <select
+                          required
+                          value={profileForm.jabatan}
+                          onChange={(e) => setProfileForm(prev => ({ ...prev, jabatan: e.target.value }))}
+                          className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none transition-all cursor-pointer"
+                        >
+                          <option value="Pendamping PKH">Pendamping PKH</option>
+                          <option value="Katim Kab/Kota">Katim Kab/Kota</option>
+                          <option value="Katim Provinsi">Katim Provinsi</option>
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Wilayah Tugas (Cascading) */}
+                    <div className="pt-2 border-t border-gray-100 space-y-3">
+                      <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[18px] text-cyan-600">location_on</span>
+                        Wilayah Penugasan Resmi
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Provinsi */}
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Provinsi *</label>
+                          <select
+                            required
+                            value={profileForm.provinsi}
+                            onChange={(e) => handleProvinceChange(e.target.value)}
+                            className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer"
+                          >
+                            <option value="">-- Pilih Provinsi --</option>
+                            {provincesList.map(p => (
+                              <option key={p.id} value={p.name}>{p.name}</option>
+                            ))}
+                            {profileForm.provinsi && !provincesList.some(p => p.name.toLowerCase() === profileForm.provinsi.toLowerCase()) && (
+                              <option value={profileForm.provinsi}>{profileForm.provinsi}</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* Kab/Kota */}
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Kabupaten/Kota *</label>
+                          <select
+                            required
+                            value={profileForm.kabupaten}
+                            onChange={(e) => handleRegencyChange(e.target.value)}
+                            disabled={!profileForm.provinsi || isLoadingWilayah}
+                            className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">-- Pilih Kab/Kota --</option>
+                            {regenciesList.map(r => (
+                              <option key={r.id} value={r.name}>{r.name}</option>
+                            ))}
+                            {profileForm.kabupaten && !regenciesList.some(r => r.name.toLowerCase() === profileForm.kabupaten.toLowerCase()) && (
+                              <option value={profileForm.kabupaten}>{profileForm.kabupaten}</option>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* Kecamatan */}
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Kecamatan *</label>
+                          <select
+                            required
+                            value={profileForm.kecamatan}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, kecamatan: e.target.value }))}
+                            disabled={!profileForm.kabupaten || isLoadingWilayah}
+                            className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">-- Pilih Kecamatan --</option>
+                            {districtsList.map(d => (
+                              <option key={d.id} value={d.name}>{d.name}</option>
+                            ))}
+                            {profileForm.kecamatan && !districtsList.some(d => d.name.toLowerCase() === profileForm.kecamatan.toLowerCase()) && (
+                              <option value={profileForm.kecamatan}>{profileForm.kecamatan}</option>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tombol Simpan */}
+                    <div className="pt-3 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={isSavingProfile}
+                        className="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                      >
+                        {isSavingProfile ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Menyimpan ke Google Drive...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-[18px]">save</span>
+                            <span>Simpan Profil</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Manajemen SDM PKH Dampingan (khusus Katim) */}
+                {(profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi' || profile?.jabatan === 'Katim Kab/Kota' || profile?.jabatan === 'Katim Provinsi') && (
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                          <span className="material-symbols-outlined text-xl">groups</span>
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-gray-900">SDM PKH Dampingan</h3>
+                          <p className="text-xs text-gray-500">Daftar pendamping untuk pengisian supervisi P2K2 ({sdmPkhList.length} orang).</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSdm(null);
+                            setSdmInputForm({ nama: '', nip: '' });
+                            setSdmModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">add</span>
+                          Tambah
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={downloadTemplateSdmPkh}
+                          className="px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">download</span>
+                          Template
+                        </button>
+
+                        <label className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer">
+                          <span className="material-symbols-outlined text-[16px]">upload_file</span>
+                          Import Excel
+                          <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            onChange={handleImportExcelSdmPkh}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Tabel SDM PKH */}
+                    {isLoadingSdmPkh ? (
+                      <div className="p-8 text-center text-xs text-gray-400">
+                        <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                        Memuat daftar SDM PKH...
+                      </div>
+                    ) : sdmPkhList.length === 0 ? (
+                      <div className="p-8 text-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                        <span className="material-symbols-outlined text-4xl text-gray-300 block mb-1">person_search</span>
+                        <p className="text-xs font-bold text-gray-600">Belum ada SDM PKH dampingan</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Tambahkan data pendamping secara manual atau impor dari file Excel.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-gray-200 rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-gray-50 text-gray-500 font-bold border-b border-gray-200">
+                            <tr>
+                              <th className="py-2.5 px-3 w-12 text-center">No</th>
+                              <th className="py-2.5 px-3">Nama Pendamping</th>
+                              <th className="py-2.5 px-3">NIP</th>
+                              <th className="py-2.5 px-3 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {sdmPkhList.map((item, idx) => (
+                              <tr key={item.id || idx} className="hover:bg-gray-50/80 transition-colors">
+                                <td className="py-2.5 px-3 text-center text-gray-400 font-medium">{idx + 1}</td>
+                                <td className="py-2.5 px-3 font-bold text-gray-900">{item.nama}</td>
+                                <td className="py-2.5 px-3 font-mono text-gray-600">{item.nip || '-'}</td>
+                                <td className="py-2.5 px-3 text-right space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingSdm(item);
+                                      setSdmInputForm({ nama: item.nama, nip: item.nip || '' });
+                                      setSdmModalOpen(true);
+                                    }}
+                                    className="p-1 hover:bg-gray-100 text-blue-600 rounded cursor-pointer"
+                                    title="Edit"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSdm(item.id)}
+                                    className="p-1 hover:bg-gray-100 text-rose-600 rounded cursor-pointer"
+                                    title="Hapus"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -2716,6 +3681,27 @@ export default function Home() {
               </button>
             </div>
 
+            {/* Warning Profil Belum Lengkap */}
+            {isProfileIncomplete && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3.5 text-amber-900 shadow-xs">
+                <span className="material-symbols-outlined text-amber-600 text-2xl shrink-0 mt-0.5">warning</span>
+                <div className="text-xs">
+                  <p className="font-bold text-sm text-amber-950">Profil Anda Belum Lengkap</p>
+                  <p className="mt-0.5 text-amber-800 leading-relaxed">
+                    Harap lengkapi Profil Anda (Jenis SDM, Nama, NIP, Wilayah Penugasan) sebelum membuat laporan agar format kop dinas dan data laporan sesuai standar Kemensos.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActivePage('profile')}
+                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                  >
+                    <span>Lengkapi Profil Sekarang</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-6">
               {/* KARTU 1: DATA UTAMA PELAKSANAAN KEGIATAN */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -2734,7 +3720,8 @@ export default function Home() {
                       value={createForm.jenisRHK}
                       onChange={(e) => {
                         const val = e.target.value;
-                        const match = MASTER_RHK_DATA.find(r => r.jenis === val);
+                        const rhkList = getMasterRHKData(profile?.jenisSdm);
+                        const match = rhkList.find(r => r.jenis === val);
                         const rhkId = match?.id || '';
                         const rencanaList = match?.rencanaList || [];
                         setCreateForm(prev => ({
@@ -2748,7 +3735,7 @@ export default function Home() {
                       className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all cursor-pointer"
                     >
                       <option value="">-- Pilih Jenis RHK --</option>
-                      {MASTER_RHK_DATA.map((rhk) => (
+                      {getMasterRHKData(profile?.jenisSdm).map((rhk) => (
                         <option key={rhk.id} value={rhk.jenis}>
                           [{rhk.id}] {rhk.jenis}
                         </option>
@@ -2768,7 +3755,7 @@ export default function Home() {
                       className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
                       <option value="">-- Pilih Rencana Aksi --</option>
-                      {getRencanaAksiListForRHK(createForm.jenisRHK).map((aksi, idx) => (
+                      {getRencanaAksiListForRHK(createForm.jenisRHK, profile?.jenisSdm).map((aksi, idx) => (
                         <option key={idx} value={aksi}>
                           {aksi}
                         </option>
@@ -2801,6 +3788,25 @@ export default function Home() {
                       className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
                     />
                   </div>
+
+                  {/* Lokasi Kegiatan (Non-P2K2) */}
+                  {!isP2K2(createForm.jenisRHK, profile?.jenisSdm) && (
+                    <div className="md:col-span-2">
+                      <label className="text-[11px] font-bold uppercase text-gray-500 block mb-1">
+                        Lokasi Kegiatan <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-400 material-symbols-outlined text-[18px]">place</span>
+                        <input
+                          type="text"
+                          value={createForm.lokasi}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, lokasi: e.target.value }))}
+                          placeholder="Contoh: Balai Desa / Rumah KPM / Kantor Kecamatan"
+                          className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 pl-9 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Poin-poin Kegiatan */}
@@ -2834,15 +3840,203 @@ export default function Home() {
               </div>
 
               {/* KARTU 2: KHUSUS RHK-2 (P2K2) */}
-              {isP2K2(createForm.jenisRHK) && (
-                <div className="bg-gradient-to-br from-amber-50/60 via-amber-50/30 to-white rounded-2xl shadow-sm border-2 border-amber-300/80 p-6 animate-scale-up">
-                  <div className="flex items-center gap-2.5 mb-4 pb-2 border-b border-amber-200">
+              {isP2K2(createForm.jenisRHK, profile?.jenisSdm) && (
+                <div className="bg-gradient-to-br from-amber-50/60 via-amber-50/30 to-white rounded-2xl shadow-sm border-2 border-amber-300/80 p-6 animate-scale-up space-y-4">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-amber-200">
                     <span className="p-1.5 bg-amber-500 text-white rounded-lg material-symbols-outlined text-lg">school</span>
                     <div>
-                      <h3 className="text-base font-bold text-amber-950">Data Pelaksanaan P2K2</h3>
+                      <h3 className="text-base font-bold text-amber-950">
+                        {isKatimSupervisiP2K2 ? 'Data Khusus Supervisi P2K2' : 'Data Pelaksanaan P2K2'}
+                      </h3>
                       <p className="text-[11px] text-amber-800">Pertemuan Peningkatan Kemampuan Keluarga (P2K2)</p>
                     </div>
                   </div>
+
+                  {/* KHUSUS SUPERVISI KATIM */}
+                  {isKatimSupervisiP2K2 && (
+                    <div className="bg-teal-50/70 border border-teal-200 rounded-xl p-4 space-y-3.5 mb-2">
+                      <div className="flex items-center gap-2 pb-2 border-b border-teal-200/70">
+                        <span className="p-1 bg-teal-600 text-white rounded-lg material-symbols-outlined text-[16px]">verified_user</span>
+                        <div>
+                          <h4 className="text-xs font-bold text-teal-950">Supervisi P2K2 oleh {profile?.jabatan || 'Ketua Tim'}</h4>
+                          <p className="text-[10px] text-teal-700">Pencatatan data pengawasan dan pendamping dampingan</p>
+                        </div>
+                      </div>
+
+                      {/* Nama Ketua Tim (Katim) */}
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-teal-900 block mb-1">
+                          Nama Ketua Tim (Katim)
+                        </label>
+                        <div className="bg-white border border-teal-200 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-gray-900">{profile?.nama || '-'}</span>
+                          <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full">
+                            Otomatis
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Pendamping yang Disupervisi */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold uppercase text-teal-900">
+                            Nama Pendamping yang Disupervisi <span className="text-rose-500">*</span>
+                          </label>
+                          {sdmPkhList.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsManualPendamping(!isManualPendamping)}
+                              className="text-[10px] text-teal-700 hover:text-teal-900 font-bold underline cursor-pointer"
+                            >
+                              {isManualPendamping ? 'Pilih dari Master SDM' : 'Ketik Manual'}
+                            </button>
+                          )}
+                        </div>
+
+                        {!isManualPendamping && sdmPkhList.length > 0 ? (
+                          <select
+                            value={selectedSdmPkhId}
+                            onChange={(e) => handleSelectSupervisiPendamping(e.target.value)}
+                            className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                          >
+                            <option value="">-- Pilih Pendamping PKH Dampingan --</option>
+                            {sdmPkhList.map(s => (
+                              <option key={s.id} value={s.id}>
+                                {s.nama} {s.nip ? `(NIP: ${s.nip})` : ''}
+                              </option>
+                            ))}
+                            <option value="__custom__">+ Ketik Nama Manual...</option>
+                          </select>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <input
+                              type="text"
+                              value={createForm.p2k2NamaPendamping}
+                              onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2NamaPendamping: e.target.value }))}
+                              placeholder="Nama Lengkap Pendamping"
+                              className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                            />
+                            <input
+                              type="text"
+                              value={createForm.p2k2NipPendamping}
+                              onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2NipPendamping: e.target.value }))}
+                              placeholder="NIP / Identitas (Opsional)"
+                              className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                            />
+                          </div>
+                        )}
+                        {sdmPkhList.length === 0 && (
+                          <p className="text-[10px] text-teal-700/80 mt-1">
+                            💡 Tips: Anda dapat menambahkan master data SDM PKH Dampingan di menu Profil.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Wilayah Pelaksanaan Supervisi */}
+                      <div className="pt-2 border-t border-teal-200/60">
+                        <label className="text-[10px] font-bold uppercase text-teal-900 block mb-2">
+                          Wilayah Pelaksanaan Supervisi
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* Provinsi */}
+                          <div>
+                            <label className="text-[10px] text-gray-500 block mb-1">Provinsi</label>
+                            <div className="bg-white border border-teal-200 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-gray-900">{profile?.provinsi || '-'}</span>
+                              <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full">
+                                Otomatis
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Kab/Kota */}
+                          <div>
+                            <label className="text-[10px] text-gray-500 block mb-1">Kabupaten / Kota</label>
+                            {profile?.jabatan === 'Katim Kab/Kota' ? (
+                              <div className="bg-white border border-teal-200 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-gray-900">{profile?.kabupaten || '-'}</span>
+                                <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full">
+                                  Otomatis
+                                </span>
+                              </div>
+                            ) : (
+                              <select
+                                value={createForm.p2k2Kabupaten}
+                                onChange={(e) => handleSupervisiRegencyChange(e.target.value)}
+                                className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                              >
+                                <option value="">-- Pilih Kab/Kota --</option>
+                                {supervisiRegencies.map(r => (
+                                  <option key={r.id} value={r.name}>{r.name}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          {/* Kecamatan */}
+                          <div>
+                            <label className="text-[10px] text-gray-500 block mb-1">Kecamatan</label>
+                            {supervisiDistricts.length > 0 ? (
+                              <select
+                                value={createForm.p2k2Kecamatan}
+                                onChange={(e) => handleSupervisiDistrictChange(e.target.value)}
+                                className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                              >
+                                <option value="">-- Pilih Kecamatan --</option>
+                                {supervisiDistricts.map(d => (
+                                  <option key={d.id} value={d.name}>{d.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={createForm.p2k2Kecamatan}
+                                onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Kecamatan: e.target.value }))}
+                                placeholder="Ketik Kecamatan"
+                                className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                              />
+                            )}
+                          </div>
+
+                          {/* Desa / Kelurahan */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[10px] text-gray-500">Desa / Kelurahan</label>
+                              {supervisiVillages.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsManualKelurahan(!isManualKelurahan)}
+                                  className="text-[10px] text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                                >
+                                  {isManualKelurahan ? 'Pilih dari list' : 'Ketik manual'}
+                                </button>
+                              )}
+                            </div>
+                            {!isManualKelurahan && supervisiVillages.length > 0 ? (
+                              <select
+                                value={createForm.p2k2DesaKelurahan}
+                                onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2DesaKelurahan: e.target.value }))}
+                                className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer"
+                              >
+                                <option value="">-- Pilih Desa / Kelurahan --</option>
+                                {supervisiVillages.map(v => (
+                                  <option key={v.id} value={v.name}>{v.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={createForm.p2k2DesaKelurahan}
+                                onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2DesaKelurahan: e.target.value }))}
+                                placeholder="Ketik Desa / Kelurahan"
+                                className="w-full text-xs font-medium border border-teal-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Modul */}
@@ -2888,50 +4082,195 @@ export default function Home() {
                       </select>
                     </div>
 
+                    {/* Jam Selesai */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
+                        Jam Selesai Kegiatan <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={createForm.p2k2JamSelesai}
+                        onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2JamSelesai: e.target.value }))}
+                        className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Tempat Pelaksanaan */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
+                        Tempat Pelaksanaan / Lokasi Kegiatan <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-amber-600 material-symbols-outlined text-[18px]">place</span>
+                        <input
+                          type="text"
+                          value={createForm.p2k2TempatPelaksanaan}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2TempatPelaksanaan: e.target.value }))}
+                          placeholder="Contoh: Balai Dusun / Rumah Ibu Siti"
+                          className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 pl-9 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pemateri P2K2 */}
+                  <div className="bg-white/80 border border-amber-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-amber-700 text-[18px]">record_voice_over</span>
+                          Pemateri adalah diri sendiri
+                        </label>
+                        <p className="text-[11px] text-amber-800/80 mt-0.5">
+                          Otomatis mengambil data Nama & Jabatan dari Profil Anda
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={createForm.isPemateriDiriSendiri}
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setCreateForm(prev => ({
+                            ...prev,
+                            isPemateriDiriSendiri: val,
+                            p2k2NamaPemateri: val ? (profile?.nama || '') : prev.p2k2NamaPemateri,
+                            p2k2JabatanPemateri: val ? (profile?.jabatan || 'Pendamping PKH') : prev.p2k2JabatanPemateri,
+                          }));
+                        }}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 border-gray-300 mt-1 cursor-pointer"
+                      />
+                    </div>
+
+                    {createForm.isPemateriDiriSendiri ? (
+                      <div className="bg-amber-100/50 rounded-lg p-2.5 text-xs text-amber-900 flex items-center justify-between">
+                        <span className="font-semibold">{profile?.nama || 'Nama belum diatur di Profil'}</span>
+                        <span className="text-[11px] bg-amber-200/70 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                          {profile?.jabatan || 'Pendamping PKH'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-amber-900 block mb-1">
+                            Nama Lengkap Pemateri <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={createForm.p2k2NamaPemateri}
+                            onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2NamaPemateri: e.target.value }))}
+                            placeholder="Nama narasumber / pemateri"
+                            className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase text-amber-900 block mb-1">
+                            Jabatan / Instansi Pemateri <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={createForm.p2k2JabatanPemateri}
+                            onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2JabatanPemateri: e.target.value }))}
+                            placeholder="Contoh: Pekerja Sosial / Petugas Kesehatan"
+                            className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Jumlah Kehadiran Peserta Dampingan */}
+                  <div>
+                    <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1.5">
+                      Jumlah Peserta Dampingan <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Hadir */}
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-col items-center justify-center">
+                        <div className="flex items-center gap-1 text-emerald-700 text-xs font-bold mb-1.5">
+                          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                          <span>Hadir</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={createForm.p2k2Hadir}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Hadir: e.target.value }))}
+                          placeholder="0"
+                          className="w-full text-center text-base font-bold bg-white border border-emerald-300 rounded-lg py-1.5 text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Sakit */}
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col items-center justify-center">
+                        <div className="flex items-center gap-1 text-amber-700 text-xs font-bold mb-1.5">
+                          <span className="material-symbols-outlined text-[16px]">healing</span>
+                          <span>Sakit</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={createForm.p2k2Sakit}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Sakit: e.target.value }))}
+                          placeholder="0"
+                          className="w-full text-center text-base font-bold bg-white border border-amber-300 rounded-lg py-1.5 text-amber-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Alpa */}
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex flex-col items-center justify-center">
+                        <div className="flex items-center gap-1 text-rose-700 text-xs font-bold mb-1.5">
+                          <span className="material-symbols-outlined text-[16px]">cancel</span>
+                          <span>Alpa</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={createForm.p2k2Alpa}
+                          onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Alpa: e.target.value }))}
+                          placeholder="0"
+                          className="w-full text-center text-base font-bold bg-white border border-rose-300 rounded-lg py-1.5 text-rose-900 focus:ring-2 focus:ring-rose-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total Dampingan Bar */}
+                    <div className="mt-2.5 p-2.5 bg-blue-50/60 border border-blue-200/80 rounded-xl flex items-center justify-between text-xs text-blue-900 font-semibold">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-blue-600 text-[18px]">groups</span>
+                        <span>Total Peserta Dampingan</span>
+                      </div>
+                      <span className="bg-blue-600 text-white px-2.5 py-0.5 rounded-full font-bold text-[11px]">
+                        {(parseInt(createForm.p2k2Hadir) || 0) + (parseInt(createForm.p2k2Sakit) || 0) + (parseInt(createForm.p2k2Alpa) || 0)} KPM
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Kelompok & Ketua */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Nama Kelompok */}
                     <div>
-                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">Nama Kelompok</label>
+                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
+                        Nama Kelompok <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="text"
                         value={createForm.p2k2Kelompok}
                         onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Kelompok: e.target.value }))}
-                        placeholder="Contoh: Mawar 1"
+                        placeholder="Contoh: Kelompok Mawar 1 / Harapan Mulia"
                         className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                       />
                     </div>
 
                     {/* Ketua Kelompok */}
                     <div>
-                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">Ketua Kelompok</label>
+                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
+                        Ketua Kelompok <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="text"
                         value={createForm.p2k2Ketua}
                         onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Ketua: e.target.value }))}
-                        placeholder="Nama ketua kelompok"
-                        className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
-                      />
-                    </div>
-
-                    {/* Jumlah KPM Hadir */}
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">Jumlah KPM Hadir</label>
-                      <input
-                        type="number"
-                        value={createForm.p2k2Hadir}
-                        onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Hadir: e.target.value }))}
-                        placeholder="0"
-                        className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
-                      />
-                    </div>
-
-                    {/* Total KPM */}
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">Total KPM (Anggota)</label>
-                      <input
-                        type="number"
-                        value={createForm.p2k2Total}
-                        onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Total: e.target.value }))}
-                        placeholder="0"
+                        placeholder="Nama lengkap ketua kelompok"
                         className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                       />
                     </div>

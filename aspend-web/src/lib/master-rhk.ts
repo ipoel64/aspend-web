@@ -87,23 +87,70 @@ export const MASTER_RHK_DATA: MasterRHKItem[] = [
   }
 ];
 
-export function getRHKByIdOrJenis(identifier: string): MasterRHKItem | undefined {
+export const MASTER_TKSK_RHK_DATA: MasterRHKItem[] = [
+  {
+    id: 'RHK-1',
+    jenis: 'Koordinasi, Konsultasi Dan Pelaksanaan Kesejahteraan Sosial',
+    rencanaList: ['Laporan Pengaduan Masyarakat']
+  },
+  {
+    id: 'RHK-2',
+    jenis: 'Kegiatan Sosialisasi Dan Edukasi Pemberdayaan Sosial',
+    rencanaList: ['Melakukan Sosialisasi Dan Edukasi Pemberdayaan Sosial/ Penyaluran Bantuan Sosial']
+  },
+  {
+    id: 'RHK-3',
+    jenis: 'Pengumpulan Data Verifikasi dan Validasi',
+    rencanaList: ['Laporan Data Dalam Memberikan Dukungan Pemenuhan Kehidupan Layak Dan Aksesibilitas Bagi PPKS/KPM']
+  },
+  {
+    id: 'RHK-4',
+    jenis: 'Hasil Analisis Asesmen PPKS/KPM Penerima Bantuan Sosial',
+    rencanaList: ['Laporan Hasil Analisis Asesmen PPKS/KPM Penerima Bantuan Sosial']
+  },
+  {
+    id: 'RHK-5',
+    jenis: 'Pelayanan Pendampingan Dan Rujukan',
+    rencanaList: ['Laporan Hasil Pelayanan Pendampingan Dan Rujukan Bagi PPKS']
+  },
+  {
+    id: 'RHK-6',
+    jenis: 'Koordinasi Dan Sinergitas Kelembagaan',
+    rencanaList: ['Laporan Sinergitas Kelembagaaan Dalam Pelaksanaan Pelayanan Dan Pendampingan Sosial']
+  }
+];
+
+export function getMasterRHKData(jenisSdm = 'SDM PKH'): MasterRHKItem[] {
+  return jenisSdm === 'TKSK' ? MASTER_TKSK_RHK_DATA : MASTER_RHK_DATA;
+}
+
+export function getRHKByIdOrJenis(identifier: string, jenisSdm = 'SDM PKH'): MasterRHKItem | undefined {
   if (!identifier) return undefined;
   const cleanId = identifier.trim().toLowerCase();
-  return MASTER_RHK_DATA.find(
+  const list = getMasterRHKData(jenisSdm);
+  return list.find(
+    item => item.id.toLowerCase() === cleanId || 
+            item.jenis.toLowerCase() === cleanId || 
+            item.id.replace(/\D/g, '') === cleanId.replace(/\D/g, '')
+  ) || MASTER_RHK_DATA.find(
+    item => item.id.toLowerCase() === cleanId || 
+            item.jenis.toLowerCase() === cleanId || 
+            item.id.replace(/\D/g, '') === cleanId.replace(/\D/g, '')
+  ) || MASTER_TKSK_RHK_DATA.find(
     item => item.id.toLowerCase() === cleanId || 
             item.jenis.toLowerCase() === cleanId || 
             item.id.replace(/\D/g, '') === cleanId.replace(/\D/g, '')
   );
 }
 
-export function getRencanaAksiListForRHK(identifier: string): string[] {
-  const item = getRHKByIdOrJenis(identifier);
+export function getRencanaAksiListForRHK(identifier: string, jenisSdm = 'SDM PKH'): string[] {
+  const item = getRHKByIdOrJenis(identifier, jenisSdm);
   return item ? item.rencanaList : [];
 }
 
-export function isP2K2(identifier: string): boolean {
+export function isP2K2(identifier: string, jenisSdm = 'SDM PKH'): boolean {
   if (!identifier) return false;
+  if (jenisSdm === 'TKSK') return false;
   const s = identifier.toUpperCase();
   return s.includes('P2K2') || s.includes('RHK-2') || s === '2';
 }

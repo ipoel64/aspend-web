@@ -171,10 +171,240 @@ async function getDriveImage(accessToken: string, fileId: string): Promise<Loade
 }
 
 /**
+ * Ekstrak baris teks di dalam Bagian B. KEGIATAN YANG DILAKSANAKAN dari narasi
+ */
+function extractSectionBLines(narrative: string): string[] {
+  if (!narrative) return [];
+  const lines = narrative.split('\n');
+  const bLines: string[] = [];
+  let capturingB = false;
+  const subHeaderRegExp = /^(?:<b>|\*\*)?([A-Z]\.)\s+(.*?)(?:<\/b>|\*\*)?$/i;
+
+  for (const l of lines) {
+    const t = l.trim();
+    const match = t.match(subHeaderRegExp);
+    if (match) {
+      const letter = match[1].toUpperCase();
+      if (letter === 'B.') {
+        capturingB = true;
+        continue;
+      } else if (capturingB) {
+        break;
+      }
+    }
+    if (capturingB && t.length > 0) {
+      if (!t.startsWith('|') && !/^[|\s\-+:]{3,}$/.test(t)) {
+        bLines.push(t);
+      }
+    }
+  }
+  return bLines;
+}
+
+/**
+ * Menghasilkan tabel HTML resmi P2K2 Kemensos (A. Informasi Umum, B. Waktu Pelaksanaan, C. Pemateri, D. Isi Materi, E. Isi Kegiatan)
+ */
+function generateP2K2TableHtml(
+  p2k2: any,
+  userProfile: { nama: string; nip: string; jabatan: string; kabupaten: string; provinsi?: string; kecamatan?: string },
+  reportData: { ReportId: string; Tanggal: string; JenisRHK: string; IdRHK: string; RencanaAksi: string; Pukul: string; Lokasi?: string },
+  validDate: Date,
+  bLines: string[],
+  firstPhotoBase64?: string | null
+): string {
+  const isSupervisi = Boolean(
+    p2k2?.isSupervisi ||
+    p2k2?.IsSupervisi ||
+    reportData.RencanaAksi?.toLowerCase().includes('supervisi')
+  );
+
+  const rawDateStr = reportData.Tanggal ? reportData.Tanggal.replace(/-/g, '') : '';
+  const cleanTime = (reportData.Pukul || '00.00').replace(':', '.');
+  const docTitleNo = `${rawDateStr} - ${cleanTime} - ${reportData.IdRHK || 'RHK-P2K2'} - ${(reportData.RencanaAksi || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim()}`;
+  const tglFormatted = formatTanggalIndonesia(validDate);
+
+  const namaPemateri = (p2k2?.isPemateriDiriSendiri || !p2k2?.namaPemateri?.trim())
+    ? (userProfile.nama || '-')
+    : p2k2.namaPemateri;
+
+  const jabatanPemateri = (p2k2?.isPemateriDiriSendiri || !p2k2?.jabatanPemateri?.trim())
+    ? (userProfile.jabatan || 'Pendamping PKH')
+    : p2k2.jabatanPemateri;
+
+  const hadir = parseInt(p2k2?.jumlahHadir ?? p2k2?.hadir ?? 0, 10) || 0;
+  const sakit = parseInt(p2k2?.jumlahSakit ?? p2k2?.sakit ?? 0, 10) || 0;
+  const alpa = parseInt(p2k2?.jumlahAlpa ?? p2k2?.alpa ?? 0, 10) || 0;
+  const totalDampingan = hadir + sakit + alpa;
+
+  const tempatPelaksanaan = p2k2?.tempatPelaksanaan || reportData.Lokasi || '-';
+
+  // Section A rows based on supervisi or normal
+  let sectionARows = '';
+  if (isSupervisi) {
+    const pendampingDisplay = `${p2k2?.namaPendamping || '-'}${p2k2?.nipPendamping ? ` (${p2k2.nipPendamping})` : ''}`;
+    const katimName = p2k2?.namaKetuaTim || userProfile.nama || '-';
+    const desa = p2k2?.desaKelurahan || '-';
+    const kec = p2k2?.kecamatan || userProfile.kecamatan || '-';
+    const kab = p2k2?.kabupatenKota || userProfile.kabupaten || '-';
+    const prov = p2k2?.provinsi || userProfile.provinsi || '-';
+
+    sectionARows = `
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pendamping</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${pendampingDisplay}</td>
+      </tr>
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Ketua Tim (Katim)</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${katimName}</td>
+      </tr>
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Desa/Kelurahan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${desa}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kecamatan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${kec}</td>
+      </tr>
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kabupaten / Kota</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${kab}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Provinsi</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${prov}</td>
+      </tr>
+    `;
+  } else {
+    sectionARows = `
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pendamping</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.nama || '-'}</td>
+      </tr>
+      <tr>
+        <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: center;">SESUAI WILAYAH TUGAS</td>
+      </tr>
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kecamatan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.kecamatan || '-'}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kabupaten / Kota</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.kabupaten || '-'}</td>
+      </tr>
+      <tr>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Provinsi</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.provinsi || '-'}</td>
+      </tr>
+    `;
+  }
+
+  // Format Rangkuman Kegiatan lines
+  let rangkumanHtml = '-';
+  if (bLines && bLines.length > 0) {
+    rangkumanHtml = bLines.map(line => {
+      let l = line.trim();
+      l = l.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      if (/^\d+\.\s+/.test(l)) {
+        return `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
+      } else if (/^[-•]\s+/.test(l) || /^[a-z]\.\s+/i.test(l)) {
+        return `<div style="margin-bottom: 2pt; padding-left: 10pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
+      } else {
+        return `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
+      }
+    }).join('');
+  }
+
+  // Foto Kegiatan
+  const fotoHtml = firstPhotoBase64
+    ? `<div style="text-align: center; padding: 3pt 0;"><img src="${firstPhotoBase64}" style="max-width: 250pt; max-height: 175pt; object-fit: contain; display: inline-block; margin: 0 auto;" /></div>`
+    : `<span style="font-size: 8.5pt;">-</span>`;
+
+  return `
+    <div style="text-align: center; margin-top: 10pt; margin-bottom: 6pt; font-family: Arial, sans-serif;">
+      <p style="font-size: 11pt; font-weight: bold; margin: 0; line-height: 1.2;">LAPORAN KEGIATAN P2K2</p>
+      <p style="font-size: 9.5pt; margin: 2pt 0 0 0; line-height: 1.2;">Pertemuan Peningkatan Kemampuan Keluarga</p>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 8.5pt; line-height: 1.15; border: 1px solid #000000; margin-top: 4pt; margin-bottom: 12pt;" border="1" cellpadding="3" cellspacing="0">
+      <tbody>
+        <tr>
+          <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">A. INFORMASI UMUM</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">No. Laporan</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${docTitleNo}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tanggal Pengisian</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglFormatted}</td>
+        </tr>
+        ${sectionARows}
+        <tr>
+          <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">B. WAKTU PELAKSANAAN</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tanggal Kegiatan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglFormatted}</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Mulai</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${reportData.Pukul || '-'}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Selesai</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.jamSelesai || '-'}</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tempat Pelaksanaan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tempatPelaksanaan}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">C. PEMATERI</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pemateri</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${namaPemateri}</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jabatan / Instansi</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${jabatanPemateri}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">D. ISI MATERI</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Materi</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.sesi || '-'}</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Modul</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.modul || '-'}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">E. ISI KEGIATAN</td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">Jumlah Peserta Hadir</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">
+            <div style="font-size: 8.5pt; line-height: 1.25;">
+              <p style="font-weight: bold; margin: 0 0 2pt 0;">Total Dampingan : ${totalDampingan} orang</p>
+              <p style="margin: 0;">Hadir : ${hadir} orang</p>
+              <p style="margin: 0;">Sakit : ${sakit} orang</p>
+              <p style="margin: 0;">Alpa  : ${alpa} orang</p>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">Rangkuman Kegiatan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">
+            ${rangkumanHtml}
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: middle;">Foto Kegiatan<br>(foto geotagging)</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: middle; text-align: center;">
+            ${fotoHtml}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+/**
  * Format narasi laporan ke HTML terstruktur rapi sesuai standar ASPEND
  * Jarak antar baris dirapatkan sedikit (line-height: 1.2, margin-bottom: 3-4pt)
  */
-function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string): string {
+function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 = false): string {
   if (!narrative || !narrative.trim()) {
     let emptyHtml = '<p style="font-style: italic; color: #555; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.2;">[Narasi belum tersedia]</p>';
     if (p2k2TableHtml) emptyHtml += '\n' + p2k2TableHtml;
@@ -188,6 +418,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string): string 
   const rawLines = text.split('\n');
   const htmlParts: string[] = [];
   let p2k2Inserted = false;
+  let skippingSectionB = false;
 
   for (let i = 0; i < rawLines.length; i++) {
     let line = rawLines[i].trim();
@@ -211,21 +442,44 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string): string 
     const sectionMatch = line.match(/^<b>\s*([A-Z]\..+?)\s*<\/b>$|^([A-Z]\..+)$/i);
     if (sectionMatch) {
       const sectionText = (sectionMatch[1] || sectionMatch[2]).replace(/<\/?b>/g, '').trim();
+      const isSectionB = /^B\.\s+/i.test(sectionText);
 
-      // Khusus RHK P2K2: Letakkan tabel Data Pelaksanaan P2K2 di bagian akhir B. KEGIATAN YANG DILAKSANAKAN (sebelum C, D, atau E)
+      if (isP2K2 && isSectionB) {
+        skippingSectionB = true;
+        const marginTop = '42pt';
+        htmlParts.push(`
+          <p style="font-size: 10.5pt; font-weight: bold; margin-top: ${marginTop}; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
+            ${sectionText}
+          </p>
+        `);
+        if (p2k2TableHtml && !p2k2Inserted) {
+          htmlParts.push(p2k2TableHtml);
+          p2k2Inserted = true;
+        }
+        continue;
+      }
+
+      if (skippingSectionB) {
+        skippingSectionB = false;
+      }
+
+      // Khusus non-P2K2 atau jika P2K2 table belum tersemat: letakkan sebelum C, D, E
       if (p2k2TableHtml && !p2k2Inserted && /^[C-Z]\.\s+/i.test(sectionText)) {
         htmlParts.push(p2k2TableHtml);
         p2k2Inserted = true;
       }
 
-      const isSectionB = /^B\.\s+/i.test(sectionText);
-      // Halaman kedua (Poin B) dan seterusnya diberikan jarak atas yang cukup banyak (42pt) sesuai arahan user
       const marginTop = isSectionB ? '42pt' : '18pt';
       htmlParts.push(`
         <p style="font-size: 10.5pt; font-weight: bold; margin-top: ${marginTop}; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
           ${sectionText}
         </p>
       `);
+      continue;
+    }
+
+    if (skippingSectionB && isP2K2) {
+      // Lewati teks Section B karena sudah masuk ke Rangkuman Kegiatan di tabel P2K2
       continue;
     }
 
@@ -325,6 +579,8 @@ export interface GeneratePdfParams {
     nip: string;
     jabatan: string;
     kabupaten: string;
+    provinsi?: string;
+    kecamatan?: string;
     signatureFileId?: string;
   };
 }
@@ -380,85 +636,47 @@ export async function generateReportPDF(
     }
   }
 
-  // 4. Tabel P2K2 jika relevan (format 2 kolom sesuai standar resmi ASPEND)
-  let p2k2TableHtml = '';
-  if (reportData.P2K2Data) {
-    let d = reportData.P2K2Data;
-    if (typeof d === 'string') {
-      try {
-        d = JSON.parse(d);
-      } catch {
-        d = null;
-      }
-    }
-
-    if (d) {
-      const modul = d.modul || d.Modul || d.modul_p2k2 || d.ModulP2K2 || '-';
-      const sesi = d.sesi || d.Sesi || d.sesi_p2k2 || d.SesiP2K2 || '-';
-      const namaKelompok = d.namaKelompok || d.nama_kelompok || d.NamaKelompok || d.kelompok || d.Kelompok || '-';
-      const ketuaKelompok = d.ketuaKelompok || d.ketua_kelompok || d.KetuaKelompok || d.ketua || d.Ketua || '-';
-
-      const hadir = d.jumlahHadir ?? d.jumlah_hadir ?? d.hadir ?? d.kpmHadir ?? d.kpm_hadir;
-      const total = d.jumlahKPM ?? d.jumlahKpm ?? d.jumlah_kpm ?? d.kpm ?? d.totalKpm ?? d.total_kpm ?? d.dariTotal;
-
-      let kehadiranText = '-';
-      if (hadir !== undefined && total !== undefined) {
-        kehadiranText = `${hadir} hadir dari total ${total} KPM`;
-      } else if (hadir !== undefined) {
-        kehadiranText = `${hadir} KPM hadir`;
-      }
-
-      p2k2TableHtml = `
-        <div style="margin-top: 2pt; margin-bottom: 0; font-family: Arial, sans-serif;">
-          <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9pt; line-height: 1.1; border: 1px solid #000000; margin-top: 2pt; margin-bottom: 0;" border="1" cellpadding="1" cellspacing="0">
-            <thead>
-              <tr style="background-color: #FFFFFF; font-weight: bold;">
-                <th style="padding: 2.5pt 6pt; width: 28%; text-align: left; border: 1px solid #000000; font-family: Arial, sans-serif; font-size: 9pt; font-weight: bold; line-height: 1.1;">Keterangan P2K2</th>
-                <th style="padding: 2.5pt 6pt; width: 72%; text-align: left; border: 1px solid #000000; font-family: Arial, sans-serif; font-size: 9pt; font-weight: bold; line-height: 1.1;">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 28%; font-size: 9pt; line-height: 1.1;">Modul</td>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 72%; font-size: 9pt; line-height: 1.1;">${modul}</td>
-              </tr>
-              <tr>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 28%; font-size: 9pt; line-height: 1.1;">Sesi</td>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 72%; font-size: 9pt; line-height: 1.1;">${sesi}</td>
-              </tr>
-              <tr>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 28%; font-size: 9pt; line-height: 1.1;">Nama Kelompok</td>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 72%; font-size: 9pt; line-height: 1.1;">${namaKelompok}</td>
-              </tr>
-              <tr>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 28%; font-size: 9pt; line-height: 1.1;">Ketua Kelompok</td>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 72%; font-size: 9pt; line-height: 1.1;">${ketuaKelompok}</td>
-              </tr>
-              <tr>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 28%; font-size: 9pt; line-height: 1.1;">Kehadiran</td>
-                <td style="padding: 2pt 6pt; border: 1px solid #000000; font-family: Arial, sans-serif; width: 72%; font-size: 9pt; line-height: 1.1;">${kehadiranText}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p style="margin: 0; padding: 0; font-size: 8pt; line-height: 1.2;">&nbsp;</p>
-        </div>
-      `;
+  // 4. Deteksi P2K2 dan Siapkan Tabel P2K2
+  let parsedP2K2 = reportData.P2K2Data;
+  if (typeof parsedP2K2 === 'string') {
+    try {
+      parsedP2K2 = JSON.parse(parsedP2K2);
+    } catch {
+      parsedP2K2 = null;
     }
   }
 
-  // 5. Format Narasi (dengan tabel P2K2 disematkan di seksi B. Kegiatan Yang Dilaksanakan)
-  const narrative = reportData.NarasiEdited || reportData.NarasiAI || '';
-  const narrativeHtml = formatNarrativeHtml(narrative, p2k2TableHtml);
+  const isP2K2 = Boolean(
+    parsedP2K2 &&
+    (parsedP2K2.modul ||
+     parsedP2K2.Modul ||
+     parsedP2K2.sesi ||
+     parsedP2K2.Sesi ||
+     (reportData.RencanaAksi && reportData.RencanaAksi.toLowerCase().includes('p2k2')))
+  );
 
-  // 6. Lampiran Dokumentasi Foto (Tulisan Foto 1, Foto 2 di ATAS gambar masing-masing, SEMUA FOTO RATA TENGAH)
+  const narrative = reportData.NarasiEdited || reportData.NarasiAI || '';
+  const bLines = isP2K2 ? extractSectionBLines(narrative) : [];
+  const firstPhotoBase64 = isP2K2 && fotoList.length > 0 ? fotoList[0].base64 : null;
+  const appendixPhotos = isP2K2 ? fotoList.slice(1) : fotoList;
+
+  let p2k2TableHtml = '';
+  if (isP2K2) {
+    p2k2TableHtml = generateP2K2TableHtml(parsedP2K2, userProfile, reportData, validDate, bLines, firstPhotoBase64);
+  }
+
+  // 5. Format Narasi (dengan tabel P2K2 tersemat di Seksi B)
+  const narrativeHtml = formatNarrativeHtml(narrative, p2k2TableHtml, isP2K2);
+
+  // 6. Lampiran Dokumentasi Foto (Foto ke-2 dst. untuk P2K2, atau semua foto untuk non-P2K2)
   let appendixHtml = '';
-  if (fotoList.length > 0) {
+  if (appendixPhotos.length > 0) {
     appendixHtml = `
       <p align="center" style="font-size: 13pt; font-weight: bold; margin-top: 42pt; margin-bottom: 6pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.15;">LAMPIRAN DOKUMENTASI</p>
       
-      ${fotoList.map((foto, idx) => `
+      ${appendixPhotos.map((foto, idx) => `
         <div style="margin-bottom: 14pt; text-align: center; page-break-inside: avoid;">
-          <p align="center" style="font-size: 10pt; font-style: italic; margin-top: 2pt; margin-bottom: 4pt; text-align: center; color: #333; line-height: 1.15; font-family: Arial, sans-serif;">Foto ${idx + 1}</p>
+          <p align="center" style="font-size: 10pt; font-style: italic; margin-top: 2pt; margin-bottom: 4pt; text-align: center; color: #333; line-height: 1.15; font-family: Arial, sans-serif;">Foto ${isP2K2 ? idx + 2 : idx + 1}</p>
           <p align="center" style="text-align: center; margin: 0 auto; padding: 0; line-height: 1;">
             <img src="${foto.base64}" width="${foto.width}" height="${foto.height}" style="width: ${foto.width}pt; height: ${foto.height}pt; display: inline-block; margin: 0 auto;" />
           </p>
@@ -637,7 +855,14 @@ export async function generateReportPDF(
           if (r.tableCells) {
             for (const c of r.tableCells) {
               const text = c.content?.map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '').join(' ').toLowerCase() || '';
-              if (text.includes('keterangan p2k2') || text.includes('nama kelompok')) return true;
+              if (
+                text.includes('keterangan p2k2') ||
+                text.includes('nama kelompok') ||
+                text.includes('informasi umum') ||
+                text.includes('waktu pelaksanaan') ||
+                text.includes('isi materi') ||
+                text.includes('isi kegiatan')
+              ) return true;
             }
           }
         }
