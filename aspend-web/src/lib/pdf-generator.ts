@@ -178,13 +178,14 @@ function extractSectionBLines(narrative: string): string[] {
   const lines = narrative.split('\n');
   const bLines: string[] = [];
   let capturingB = false;
-  const subHeaderRegExp = /^(?:<b>|\*\*)?([A-Z]\.)\s+(.*?)(?:<\/b>|\*\*)?$/i;
+  // Strict uppercase section headers only: A., B., C., D., E. (case-sensitive)
+  const subHeaderRegExp = /^(?:<b>|\*\*)?([A-E]\.)\s+([A-Z0-9\s\(\)\/\-,]+)(?:<\/b>|\*\*)?$/;
 
   for (const l of lines) {
     const t = l.trim();
     const match = t.match(subHeaderRegExp);
     if (match) {
-      const letter = match[1].toUpperCase();
+      const letter = match[1];
       if (letter === 'B.') {
         capturingB = true;
         continue;
@@ -438,17 +439,21 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     // Format bold markdown **text** -> <b>text</b>
     line = line.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 
-    // 1. Section Header Utama: A., B., C., D., E., dst.
-    const sectionMatch = line.match(/^<b>\s*([A-Z]\..+?)\s*<\/b>$|^([A-Z]\..+)$/i);
+    // Bersihkan HTML tag untuk deteksi judul seksi utama
+    const cleanNoHtml = line.replace(/<[^>]+>/g, '').replace(/[*_#]/g, '').trim();
+
+    // 1. Section Header Utama: strictly A., B., C., D., E. dengan judul huruf kapital (CASE-SENSITIVE)
+    const sectionMatch = cleanNoHtml.match(/^([A-E])\.\s+([A-Z0-9\s\(\)\/\-,]+)$/);
     if (sectionMatch) {
-      const sectionText = (sectionMatch[1] || sectionMatch[2]).replace(/<\/?b>/g, '').trim();
-      const isSectionB = /^B\.\s+/i.test(sectionText);
+      const letter = sectionMatch[1];
+      const title = sectionMatch[2].trim();
+      const sectionText = `${letter}. ${title}`;
+      const isSectionB = letter === 'B';
 
       if (isP2K2 && isSectionB) {
         skippingSectionB = true;
-        const marginTop = '42pt';
         htmlParts.push(`
-          <p style="font-size: 10.5pt; font-weight: bold; margin-top: ${marginTop}; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
+          <p style="font-size: 10.5pt; font-weight: bold; margin-top: 14pt; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
             ${sectionText}
           </p>
         `);
@@ -463,13 +468,13 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
         skippingSectionB = false;
       }
 
-      // Khusus non-P2K2 atau jika P2K2 table belum tersemat: letakkan sebelum C, D, E
-      if (p2k2TableHtml && !p2k2Inserted && /^[C-Z]\.\s+/i.test(sectionText)) {
+      // Khusus jika P2K2 table belum tersemat: letakkan sebelum C, D, E
+      if (p2k2TableHtml && !p2k2Inserted && ['C', 'D', 'E'].includes(letter)) {
         htmlParts.push(p2k2TableHtml);
         p2k2Inserted = true;
       }
 
-      const marginTop = isSectionB ? '42pt' : '18pt';
+      const marginTop = letter === 'A' ? '8pt' : '14pt';
       htmlParts.push(`
         <p style="font-size: 10.5pt; font-weight: bold; margin-top: ${marginTop}; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
           ${sectionText}
@@ -483,28 +488,21 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
       continue;
     }
 
-    // 2. Sub-heading bernomor: 1. Gambaran Umum: [teks] ATAU 1. Gambaran Umum
-    const numInlineMatch = line.match(/^(\d+\.\s+[^:\n]+?)(?::|\s*-\s*)(.+)$/);
+    // 2. Sub-heading bernomor dengan isi langsung (inline): "1. Gambaran Umum: [teks]"
+    const numInlineMatch = line.match(/^(\d+\.\s+[^:\n]+?):\s*(.+)$/);
     if (numInlineMatch) {
       const subTitle = numInlineMatch[1].replace(/<\/?b>/g, '').trim();
       const bodyText = numInlineMatch[2].trim();
       htmlParts.push(`
-        <p style="font-size: 10pt; font-weight: bold; margin-top: 5pt; margin-bottom: 2pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
-          ${subTitle}
+        <p style="font-size: 10pt; line-height: 1.25; margin-top: 5pt; margin-bottom: 3pt; text-align: justify; font-family: Arial, sans-serif;">
+          <b>${subTitle}:</b> ${bodyText}
         </p>
       `);
-      if (bodyText) {
-        htmlParts.push(`
-          <p style="font-size: 10pt; line-height: 1.2; margin-top: 0; margin-bottom: 3pt; text-align: justify; text-indent: 20pt; font-family: Arial, sans-serif;">
-            ${bodyText}
-          </p>
-        `);
-      }
       continue;
     }
 
-    // Tangani jika baris hanya berupa nomor & judul: "1. Gambaran Umum" atau "1. Gambaran Umum:"
-    const numHeaderMatch = line.match(/^(\d+\.\s+.+?):?$/);
+    // 3. Sub-heading bernomor tanpa isi (header baris tersendiri): "1. Gambaran Umum"
+    const numHeaderMatch = line.match(/^(\d+\.\s+(?:Gambaran\s+Umum|Maksud\s+dan\s+Tujuan|Dasar|Ruang\s+Lingkup)[^:]*):?$/i);
     if (numHeaderMatch) {
       const subTitle = numHeaderMatch[1].replace(/<\/?b>/g, '').replace(/:$/, '').trim();
       htmlParts.push(`
@@ -515,19 +513,22 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
       continue;
     }
 
-    // 3. List alfabet: a., b., c., dst. atau bullet point: - / •
-    if (/^[a-z][.)]\s/i.test(line) || /^[-•]\s/.test(line)) {
+    // 4. List item: huruf kecil (a., b., c.), angka (1., 2.), atau bullet (- / • / *)
+    const listMatch = line.match(/^([a-z0-9][.)]|[-*•])\s+(.+)$/);
+    if (listMatch) {
+      const bullet = listMatch[1];
+      const itemContent = listMatch[2];
       htmlParts.push(`
-        <p style="font-size: 10pt; line-height: 1.2; margin-top: 0; margin-bottom: 2.5pt; padding-left: 24pt; text-indent: -14pt; text-align: justify; font-family: Arial, sans-serif;">
-          ${line}
+        <p style="font-size: 10pt; line-height: 1.25; margin-top: 0; margin-bottom: 3pt; padding-left: 20pt; text-indent: -14pt; text-align: justify; font-family: Arial, sans-serif; font-weight: normal;">
+          ${bullet} ${itemContent}
         </p>
       `);
       continue;
     }
 
-    // 4. Paragraf biasa (dibawah B, C, D, E, dsb.)
+    // 5. Paragraf biasa (dibawah B, C, D, E, dsb.)
     htmlParts.push(`
-      <p style="font-size: 10pt; line-height: 1.2; margin-top: 0; margin-bottom: 3pt; text-indent: 24pt; text-align: justify; font-family: Arial, sans-serif;">
+      <p style="font-size: 10pt; line-height: 1.25; margin-top: 0; margin-bottom: 4pt; text-indent: 20pt; text-align: justify; font-family: Arial, sans-serif;">
         ${line}
       </p>
     `);
@@ -539,7 +540,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     p2k2Inserted = true;
   }
 
-  // 5. Pastikan seksi E. PENUTUP selalu ada di dalam PDF resmi Kemensos
+  // 6. Pastikan seksi E. PENUTUP selalu ada di dalam PDF resmi Kemensos
   const hasPenutupSection = rawLines.some(l => {
     const clean = l.replace(/<[^>]+>/g, '').replace(/[*_#]/g, '').trim();
     return /^E\.\s*PENUTUP/i.test(clean);
@@ -547,10 +548,10 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
 
   if (!hasPenutupSection) {
     htmlParts.push(`
-      <p style="font-size: 10.5pt; font-weight: bold; margin-top: 18pt; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
+      <p style="font-size: 10.5pt; font-weight: bold; margin-top: 14pt; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
         E. PENUTUP
       </p>
-      <p style="font-size: 10pt; line-height: 1.2; margin-top: 0; margin-bottom: 3pt; text-indent: 24pt; text-align: justify; font-family: Arial, sans-serif;">
+      <p style="font-size: 10pt; line-height: 1.25; margin-top: 0; margin-bottom: 4pt; text-indent: 20pt; text-align: justify; font-family: Arial, sans-serif;">
         Demikian laporan pelaksanaan kegiatan ini dibuat sebagai bentuk pertanggungjawaban pelaksanaan tugas dan untuk dipergunakan sebagaimana mestinya.
       </p>
     `);
@@ -672,7 +673,7 @@ export async function generateReportPDF(
   let appendixHtml = '';
   if (appendixPhotos.length > 0) {
     appendixHtml = `
-      <p align="center" style="font-size: 13pt; font-weight: bold; margin-top: 42pt; margin-bottom: 6pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.15;">LAMPIRAN DOKUMENTASI</p>
+      <p align="center" style="font-size: 13pt; font-weight: bold; margin-top: 24pt; margin-bottom: 6pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.15;">LAMPIRAN DOKUMENTASI</p>
       
       ${appendixPhotos.map((foto, idx) => `
         <div style="margin-bottom: 14pt; text-align: center; page-break-inside: avoid;">
@@ -771,8 +772,8 @@ export async function generateReportPDF(
         ${narrativeHtml}
       </div>
 
-      <!-- BLOK TANDA TANGAN (SATU KESATUAN - GESER KE KANAN 60%/40%, SPASI NORMAL 24PT) -->
-      <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 24pt; page-break-inside: avoid;" border="0">
+      <!-- BLOK TANDA TANGAN (SATU KESATUAN - GESER KE KANAN 60%/40%, SPASI NORMAL 16PT) -->
+      <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 16pt; page-break-inside: avoid;" border="0">
         <tr style="page-break-inside: avoid;">
           <td style="width: 60%; border: none;"></td>
           <td style="width: 40%; border: none; font-size: 10pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.2; page-break-inside: avoid;">
@@ -958,8 +959,8 @@ export async function generateReportPDF(
             });
           }
 
-          // Poin Besar A.
-          if (/^A\.\s+/i.test(trimmed)) {
+          // Poin Besar A. (Strict case-sensitive: hanya huruf kapital A.)
+          if (/^A\.\s+[A-Z]/.test(trimmed)) {
             batchRequests.push({
               updateParagraphStyle: {
                 range: {
@@ -968,8 +969,8 @@ export async function generateReportPDF(
                 },
                 paragraphStyle: {
                   keepWithNext: true,
-                  spaceAbove: { magnitude: 10, unit: 'PT' },
-                  spaceBelow: { magnitude: 4, unit: 'PT' },
+                  spaceAbove: { magnitude: 8, unit: 'PT' },
+                  spaceBelow: { magnitude: 3, unit: 'PT' },
                 },
                 fields: 'keepWithNext,spaceAbove,spaceBelow',
               },
@@ -977,8 +978,8 @@ export async function generateReportPDF(
             continue;
           }
 
-          // Poin Besar B. Kegiatan Yang Dilaksanakan selalu mulai di halaman baru dengan jarak atas yang cukup banyak (42pt)
-          if (/^B\.\s+KEGIATAN\s+YANG\s+DILAKSANAKAN/i.test(trimmed) || /^B\.\s+/i.test(trimmed)) {
+          // Poin Besar B. Kegiatan Yang Dilaksanakan (Strict case-sensitive: hanya huruf kapital B.)
+          if (/^B\.\s+[A-Z]/.test(trimmed)) {
             batchRequests.push({
               updateParagraphStyle: {
                 range: {
@@ -986,10 +987,10 @@ export async function generateReportPDF(
                   endIndex: elem.endIndex,
                 },
                 paragraphStyle: {
-                  pageBreakBefore: true,
+                  pageBreakBefore: isP2K2, // HANYA P2K2 yang mulai di halaman baru karena tabel Kemensos yang besar!
                   keepWithNext: true,
-                  spaceAbove: { magnitude: 42, unit: 'PT' },
-                  spaceBelow: { magnitude: 4, unit: 'PT' },
+                  spaceAbove: { magnitude: 14, unit: 'PT' },
+                  spaceBelow: { magnitude: 3, unit: 'PT' },
                 },
                 fields: 'pageBreakBefore,keepWithNext,spaceAbove,spaceBelow',
               },
@@ -997,8 +998,8 @@ export async function generateReportPDF(
             continue;
           }
 
-          // Poin Besar C, D, E, dst. berikan jarak lega di atasnya (spaceAbove: 18pt) sesuai arahan user
-          if (/^[C-Z]\.\s+/i.test(trimmed)) {
+          // Poin Besar C, D, E, dst. (Strict case-sensitive: hanya huruf kapital C, D, E)
+          if (/^[C-E]\.\s+[A-Z]/.test(trimmed)) {
             batchRequests.push({
               updateParagraphStyle: {
                 range: {
@@ -1007,8 +1008,8 @@ export async function generateReportPDF(
                 },
                 paragraphStyle: {
                   keepWithNext: true,
-                  spaceAbove: { magnitude: 18, unit: 'PT' },
-                  spaceBelow: { magnitude: 4, unit: 'PT' },
+                  spaceAbove: { magnitude: 14, unit: 'PT' },
+                  spaceBelow: { magnitude: 3, unit: 'PT' },
                 },
                 fields: 'keepWithNext,spaceAbove,spaceBelow',
               },
@@ -1016,8 +1017,8 @@ export async function generateReportPDF(
             continue;
           }
 
-          // Sub-poin bernomor: 1. Gambaran Umum, 2. Pembahasan, dst.
-          if (/^\d+\.\s+/.test(trimmed)) {
+          // Sub-poin judul bernomor khusus: 1. Gambaran Umum, 2. Maksud dan Tujuan, Dasar
+          if (/^\d+\.\s+(?:Gambaran\s+Umum|Maksud\s+dan\s+Tujuan|Dasar)/i.test(trimmed)) {
             batchRequests.push({
               updateParagraphStyle: {
                 range: {
@@ -1026,7 +1027,7 @@ export async function generateReportPDF(
                 },
                 paragraphStyle: {
                   keepWithNext: true,
-                  spaceAbove: { magnitude: 6, unit: 'PT' },
+                  spaceAbove: { magnitude: 5, unit: 'PT' },
                   spaceBelow: { magnitude: 2, unit: 'PT' },
                 },
                 fields: 'keepWithNext,spaceAbove,spaceBelow',
@@ -1035,7 +1036,7 @@ export async function generateReportPDF(
             continue;
           }
 
-          // Kalimat penutup: berikan jarak lega sebelum blok tanda tangan (spaceBelow: 24pt)
+          // Kalimat penutup: berikan jarak proporsional sebelum blok tanda tangan (spaceBelow: 16pt)
           if (trimmed.toLowerCase().includes('demikian') || trimmed.toLowerCase().includes('sebagaimana mestinya')) {
             batchRequests.push({
               updateParagraphStyle: {
@@ -1044,17 +1045,16 @@ export async function generateReportPDF(
                   endIndex: elem.endIndex,
                 },
                 paragraphStyle: {
-                  keepWithNext: true,
                   spaceAbove: { magnitude: 2, unit: 'PT' },
-                  spaceBelow: { magnitude: 24, unit: 'PT' },
+                  spaceBelow: { magnitude: 16, unit: 'PT' },
                 },
-                fields: 'keepWithNext,spaceAbove,spaceBelow',
+                fields: 'spaceAbove,spaceBelow',
               },
             });
             continue;
           }
 
-          // Lampiran Dokumentasi: Mulai halaman baru dengan jarak atas yang cukup banyak (42pt)
+          // Lampiran Dokumentasi: Mulai halaman baru dengan jarak atas proporsional (24pt)
           if (trimmed.includes('LAMPIRAN DOKUMENTASI')) {
             inLampiranSection = true;
             batchRequests.push({
@@ -1065,7 +1065,7 @@ export async function generateReportPDF(
                 },
                 paragraphStyle: {
                   pageBreakBefore: true,
-                  spaceAbove: { magnitude: 42, unit: 'PT' },
+                  spaceAbove: { magnitude: 24, unit: 'PT' },
                   spaceBelow: { magnitude: 6, unit: 'PT' },
                   alignment: 'CENTER',
                   lineSpacing: 100,

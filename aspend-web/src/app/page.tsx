@@ -363,8 +363,18 @@ export default function Home() {
   const [generatedNarrative, setGeneratedNarrative] = useState('');
   const [extractedLocation, setExtractedLocation] = useState('');
   const [isGeneratingNarrative, setIsGeneratingNarrative] = useState(false);
+  const [narrativeProgress, setNarrativeProgress] = useState(5);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [previewPhotoModalUrl, setPreviewPhotoModalUrl] = useState<string | null>(null);
+
+  const getNarrativeProgressStatus = (percent: number) => {
+    if (percent >= 100) return 'Narasi laporan berhasil disusun!';
+    if (percent < 25) return 'Menganalisis data kegiatan...';
+    if (percent < 50) return 'Menyusun pendahuluan & maksud tujuan...';
+    if (percent < 75) return 'Memformulasikan uraian kegiatan...';
+    if (percent < 90) return 'Menyusun hasil & rencana tindak lanjut...';
+    return 'Menyelesaikan format narasi laporan...';
+  };
   
   // Riwayat Poin Google Sheets
   const [sheetRiwayatPoin, setSheetRiwayatPoin] = useState<{ idRhk: string; text: string; date?: string }[]>([]);
@@ -1357,7 +1367,24 @@ export default function Home() {
       }
     }
 
+    setNarrativeProgress(5);
     setIsGeneratingNarrative(true);
+
+    // Simulasi progress alami 5% s/d 96% (sesuai Aspend Mobile)
+    let currentProgress = 5;
+    const progressTimer = setInterval(() => {
+      if (currentProgress < 30) {
+        currentProgress += 2.5;
+      } else if (currentProgress < 65) {
+        currentProgress += 1.8;
+      } else if (currentProgress < 88) {
+        currentProgress += 1.2;
+      } else if (currentProgress < 96) {
+        currentProgress += 0.5;
+      }
+      setNarrativeProgress(Math.min(96, Math.round(currentProgress)));
+    }, 250);
+
     try {
       const isSupervisi = Boolean(
         profile?.jabatan &&
@@ -1426,22 +1453,28 @@ export default function Home() {
 
       const result = await safeJsonParse(res);
       if (res.ok && result.success) {
+        clearInterval(progressTimer);
+        setNarrativeProgress(100);
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        setIsGeneratingNarrative(false);
         setGeneratedNarrative(result.narrative);
         if (result.lokasi) {
           setExtractedLocation(result.lokasi);
         }
-        showToast('Draf narasi AI berhasil dibuat! Silakan tinjau dan edit di bawah.', 'success');
+        showToast('Narasi laporan berhasil disusun!', 'success');
         setTimeout(() => {
           const el = document.getElementById('narrative-editor-box');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }, 250);
       } else {
+        clearInterval(progressTimer);
+        setIsGeneratingNarrative(false);
         showToast(result.error || 'Gagal menghasilkan narasi AI.', 'error');
       }
     } catch (err: any) {
-      showToast(err.message || 'Terjadi kesalahan koneksi AI.', 'error');
-    } finally {
+      clearInterval(progressTimer);
       setIsGeneratingNarrative(false);
+      showToast(err.message || 'Terjadi kesalahan koneksi AI.', 'error');
     }
   };
 
@@ -2152,6 +2185,49 @@ export default function Home() {
               >
                 Kembali
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal Loading Animasi AI Generation (0% - 100%) ─── */}
+      {isGeneratingNarrative && (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 max-w-sm w-full mx-auto flex flex-col items-center text-center animate-scale-up">
+            {/* Animated AI Icon with Glowing Gradient */}
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 flex items-center justify-center shadow-lg shadow-amber-500/30 mb-4 relative">
+              <span className="material-symbols-outlined text-3xl text-white animate-pulse">
+                auto_awesome
+              </span>
+              <div className="absolute -inset-1 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 opacity-30 blur-md -z-10 animate-pulse"></div>
+            </div>
+
+            {/* Main Title */}
+            <h3 className="text-base font-bold text-gray-900 mb-1">
+              Menyusun Narasi Laporan
+            </h3>
+
+            {/* Dynamic Status Step */}
+            <p className="text-xs font-medium text-gray-500 min-h-[20px] mb-5">
+              {getNarrativeProgressStatus(narrativeProgress)}
+            </p>
+
+            {/* Progress Bar Container */}
+            <div className="w-full bg-gray-100 rounded-full h-3.5 overflow-hidden mb-3 p-0.5 shadow-inner">
+              <div
+                className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
+                style={{ width: `${narrativeProgress}%` }}
+              />
+            </div>
+
+            {/* Percentage info row */}
+            <div className="w-full flex items-center justify-between text-xs text-gray-400 px-1">
+              <span className="text-[11px]">
+                {narrativeProgress >= 100 ? 'Selesai!' : 'Harap tunggu sebentar...'}
+              </span>
+              <span className="font-bold text-amber-600 text-sm">
+                {narrativeProgress}%
+              </span>
             </div>
           </div>
         </div>
@@ -4379,10 +4455,18 @@ export default function Home() {
                   </div>
 
                   {isGeneratingNarrative ? (
-                    <div className="p-12 text-center flex flex-col items-center justify-center space-y-3">
-                      <div className="w-8 h-8 border-3 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-xs font-bold text-gray-700">Sedang menyusun laporan...</p>
-                      <p className="text-[10px] text-gray-400">Proses ini membutuhkan waktu beberapa detik untuk hasil yang optimal.</p>
+                    <div className="p-10 text-center flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 flex items-center justify-center shadow-md shadow-amber-500/20 mb-1">
+                        <span className="material-symbols-outlined text-2xl text-white animate-pulse">auto_awesome</span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-800">{getNarrativeProgressStatus(narrativeProgress)}</p>
+                      <div className="w-64 max-w-full bg-gray-100 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
+                        <div
+                          className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 h-full rounded-full transition-all duration-300 ease-out shadow-sm"
+                          style={{ width: `${narrativeProgress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-amber-600">{narrativeProgress}%</span>
                     </div>
                   ) : (
                     <textarea

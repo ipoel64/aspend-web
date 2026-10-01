@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_KEY_B64 = 'c2stb3ItdjEtMDMxMjU3NDI2NjQwYTM3NWEyYjExMDM3ZmQ0YWE1NWM4MjQ1ZTVlZjkxNzM1NzU5NjcyOWM3NThlOTZiYTI0Nw==';
 const OPENROUTER_DEFAULT_KEY = Buffer.from(DEFAULT_KEY_B64, 'base64').toString('utf-8');
-const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+const OPENROUTER_DEFAULT_MODEL = 'google/gemini-2.5-flash-lite';
 
 const NAMA_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const NAMA_BULAN = [
@@ -422,12 +422,12 @@ export async function POST(request: Request) {
     const geminiKey = process.env.GEMINI_API_KEY || '';
     const groqKey = process.env.GROQ_API_KEY || '';
 
-    // 1. Coba OpenRouter API dengan model deepseek/deepseek-v4-flash tanpa reasoning tokens (super cepat & murah)
+    // 1. Coba OpenRouter API dengan model Gemini 2.5 Flash-Lite tanpa reasoning tokens (super cepat & akurat)
     if (!generatedText && openRouterKey) {
       const routerModels = [
         OPENROUTER_DEFAULT_MODEL,
-        'deepseek/deepseek-chat',
-        'meta-llama/llama-3.3-70b-instruct',
+        'google/gemini-2.5-flash',
+        'google/gemini-2.0-flash-001',
       ];
       for (const rModel of routerModels) {
         try {
@@ -462,7 +462,7 @@ export async function POST(request: Request) {
 
     // 2. Fallback ke Google Gemini API jika OpenRouter gagal
     if (!generatedText && geminiKey) {
-      const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+      const geminiModels = ['gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'];
       for (const gModel of geminiModels) {
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${gModel}:generateContent?key=${geminiKey}`;
