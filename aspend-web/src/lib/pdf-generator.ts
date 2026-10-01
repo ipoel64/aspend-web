@@ -212,7 +212,7 @@ function generateP2K2TableHtml(
   reportData: { ReportId: string; Tanggal: string; JenisRHK: string; IdRHK: string; RencanaAksi: string; Pukul: string; Lokasi?: string; NarasiEdited?: string; NarasiAI?: string },
   validDate: Date,
   bLines: string[],
-  firstPhotoBase64?: string | null
+  firstPhoto?: LoadedDriveImage | null
 ): string {
   const isSupervisi = Boolean(
     p2k2?.isSupervisi ||
@@ -268,7 +268,7 @@ function generateP2K2TableHtml(
 
   const jamSelesai = p2k2?.jamSelesai || '15:30';
 
-  // Section A rows based on supervisi or normal
+  // Section A rows based on supervisi or normal (Rata Kiri)
   let sectionARows = '';
   if (isSupervisi) {
     const pendampingDisplay = `${p2k2?.namaPendamping || '-'}${p2k2?.nipPendamping ? ` (${p2k2.nipPendamping})` : ''}`;
@@ -280,49 +280,49 @@ function generateP2K2TableHtml(
 
     sectionARows = `
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pendamping</td>
-        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${pendampingDisplay}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Nama Pendamping</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${pendampingDisplay}</td>
       </tr>
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Ketua Tim (Katim)</td>
-        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${katimName}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Nama Ketua Tim (Katim)</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${katimName}</td>
       </tr>
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Desa/Kelurahan</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${desa}</td>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kecamatan</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${kec}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Desa/Kelurahan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${desa}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kecamatan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${kec}</td>
       </tr>
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kabupaten / Kota</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${kab}</td>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Provinsi</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${prov}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kabupaten / Kota</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${kab}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Provinsi</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${prov}</td>
       </tr>
     `;
   } else {
     sectionARows = `
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pendamping</td>
-        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.nama || '-'}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Nama Pendamping</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.nama || '-'}</td>
       </tr>
       <tr>
         <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: center;">SESUAI WILAYAH TUGAS</td>
       </tr>
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kecamatan</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.kecamatan || '-'}</td>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Kabupaten / Kota</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.kabupaten || '-'}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kecamatan</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.kecamatan || '-'}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kabupaten / Kota</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.kabupaten || '-'}</td>
       </tr>
       <tr>
-        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Provinsi</td>
-        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${userProfile.provinsi || '-'}</td>
+        <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Provinsi</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.provinsi || '-'}</td>
       </tr>
     `;
   }
 
-  // Format Rangkuman Kegiatan lines
+  // Format Rangkuman Kegiatan lines (Rata Kanan Kiri / Justified)
   let rangkumanHtml = '-';
   if (bLines && bLines.length > 0) {
     rangkumanHtml = bLines.map(line => {
@@ -330,20 +330,26 @@ function generateP2K2TableHtml(
       l = l.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
       const m = l.match(/^([a-z0-9][.)]|[-*•])\s+(.+)$/i);
       if (m) {
-        return `<table style="width: 100%; border-collapse: collapse; border: none; margin: 1pt 0 2pt 0;" border="0" cellpadding="0" cellspacing="0"><tr><td style="width: 14pt; vertical-align: top; border: none; padding: 0; font-size: 8.5pt; line-height: 1.2;">${m[1]}</td><td style="vertical-align: top; border: none; padding: 0; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${m[2]}</td></tr></table>`;
+        return `<p style="margin: 0 0 2pt 0; padding: 0; text-align: justify; font-size: 8.5pt; line-height: 1.25;"><span style="font-weight: bold;">${m[1]}</span> ${m[2]}</p>`;
       } else {
-        return `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
+        return `<p style="margin: 0 0 2.5pt 0; padding: 0; text-align: justify; font-size: 8.5pt; line-height: 1.25; text-indent: 14pt;">${l}</p>`;
       }
     }).join('');
   } else {
     const kelompokNama = p2k2?.namaKelompok ? `kelompok ${p2k2.namaKelompok}` : 'kelompok KPM dampingan';
-    rangkumanHtml = `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">Pertemuan Peningkatan Kemampuan Keluarga (P2K2) ${kelompokNama} dibuka pada ${tglFormatted}, pukul ${reportData.Pukul || '14:00'} - ${jamSelesai} WIB di ${tempatPelaksanaan}. Kegiatan diawali dengan perkenalan dan penjelasan mengenai pentingnya ${sesiDisplay}, yaitu ${modulDisplay}. Fasilitator memaparkan materi dengan interaktif, mendorong diskusi kelompok, dan mencatat pertanyaan-pertanyaan dari peserta. Antusiasme KPM terlihat dari banyaknya pertanyaan dan keinginan untuk berbagi pengalaman, menunjukkan keterlibatan aktif dalam pembelajaran.</div>`;
+    rangkumanHtml = `<p style="margin: 0 0 2.5pt 0; padding: 0; text-align: justify; font-size: 8.5pt; line-height: 1.25; text-indent: 14pt;">Pertemuan Peningkatan Kemampuan Keluarga (P2K2) ${kelompokNama} dibuka pada ${tglFormatted}, pukul ${reportData.Pukul || '14:00'} - ${jamSelesai} WIB di ${tempatPelaksanaan}. Kegiatan diawali dengan perkenalan dan penjelasan mengenai pentingnya ${sesiDisplay}, yaitu ${modulDisplay}. Fasilitator memaparkan materi dengan interaktif, mendorong diskusi kelompok, dan mencatat pertanyaan-pertanyaan dari peserta. Antusiasme KPM terlihat dari banyaknya pertanyaan dan keinginan untuk berbagi pengalaman, menunjukkan keterlibatan aktif dalam pembelajaran.</p>`;
   }
 
-  // Foto Kegiatan
-  const fotoHtml = firstPhotoBase64
-    ? `<div style="text-align: center; padding: 3pt 0;"><img src="${firstPhotoBase64}" style="max-width: 250pt; max-height: 175pt; object-fit: contain; display: inline-block; margin: 0 auto;" /></div>`
-    : `<span style="font-size: 8.5pt;">-</span>`;
+  // Foto Kegiatan (disesuaikan persis seperti Aspend Mobile: max width 240pt, max height 160pt, proporsional)
+  let fotoHtml = `<span style="font-size: 8.5pt;">-</span>`;
+  if (firstPhoto) {
+    const origW = firstPhoto.width || 420;
+    const origH = firstPhoto.height || 300;
+    const fitted = calculateFittedSize(origW, origH, 240, 160);
+    const fitW = Math.round(fitted.width);
+    const fitH = Math.round(fitted.height);
+    fotoHtml = `<div style="text-align: center; padding: 2pt 0; line-height: 1;"><img src="${firstPhoto.base64}" width="${fitW}" height="${fitH}" style="width: ${fitW}pt; height: ${fitH}pt; max-width: 240pt; max-height: 160pt; object-fit: contain; display: inline-block; margin: 0 auto;" /></div>`;
+  }
 
   return `
     <div style="text-align: center; margin-top: 10pt; margin-bottom: 6pt; font-family: Arial, sans-serif;">
@@ -356,73 +362,66 @@ function generateP2K2TableHtml(
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">A. INFORMASI UMUM</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">No. Laporan</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${docTitleNo}</td>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tanggal Pengisian</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglTtdFormatted}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">No. Laporan</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${docTitleNo}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Tanggal Pengisian</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${tglTtdFormatted}</td>
         </tr>
         ${sectionARows}
         <tr>
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">B. WAKTU PELAKSANAAN</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tanggal Kegiatan</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglFormatted}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Tanggal Kegiatan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${tglFormatted}</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Mulai</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${reportData.Pukul || '14:00'}</td>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Selesai</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${jamSelesai}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Jam Mulai</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${reportData.Pukul || '14:00'}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Jam Selesai</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${jamSelesai}</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tempat Pelaksanaan</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tempatPelaksanaan}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Tempat Pelaksanaan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${tempatPelaksanaan}</td>
         </tr>
         <tr>
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">C. PEMATERI</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Nama Pemateri</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${namaPemateri}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Nama Pemateri</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${namaPemateri}</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jabatan / Instansi</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${jabatanPemateri}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Jabatan / Instansi</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${jabatanPemateri}</td>
         </tr>
         <tr>
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">D. ISI MATERI</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Materi</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${sesiDisplay}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Materi</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${sesiDisplay}</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Modul</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${modulDisplay}</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Modul</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${modulDisplay}</td>
         </tr>
         <tr>
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">E. ISI KEGIATAN</td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">Jumlah Peserta Hadir</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">
-            <div style="font-size: 8.5pt; line-height: 1.25;">
-              <p style="font-weight: bold; margin: 0 0 2pt 0;">Total Dampingan : ${totalDampingan} orang</p>
-              <p style="margin: 0;">Hadir : ${hadir} orang</p>
-              <p style="margin: 0;">Sakit : ${sakit} orang</p>
-              <p style="margin: 0;">Alpa  : ${alpa} orang</p>
-            </div>
-          </td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top; text-align: left;">Jumlah Peserta Hadir</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top; text-align: left;"><p style="font-weight: bold; margin: 0 0 1.5pt 0; padding: 0; font-size: 8.5pt; line-height: 1.2; text-align: left;">Total Dampingan : ${totalDampingan} orang</p><p style="margin: 0 0 1.5pt 0; padding: 0; font-size: 8.5pt; line-height: 1.2; text-align: left;">Hadir : ${hadir} orang</p><p style="margin: 0 0 1.5pt 0; padding: 0; font-size: 8.5pt; line-height: 1.2; text-align: left;">Sakit : ${sakit} orang</p><p style="margin: 0; padding: 0; font-size: 8.5pt; line-height: 1.2; text-align: left;">Alpa  : ${alpa} orang</p></td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">Rangkuman Kegiatan</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top;">
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top; text-align: left;">Rangkuman Kegiatan</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: top; text-align: justify;">
             ${rangkumanHtml}
           </td>
         </tr>
         <tr>
-          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: middle;">Foto Kegiatan<br>(foto geotagging)</td>
+          <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: middle; text-align: left;">Foto Kegiatan<br>(foto geotagging)</td>
           <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; vertical-align: middle; text-align: center;">
             ${fotoHtml}
           </td>
@@ -452,6 +451,34 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
   let p2k2Inserted = false;
   let skippingSectionB = false;
 
+  // Buffer untuk mengelompokkan list item yang berurutan ke dalam SATU tabel
+  // Ini mencegah terjadinya spasi/gap kosong yang terlalu renggang antar poin
+  interface ListItem {
+    bullet: string;
+    content: string;
+  }
+  let currentListGroup: ListItem[] = [];
+
+  const flushListGroup = () => {
+    if (currentListGroup.length === 0) return;
+    const rows = currentListGroup.map(item => `
+      <tr>
+        <td style="width: 16pt; border: none; padding: 1pt 0; vertical-align: top;">&nbsp;</td>
+        <td style="width: 16pt; border: none; padding: 1pt 0; vertical-align: top; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000; text-align: left;">${item.bullet}</td>
+        <td style="border: none; padding: 1pt 0; vertical-align: top; text-align: justify; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000;">${item.content}</td>
+      </tr>
+    `).join('');
+
+    htmlParts.push(`
+      <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 1pt; margin-bottom: 3pt;" border="0" cellpadding="0" cellspacing="0">
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `);
+    currentListGroup = [];
+  };
+
   for (let i = 0; i < rawLines.length; i++) {
     let line = rawLines[i].trim();
     if (!line) continue;
@@ -476,6 +503,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     // 1. Section Header Utama: strictly A., B., C., D., E. (case-insensitive for title, optional colon)
     const sectionMatch = cleanNoHtml.match(/^([A-E])\.\s+([A-Za-z0-9\s\(\)\/\-,–—]+?):?$/);
     if (sectionMatch && sectionMatch[2].trim().length <= 70) {
+      flushListGroup();
       const letter = sectionMatch[1].toUpperCase();
       const title = sectionMatch[2].trim();
       const sectionText = `${letter}. ${title.toUpperCase()}`;
@@ -527,6 +555,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     // 2. Sub-heading bernomor dengan isi langsung (inline): "1. Gambaran Umum: [teks]"
     const numInlineMatch = line.match(/^(\d+\.\s+[^:\n]+?):\s*(.+)$/);
     if (numInlineMatch) {
+      flushListGroup();
       const subTitle = numInlineMatch[1].replace(/<\/?b>/g, '').trim();
       const bodyText = numInlineMatch[2].trim();
       htmlParts.push(`
@@ -540,6 +569,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     // 3. Sub-heading bernomor tanpa isi (header baris tersendiri): "1. Gambaran Umum"
     const numHeaderMatch = line.match(/^(\d+\.\s+(?:Gambaran\s+Umum|Maksud\s+dan\s+Tujuan|Dasar|Ruang\s+Lingkup|Umum|Sasaran)[^:]*):?$/i);
     if (numHeaderMatch) {
+      flushListGroup();
       const subTitle = numHeaderMatch[1].replace(/<\/?b>/g, '').replace(/:$/, '').trim();
       htmlParts.push(`
         <p style="font-size: 10pt; font-weight: bold; margin-top: 5pt; margin-bottom: 2pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
@@ -550,30 +580,26 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     }
 
     // 4. List item: huruf kecil (a., b., c.), angka (1., 2.), atau bullet (- / • / *)
-    // Gunakan borderless table agar alignment kalimat baris kedua dan seterusnya selalu rapi sejajar di bawah teks
-    const listMatch = line.match(/^([a-z0-9][.)]|[-*•])\s+(.+)$/);
+    // Kumpulkan dalam kelompok list agar dirender dalam 1 tabel bersama (rapat dan tidak renggang)
+    const listMatch = line.match(/^([a-z0-9][.)]|\([a-z0-9]\)|[-*•])\s+(.+)$/i);
     if (listMatch) {
       const bullet = listMatch[1];
       const itemContent = listMatch[2];
-      htmlParts.push(`
-        <table style="width: 100%; border-collapse: collapse; border: none; margin: 1pt 0 2.5pt 0;" border="0" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="width: 18pt; border: none; padding: 0; vertical-align: top;">&nbsp;</td>
-            <td style="width: 18pt; border: none; padding: 0; vertical-align: top; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000;">${bullet}</td>
-            <td style="border: none; padding: 0; vertical-align: top; text-align: justify; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000;">${itemContent}</td>
-          </tr>
-        </table>
-      `);
+      currentListGroup.push({ bullet, content: itemContent });
       continue;
     }
 
     // 5. Paragraf biasa (dibawah B, C, D, E, dsb.)
+    flushListGroup();
     htmlParts.push(`
       <p style="font-size: 10pt; line-height: 1.25; margin-top: 0; margin-bottom: 4pt; text-indent: 20pt; text-align: justify; font-family: Arial, sans-serif;">
         ${line}
       </p>
     `);
   }
+
+  // Flush sisa list item di akhir teks
+  flushListGroup();
 
   // Jika seksi C, D, E tidak ditemukan, pastikan tabel P2K2 tetap tersemat di bagian Seksi B
   if (isP2K2 && p2k2TableHtml && !p2k2Inserted) {
@@ -714,12 +740,12 @@ export async function generateReportPDF(
 
   const narrative = reportData.NarasiEdited || reportData.NarasiAI || '';
   const bLines = isP2K2 ? extractSectionBLines(narrative) : [];
-  const firstPhotoBase64 = isP2K2 && fotoList.length > 0 ? fotoList[0].base64 : null;
+  const firstPhoto = isP2K2 && fotoList.length > 0 ? fotoList[0] : null;
   const appendixPhotos = isP2K2 ? fotoList.slice(1) : fotoList;
 
   let p2k2TableHtml = '';
   if (isP2K2) {
-    p2k2TableHtml = generateP2K2TableHtml(parsedP2K2, userProfile, reportData, validDate, bLines, firstPhotoBase64);
+    p2k2TableHtml = generateP2K2TableHtml(parsedP2K2, userProfile, reportData, validDate, bLines, firstPhoto);
   }
 
   // 5. Format Narasi (dengan tabel P2K2 tersemat di Seksi B)
@@ -1183,81 +1209,218 @@ export async function generateReportPDF(
           }
         }
 
-        // 2. Tangani Tabel (Termasuk Tabel P2K2 dan Sel Tanda Tangan)
+        // 2. Tangani Tabel (Tabel P2K2, Tabel Tanda Tangan, Tabel List Poin, dan Tabel Metadata)
         if (elem.table?.tableRows) {
           const isP2K2 = isP2K2TableElem(elem);
           if (isP2K2) {
             justFinishedP2K2Table = true;
           }
 
-          for (const row of elem.table.tableRows) {
-            if (row.tableCells) {
-              for (const cell of row.tableCells) {
-                if (cell.content) {
-                  const cellText = cell.content
-                    .map(c => c.paragraph?.elements?.map(e => e.textRun?.content || '').join('') || '')
-                    .join(' ');
+          // A. Deteksi Tabel Tanda Tangan: tabel khusus di akhir dengan info NIP
+          const isSigTable = !isP2K2 && elem.table.tableRows.some((r: any) =>
+            r.tableCells?.some((c: any) => {
+              const text = (c.content?.map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '').join(' ') || '').toLowerCase();
+              return text.includes('nip.') && (
+                text.includes('penata layanan operasional') ||
+                text.includes('pendamping pkh') ||
+                text.includes('tksk') ||
+                text.includes('ketua tim') ||
+                text.includes('katim')
+              );
+            })
+          );
 
-                  const kabClean = (userProfile.kabupaten || 'Binjai').toLowerCase().trim();
-                  const namaClean = (userProfile.nama || '').toLowerCase().trim();
-                  const lowerCell = cellText.toLowerCase();
+          // B. Deteksi Tabel List Item (poin a., b., c., 1., 2.)
+          const isListTable = !isP2K2 && !isSigTable && elem.table.tableRows.some((r: any) => {
+            if (r.tableCells && r.tableCells.length === 3) {
+              const bullet = (r.tableCells[1]?.content?.map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '').join(' ') || '').trim();
+              return /^([a-z0-9][.)]|\([a-z0-9]\)|[-*•])$/i.test(bullet);
+            }
+            return false;
+          });
 
-                  const isSigCell =
-                    (kabClean && lowerCell.includes(kabClean)) ||
-                    lowerCell.includes('penata layanan operasional') ||
-                    lowerCell.includes('nip.') ||
-                    (namaClean && lowerCell.includes(namaClean));
+          // C. PEMROSESAN SESUAI TIPE TABEL
+          if (isP2K2) {
+            // TABEL P2K2 RESMI KEMENSOS
+            for (const row of elem.table.tableRows) {
+              if (!row.tableCells) continue;
 
-                  if (isSigCell) {
-                    const paragraphsInCell = cell.content.filter(
-                      c => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
-                    );
+              const firstCellText = (row.tableCells[0]?.content
+                ?.map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '')
+                .join(' ') || '').toLowerCase().trim();
 
-                    for (let pIdx = 0; pIdx < paragraphsInCell.length; pIdx++) {
-                      const pElem = paragraphsInCell[pIdx];
-                      const isLast = pIdx === paragraphsInCell.length - 1;
+              const isWilayahRow = firstCellText.includes('sesuai wilayah tugas');
+              const isRangkumanRow = firstCellText.includes('rangkuman kegiatan');
+              const isFotoRow = firstCellText.includes('foto kegiatan');
 
-                      batchRequests.push({
-                        updateParagraphStyle: {
-                          range: {
-                            startIndex: pElem.startIndex,
-                            endIndex: pElem.endIndex,
-                          },
-                          paragraphStyle: {
-                            keepWithNext: !isLast,
-                            keepLinesTogether: true,
-                            alignment: 'CENTER',
-                            spaceAbove: { magnitude: 1, unit: 'PT' },
-                            spaceBelow: { magnitude: 2, unit: 'PT' },
-                            lineSpacing: 100,
-                          },
-                          fields: 'keepWithNext,keepLinesTogether,alignment,spaceAbove,spaceBelow,lineSpacing',
+              for (let cIdx = 0; cIdx < row.tableCells.length; cIdx++) {
+                const cell = row.tableCells[cIdx];
+                if (!cell.content) continue;
+                const isFirstCell = cIdx === 0;
+
+                const paragraphsInCell = cell.content.filter(
+                  (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
+                );
+
+                for (const pElem of paragraphsInCell) {
+                  const pText = pElem.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('').trim() || '';
+                  const hasImage = Boolean(pElem.paragraph?.elements?.some((e: any) => e.inlineObjectElement));
+
+                  // Kolaps baris kosong tanpa gambar agar tidak ada baris renggang berlebih (misal di atas Total Dampingan)
+                  if (!pText && !hasImage) {
+                    batchRequests.push({
+                      updateParagraphStyle: {
+                        range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                        paragraphStyle: {
+                          spaceAbove: { magnitude: 0, unit: 'PT' },
+                          spaceBelow: { magnitude: 0, unit: 'PT' },
+                          lineSpacing: 100,
                         },
-                      });
-                    }
-                  } else if (isP2K2) {
-                    // Paragraf dalam sel tabel P2K2: RAPATKAN TINGGI BARIS (spaceAbove: 0, spaceBelow: 0, lineSpacing: 100)
-                    const paragraphsInCell = cell.content.filter(
-                      c => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
-                    );
-
-                    for (const pElem of paragraphsInCell) {
-                      batchRequests.push({
-                        updateParagraphStyle: {
-                          range: {
-                            startIndex: pElem.startIndex,
-                            endIndex: pElem.endIndex,
-                          },
-                          paragraphStyle: {
-                            spaceAbove: { magnitude: 0, unit: 'PT' },
-                            spaceBelow: { magnitude: 0, unit: 'PT' },
-                            lineSpacing: 100,
-                          },
-                          fields: 'spaceAbove,spaceBelow,lineSpacing',
-                        },
-                      });
-                    }
+                        fields: 'spaceAbove,spaceBelow,lineSpacing',
+                      },
+                    });
+                    continue;
                   }
+
+                  let alignment = 'START';
+                  let spaceBelow = 0;
+                  let lineSpacing = 100;
+
+                  if (isWilayahRow) {
+                    alignment = 'CENTER';
+                  } else if (isFotoRow) {
+                    alignment = isFirstCell ? 'START' : 'CENTER';
+                    spaceBelow = isFirstCell ? 0 : 2;
+                  } else if (isRangkumanRow) {
+                    alignment = isFirstCell ? 'START' : 'JUSTIFIED';
+                    spaceBelow = isFirstCell ? 0 : 2.5;
+                    lineSpacing = isFirstCell ? 100 : 115;
+                  } else {
+                    alignment = 'START';
+                    spaceBelow = 0;
+                    lineSpacing = 100;
+                  }
+
+                  batchRequests.push({
+                    updateParagraphStyle: {
+                      range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                      paragraphStyle: {
+                        alignment,
+                        spaceAbove: { magnitude: 0, unit: 'PT' },
+                        spaceBelow: { magnitude: spaceBelow, unit: 'PT' },
+                        lineSpacing,
+                      },
+                      fields: 'alignment,spaceAbove,spaceBelow,lineSpacing',
+                    },
+                  });
+                }
+              }
+            }
+          } else if (isSigTable) {
+            // TABEL TANDA TANGAN (Hanya format rata tengah pada sel NIP/tanda tangan)
+            for (const row of elem.table.tableRows) {
+              if (!row.tableCells) continue;
+              for (const cell of row.tableCells) {
+                if (!cell.content) continue;
+                const cellText = (cell.content
+                  .map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '')
+                  .join(' ') || '').toLowerCase();
+
+                if (cellText.includes('nip.')) {
+                  const paragraphsInCell = cell.content.filter(
+                    (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
+                  );
+                  for (let pIdx = 0; pIdx < paragraphsInCell.length; pIdx++) {
+                    const pElem = paragraphsInCell[pIdx];
+                    const isLast = pIdx === paragraphsInCell.length - 1;
+                    batchRequests.push({
+                      updateParagraphStyle: {
+                        range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                        paragraphStyle: {
+                          keepWithNext: !isLast,
+                          keepLinesTogether: true,
+                          alignment: 'CENTER',
+                          spaceAbove: { magnitude: 1, unit: 'PT' },
+                          spaceBelow: { magnitude: 2, unit: 'PT' },
+                          lineSpacing: 100,
+                        },
+                        fields: 'keepWithNext,keepLinesTogether,alignment,spaceAbove,spaceBelow,lineSpacing',
+                      },
+                    });
+                  }
+                }
+              }
+            }
+          } else if (isListTable) {
+            // TABEL DAFTAR POIN (a., b., c., 1., 2.) - Pastikan RATA KANAN KIRI (JUSTIFIED) & JARAK RAPAT
+            for (const row of elem.table.tableRows) {
+              if (!row.tableCells) continue;
+              for (let cIdx = 0; cIdx < row.tableCells.length; cIdx++) {
+                const cell = row.tableCells[cIdx];
+                if (!cell.content) continue;
+                const paragraphsInCell = cell.content.filter(
+                  (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
+                );
+
+                for (const pElem of paragraphsInCell) {
+                  const pText = pElem.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('').trim() || '';
+                  if (!pText) {
+                    batchRequests.push({
+                      updateParagraphStyle: {
+                        range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                        paragraphStyle: {
+                          spaceAbove: { magnitude: 0, unit: 'PT' },
+                          spaceBelow: { magnitude: 0, unit: 'PT' },
+                          lineSpacing: 100,
+                        },
+                        fields: 'spaceAbove,spaceBelow,lineSpacing',
+                      },
+                    });
+                    continue;
+                  }
+
+                  // Kolom 1 (bullet): START, Kolom 2 (isi kalimat): JUSTIFIED
+                  const alignment = cIdx === 1 ? 'START' : 'JUSTIFIED';
+                  batchRequests.push({
+                    updateParagraphStyle: {
+                      range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                      paragraphStyle: {
+                        alignment,
+                        spaceAbove: { magnitude: 0, unit: 'PT' },
+                        spaceBelow: { magnitude: 1.5, unit: 'PT' },
+                        lineSpacing: 115,
+                      },
+                      fields: 'alignment,spaceAbove,spaceBelow,lineSpacing',
+                    },
+                  });
+                }
+              }
+            }
+          } else {
+            // TABEL LAIN (Misal Tabel Rencana Aksi & Waktu di bagian atas)
+            for (const row of elem.table.tableRows) {
+              if (!row.tableCells) continue;
+              for (let cIdx = 0; cIdx < row.tableCells.length; cIdx++) {
+                const cell = row.tableCells[cIdx];
+                if (!cell.content) continue;
+                const paragraphsInCell = cell.content.filter(
+                  (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
+                );
+                for (const pElem of paragraphsInCell) {
+                  const pText = pElem.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('').trim() || '';
+                  const alignment = pText === ':' ? 'CENTER' : 'START';
+                  batchRequests.push({
+                    updateParagraphStyle: {
+                      range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                      paragraphStyle: {
+                        alignment,
+                        spaceAbove: { magnitude: 0, unit: 'PT' },
+                        spaceBelow: { magnitude: 1.5, unit: 'PT' },
+                        lineSpacing: 115,
+                      },
+                      fields: 'alignment,spaceAbove,spaceBelow,lineSpacing',
+                    },
+                  });
                 }
               }
             }
