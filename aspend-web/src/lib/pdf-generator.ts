@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
+import { MASTER_P2K2_DATA, isP2K2 as isP2K2Rhk } from './master-rhk';
 
 /**
  * Mendapatkan dimensi asli (width & height) dari buffer gambar (PNG / JPEG)
@@ -178,15 +179,15 @@ function extractSectionBLines(narrative: string): string[] {
   const lines = narrative.split('\n');
   const bLines: string[] = [];
   let capturingB = false;
-  // Strict uppercase section headers only: A., B., C., D., E. (case-sensitive)
-  const subHeaderRegExp = /^(?:<b>|\*\*)?([A-E]\.)\s+([A-Z0-9\s\(\)\/\-,]+)(?:<\/b>|\*\*)?$/;
 
   for (const l of lines) {
     const t = l.trim();
-    const match = t.match(subHeaderRegExp);
-    if (match) {
-      const letter = match[1];
-      if (letter === 'B.') {
+    if (!t) continue;
+    const clean = t.replace(/<[^>]+>/g, '').replace(/[*_#]/g, '').trim();
+    const match = clean.match(/^([A-E])\.\s+([A-Za-z0-9\s\(\)\/\-,–—]+?):?$/);
+    if (match && match[2].trim().length <= 70) {
+      const letter = match[1].toUpperCase();
+      if (letter === 'B') {
         capturingB = true;
         continue;
       } else if (capturingB) {
@@ -208,7 +209,7 @@ function extractSectionBLines(narrative: string): string[] {
 function generateP2K2TableHtml(
   p2k2: any,
   userProfile: { nama: string; nip: string; jabatan: string; kabupaten: string; provinsi?: string; kecamatan?: string },
-  reportData: { ReportId: string; Tanggal: string; JenisRHK: string; IdRHK: string; RencanaAksi: string; Pukul: string; Lokasi?: string },
+  reportData: { ReportId: string; Tanggal: string; JenisRHK: string; IdRHK: string; RencanaAksi: string; Pukul: string; Lokasi?: string; NarasiEdited?: string; NarasiAI?: string },
   validDate: Date,
   bLines: string[],
   firstPhotoBase64?: string | null
@@ -221,8 +222,9 @@ function generateP2K2TableHtml(
 
   const rawDateStr = reportData.Tanggal ? reportData.Tanggal.replace(/-/g, '') : '';
   const cleanTime = (reportData.Pukul || '00.00').replace(':', '.');
-  const docTitleNo = `${rawDateStr} - ${cleanTime} - ${reportData.IdRHK || 'RHK-P2K2'} - ${(reportData.RencanaAksi || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim()}`;
+  const docTitleNo = `${rawDateStr} - ${cleanTime} - ${reportData.IdRHK || 'RHK-2'} - ${(reportData.RencanaAksi || '').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim()}`;
   const tglFormatted = formatTanggalIndonesia(validDate);
+  const tglTtdFormatted = formatTanggalTtd(validDate);
 
   const namaPemateri = (p2k2?.isPemateriDiriSendiri || !p2k2?.namaPemateri?.trim())
     ? (userProfile.nama || '-')
@@ -235,9 +237,36 @@ function generateP2K2TableHtml(
   const hadir = parseInt(p2k2?.jumlahHadir ?? p2k2?.hadir ?? 0, 10) || 0;
   const sakit = parseInt(p2k2?.jumlahSakit ?? p2k2?.sakit ?? 0, 10) || 0;
   const alpa = parseInt(p2k2?.jumlahAlpa ?? p2k2?.alpa ?? 0, 10) || 0;
-  const totalDampingan = hadir + sakit + alpa;
+  let totalDampingan = hadir + sakit + alpa;
+  if (totalDampingan === 0 && (p2k2?.totalDampingan || p2k2?.jumlahKPM)) {
+    totalDampingan = parseInt(p2k2.totalDampingan || p2k2.jumlahKPM, 10) || 0;
+  }
 
-  const tempatPelaksanaan = p2k2?.tempatPelaksanaan || reportData.Lokasi || '-';
+  // Modul & Sesi fallback detection jika belum terisi
+  let modulDisplay = p2k2?.modul || '';
+  let sesiDisplay = p2k2?.sesi || '';
+
+  if (!modulDisplay || !sesiDisplay) {
+    const fullNarasi = `${reportData.RencanaAksi || ''} ${reportData.NarasiEdited || reportData.NarasiAI || ''}`;
+    for (const item of MASTER_P2K2_DATA) {
+      if (!modulDisplay && fullNarasi.toLowerCase().includes(item.modul.toLowerCase())) {
+        modulDisplay = item.modul;
+      }
+      if (!sesiDisplay && fullNarasi.toLowerCase().includes(item.sesi.toLowerCase())) {
+        sesiDisplay = item.sesi;
+      }
+    }
+  }
+
+  if (!modulDisplay) modulDisplay = 'MODUL PENDIDIKAN DAN PENGASUHAN';
+  if (!sesiDisplay) sesiDisplay = 'Sesi 1 : Menjadi Orang Tua yang Lebih Baik';
+
+  let tempatPelaksanaan = p2k2?.tempatPelaksanaan || reportData.Lokasi || '';
+  if (!tempatPelaksanaan) {
+    tempatPelaksanaan = userProfile.kecamatan ? `Kecamatan ${userProfile.kecamatan}` : '-';
+  }
+
+  const jamSelesai = p2k2?.jamSelesai || '15:30';
 
   // Section A rows based on supervisi or normal
   let sectionARows = '';
@@ -299,14 +328,16 @@ function generateP2K2TableHtml(
     rangkumanHtml = bLines.map(line => {
       let l = line.trim();
       l = l.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-      if (/^\d+\.\s+/.test(l)) {
-        return `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
-      } else if (/^[-•]\s+/.test(l) || /^[a-z]\.\s+/i.test(l)) {
-        return `<div style="margin-bottom: 2pt; padding-left: 10pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
+      const m = l.match(/^([a-z0-9][.)]|[-*•])\s+(.+)$/i);
+      if (m) {
+        return `<table style="width: 100%; border-collapse: collapse; border: none; margin: 1pt 0 2pt 0;" border="0" cellpadding="0" cellspacing="0"><tr><td style="width: 14pt; vertical-align: top; border: none; padding: 0; font-size: 8.5pt; line-height: 1.2;">${m[1]}</td><td style="vertical-align: top; border: none; padding: 0; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${m[2]}</td></tr></table>`;
       } else {
         return `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">${l}</div>`;
       }
     }).join('');
+  } else {
+    const kelompokNama = p2k2?.namaKelompok ? `kelompok ${p2k2.namaKelompok}` : 'kelompok KPM dampingan';
+    rangkumanHtml = `<div style="margin-bottom: 2pt; text-align: justify; font-size: 8.5pt; line-height: 1.2;">Pertemuan Peningkatan Kemampuan Keluarga (P2K2) ${kelompokNama} dibuka pada ${tglFormatted}, pukul ${reportData.Pukul || '14:00'} - ${jamSelesai} WIB di ${tempatPelaksanaan}. Kegiatan diawali dengan perkenalan dan penjelasan mengenai pentingnya ${sesiDisplay}, yaitu ${modulDisplay}. Fasilitator memaparkan materi dengan interaktif, mendorong diskusi kelompok, dan mencatat pertanyaan-pertanyaan dari peserta. Antusiasme KPM terlihat dari banyaknya pertanyaan dan keinginan untuk berbagi pengalaman, menunjukkan keterlibatan aktif dalam pembelajaran.</div>`;
   }
 
   // Foto Kegiatan
@@ -328,7 +359,7 @@ function generateP2K2TableHtml(
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">No. Laporan</td>
           <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${docTitleNo}</td>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tanggal Pengisian</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglFormatted}</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${tglTtdFormatted}</td>
         </tr>
         ${sectionARows}
         <tr>
@@ -340,9 +371,9 @@ function generateP2K2TableHtml(
         </tr>
         <tr>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Mulai</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${reportData.Pukul || '-'}</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${reportData.Pukul || '14:00'}</td>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Jam Selesai</td>
-          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.jamSelesai || '-'}</td>
+          <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${jamSelesai}</td>
         </tr>
         <tr>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Tempat Pelaksanaan</td>
@@ -364,11 +395,11 @@ function generateP2K2TableHtml(
         </tr>
         <tr>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Materi</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.sesi || '-'}</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${sesiDisplay}</td>
         </tr>
         <tr>
           <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">Modul</td>
-          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${p2k2?.modul || '-'}</td>
+          <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt;">${modulDisplay}</td>
         </tr>
         <tr>
           <td colspan="4" style="background-color: #E8E8E8; font-weight: bold; font-size: 9pt; padding: 2.5pt 5pt; border: 1px solid #000000; text-align: left;">E. ISI KEGIATAN</td>
@@ -442,12 +473,12 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     // Bersihkan HTML tag untuk deteksi judul seksi utama
     const cleanNoHtml = line.replace(/<[^>]+>/g, '').replace(/[*_#]/g, '').trim();
 
-    // 1. Section Header Utama: strictly A., B., C., D., E. dengan judul huruf kapital (CASE-SENSITIVE)
-    const sectionMatch = cleanNoHtml.match(/^([A-E])\.\s+([A-Z0-9\s\(\)\/\-,]+)$/);
-    if (sectionMatch) {
-      const letter = sectionMatch[1];
+    // 1. Section Header Utama: strictly A., B., C., D., E. (case-insensitive for title, optional colon)
+    const sectionMatch = cleanNoHtml.match(/^([A-E])\.\s+([A-Za-z0-9\s\(\)\/\-,–—]+?):?$/);
+    if (sectionMatch && sectionMatch[2].trim().length <= 70) {
+      const letter = sectionMatch[1].toUpperCase();
       const title = sectionMatch[2].trim();
-      const sectionText = `${letter}. ${title}`;
+      const sectionText = `${letter}. ${title.toUpperCase()}`;
       const isSectionB = letter === 'B';
 
       if (isP2K2 && isSectionB) {
@@ -469,7 +500,12 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
       }
 
       // Khusus jika P2K2 table belum tersemat: letakkan sebelum C, D, E
-      if (p2k2TableHtml && !p2k2Inserted && ['C', 'D', 'E'].includes(letter)) {
+      if (isP2K2 && p2k2TableHtml && !p2k2Inserted && ['C', 'D', 'E'].includes(letter)) {
+        htmlParts.push(`
+          <p style="font-size: 10.5pt; font-weight: bold; margin-top: 14pt; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
+            B. KEGIATAN YANG DILAKSANAKAN
+          </p>
+        `);
         htmlParts.push(p2k2TableHtml);
         p2k2Inserted = true;
       }
@@ -502,7 +538,7 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     }
 
     // 3. Sub-heading bernomor tanpa isi (header baris tersendiri): "1. Gambaran Umum"
-    const numHeaderMatch = line.match(/^(\d+\.\s+(?:Gambaran\s+Umum|Maksud\s+dan\s+Tujuan|Dasar|Ruang\s+Lingkup)[^:]*):?$/i);
+    const numHeaderMatch = line.match(/^(\d+\.\s+(?:Gambaran\s+Umum|Maksud\s+dan\s+Tujuan|Dasar|Ruang\s+Lingkup|Umum|Sasaran)[^:]*):?$/i);
     if (numHeaderMatch) {
       const subTitle = numHeaderMatch[1].replace(/<\/?b>/g, '').replace(/:$/, '').trim();
       htmlParts.push(`
@@ -514,14 +550,19 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     }
 
     // 4. List item: huruf kecil (a., b., c.), angka (1., 2.), atau bullet (- / • / *)
+    // Gunakan borderless table agar alignment kalimat baris kedua dan seterusnya selalu rapi sejajar di bawah teks
     const listMatch = line.match(/^([a-z0-9][.)]|[-*•])\s+(.+)$/);
     if (listMatch) {
       const bullet = listMatch[1];
       const itemContent = listMatch[2];
       htmlParts.push(`
-        <p style="font-size: 10pt; line-height: 1.25; margin-top: 0; margin-bottom: 3pt; padding-left: 20pt; text-indent: -14pt; text-align: justify; font-family: Arial, sans-serif; font-weight: normal;">
-          ${bullet} ${itemContent}
-        </p>
+        <table style="width: 100%; border-collapse: collapse; border: none; margin: 1pt 0 2.5pt 0;" border="0" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width: 18pt; border: none; padding: 0; vertical-align: top;">&nbsp;</td>
+            <td style="width: 18pt; border: none; padding: 0; vertical-align: top; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000;">${bullet}</td>
+            <td style="border: none; padding: 0; vertical-align: top; text-align: justify; font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.25; color: #000000;">${itemContent}</td>
+          </tr>
+        </table>
       `);
       continue;
     }
@@ -534,8 +575,13 @@ function formatNarrativeHtml(narrative: string, p2k2TableHtml?: string, isP2K2 =
     `);
   }
 
-  // Jika seksi C, D, E tidak ditemukan, pastikan tabel P2K2 tetap tersemat di bagian akhir
-  if (p2k2TableHtml && !p2k2Inserted) {
+  // Jika seksi C, D, E tidak ditemukan, pastikan tabel P2K2 tetap tersemat di bagian Seksi B
+  if (isP2K2 && p2k2TableHtml && !p2k2Inserted) {
+    htmlParts.push(`
+      <p style="font-size: 10.5pt; font-weight: bold; margin-top: 14pt; margin-bottom: 4pt; text-align: left; font-family: Arial, sans-serif; line-height: 1.2;">
+        B. KEGIATAN YANG DILAKSANAKAN
+      </p>
+    `);
     htmlParts.push(p2k2TableHtml);
     p2k2Inserted = true;
   }
@@ -647,14 +693,24 @@ export async function generateReportPDF(
     }
   }
 
+  const idUpper = (reportData.IdRHK || '').toUpperCase();
+  const jenisUpper = (reportData.JenisRHK || '').toUpperCase();
+  const aksiUpper = (reportData.RencanaAksi || '').toUpperCase();
+
   const isP2K2 = Boolean(
-    parsedP2K2 &&
-    (parsedP2K2.modul ||
-     parsedP2K2.Modul ||
-     parsedP2K2.sesi ||
-     parsedP2K2.Sesi ||
-     (reportData.RencanaAksi && reportData.RencanaAksi.toLowerCase().includes('p2k2')))
+    idUpper.includes('RHK-2') ||
+    idUpper === '2' ||
+    jenisUpper.includes('P2K2') ||
+    aksiUpper.includes('P2K2') ||
+    aksiUpper.includes('PENINGKATAN KEMAMPUAN KELUARGA') ||
+    isP2K2Rhk(reportData.JenisRHK || '') ||
+    isP2K2Rhk(reportData.IdRHK || '') ||
+    (parsedP2K2 && (parsedP2K2.modul || parsedP2K2.Modul || parsedP2K2.sesi || parsedP2K2.Sesi || parsedP2K2.namaKelompok))
   );
+
+  if (isP2K2 && (!parsedP2K2 || typeof parsedP2K2 !== 'object')) {
+    parsedP2K2 = {};
+  }
 
   const narrative = reportData.NarasiEdited || reportData.NarasiAI || '';
   const bLines = isP2K2 ? extractSectionBLines(narrative) : [];

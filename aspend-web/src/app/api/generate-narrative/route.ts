@@ -352,6 +352,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       jenisRHK,
+      idRHK,
       rencanaAksi,
       tanggal,
       pukul,
@@ -369,7 +370,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Data laporan belum lengkap.' }, { status: 400 });
     }
 
-    const checkP2K2 = isP2K2(jenisRHK);
+    const checkP2K2 = isP2K2(idRHK || '') || isP2K2(jenisRHK || '') || isP2K2(rencanaAksi || '') || Boolean(p2k2Data && (p2k2Data.modul || p2k2Data.sesi || p2k2Data.namaKelompok));
     const isSupervisi = p2k2Data?.isSupervisi || rencanaAksi?.toLowerCase().includes('supervisi pelaksanaan p2k2');
 
     let prompt = '';

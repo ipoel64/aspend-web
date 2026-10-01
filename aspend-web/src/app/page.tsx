@@ -1135,7 +1135,8 @@ export default function Home() {
           rencanaAksi: editForm.rencanaAksi,
           poinKegiatan: editForm.poinKegiatan,
           narasiEdited: editForm.narasiEdited,
-          fotoIds: finalFotoIds
+          fotoIds: finalFotoIds,
+          p2k2Data: editingReport.P2K2Data
         })
       });
       const result = await safeJsonParse(res);
@@ -1405,7 +1406,7 @@ export default function Home() {
         ? (profile?.jabatan || 'Pendamping PKH')
         : createForm.p2k2JabatanPemateri;
 
-      const isCurrentRhkP2K2 = isP2K2(createForm.jenisRHK, profile?.jenisSdm);
+      const isCurrentRhkP2K2 = isP2K2(createForm.idRHK, profile?.jenisSdm) || isP2K2(createForm.jenisRHK, profile?.jenisSdm) || isP2K2(createForm.rencanaAksi, profile?.jenisSdm);
 
       const p2k2Data = isCurrentRhkP2K2 ? {
         modul: createForm.p2k2Modul,
@@ -1527,7 +1528,7 @@ export default function Home() {
       }
 
       // 2. Data P2K2 jika relevan
-      const isCurrentRhkP2K2 = isP2K2(createForm.jenisRHK, profile?.jenisSdm);
+      const isCurrentRhkP2K2 = isP2K2(createForm.idRHK, profile?.jenisSdm) || isP2K2(createForm.jenisRHK, profile?.jenisSdm) || isP2K2(createForm.rencanaAksi, profile?.jenisSdm);
       const isSupervisi = Boolean(
         profile?.jabatan &&
         (profile.jabatan === 'Katim Kab/Kota' || profile.jabatan === 'Katim Provinsi') &&
@@ -3800,11 +3801,15 @@ export default function Home() {
                         const match = rhkList.find(r => r.jenis === val);
                         const rhkId = match?.id || '';
                         const rencanaList = match?.rencanaList || [];
+                        const isP2K2Selected = isP2K2(rhkId, profile?.jenisSdm) || isP2K2(val, profile?.jenisSdm);
                         setCreateForm(prev => ({
                           ...prev,
                           jenisRHK: val,
                           idRHK: rhkId,
-                          rencanaAksi: rencanaList[0] || ''
+                          rencanaAksi: rencanaList[0] || '',
+                          p2k2Modul: isP2K2Selected ? (prev.p2k2Modul || 'MODUL PENDIDIKAN DAN PENGASUHAN') : prev.p2k2Modul,
+                          p2k2Sesi: isP2K2Selected ? (prev.p2k2Sesi || 'Sesi 1 : Menjadi Orang Tua yang Lebih Baik') : prev.p2k2Sesi,
+                          p2k2JamSelesai: isP2K2Selected ? (prev.p2k2JamSelesai || '15:30') : prev.p2k2JamSelesai,
                         }));
                         loadPoinHistoryForRhk(rhkId, val);
                       }}
@@ -3916,7 +3921,7 @@ export default function Home() {
               </div>
 
               {/* KARTU 2: KHUSUS RHK-2 (P2K2) */}
-              {isP2K2(createForm.jenisRHK, profile?.jenisSdm) && (
+              {(isP2K2(createForm.idRHK, profile?.jenisSdm) || isP2K2(createForm.jenisRHK, profile?.jenisSdm) || isP2K2(createForm.rencanaAksi, profile?.jenisSdm)) && (
                 <div className="bg-gradient-to-br from-amber-50/60 via-amber-50/30 to-white rounded-2xl shadow-sm border-2 border-amber-300/80 p-6 animate-scale-up space-y-4">
                   <div className="flex items-center gap-2.5 pb-3 border-b border-amber-200">
                     <span className="p-1.5 bg-amber-500 text-white rounded-lg material-symbols-outlined text-lg">school</span>
@@ -4326,13 +4331,13 @@ export default function Home() {
                     {/* Nama Kelompok */}
                     <div>
                       <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
-                        Nama Kelompok <span className="text-rose-500">*</span>
+                        Nama Kelompok <span className="text-gray-400 font-normal lowercase">(opsional)</span>
                       </label>
                       <input
                         type="text"
                         value={createForm.p2k2Kelompok}
                         onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Kelompok: e.target.value }))}
-                        placeholder="Contoh: Kelompok Mawar 1 / Harapan Mulia"
+                        placeholder="Contoh: Kelompok Mawar 1 / Harapan Mulia (Opsional)"
                         className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                       />
                     </div>
@@ -4340,13 +4345,13 @@ export default function Home() {
                     {/* Ketua Kelompok */}
                     <div>
                       <label className="text-[11px] font-bold uppercase text-amber-900 block mb-1">
-                        Ketua Kelompok <span className="text-rose-500">*</span>
+                        Ketua Kelompok <span className="text-gray-400 font-normal lowercase">(opsional)</span>
                       </label>
                       <input
                         type="text"
                         value={createForm.p2k2Ketua}
                         onChange={(e) => setCreateForm(prev => ({ ...prev, p2k2Ketua: e.target.value }))}
-                        placeholder="Nama lengkap ketua kelompok"
+                        placeholder="Nama lengkap ketua kelompok (Opsional)"
                         className="w-full text-xs font-medium border border-amber-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                       />
                     </div>
