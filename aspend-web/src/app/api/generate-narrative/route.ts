@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { isP2K2 } from '@/lib/master-rhk';
+import { capitalizeEachWord } from '@/lib/format-utils';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -48,17 +49,20 @@ function buildReportPrompt(params: {
   jabatanPetugas?: string;
 }): string {
   const { formattedTanggal, tanggalLengkap } = formatTanggalLengkap(params.tanggal);
-  const lokasiText = params.lokasi?.trim() ? `- Lokasi Kegiatan: ${params.lokasi.trim()}` : '';
-  const wilayahKec = params.kecamatan?.trim() || '';
-  const wilayahKab = params.kabupatenKota?.trim() || '';
-  const wilayahProv = params.provinsi?.trim() || '';
+  const lokasiText = params.lokasi?.trim() ? `- Lokasi Kegiatan: ${capitalizeEachWord(params.lokasi.trim())}` : '';
+  const rawWilayahKec = capitalizeEachWord(params.kecamatan);
+  const wilayahKec = rawWilayahKec !== '-' ? rawWilayahKec : '';
+  const rawWilayahKab = capitalizeEachWord(params.kabupatenKota);
+  const wilayahKab = rawWilayahKab !== '-' ? rawWilayahKab : '';
+  const rawWilayahProv = capitalizeEachWord(params.provinsi);
+  const wilayahProv = rawWilayahProv !== '-' ? rawWilayahProv : '';
   const nama = params.namaPetugas?.trim() || '';
   const jabatan = params.jabatanPetugas?.trim() || 'Pendamping Sosial';
 
   const wilayahParts = [];
   if (wilayahKec) wilayahParts.push(`Kecamatan ${wilayahKec}`);
-  if (wilayahKab) wilayahParts.push(`Kabupaten/Kota ${wilayahKab}`);
-  if (wilayahProv) wilayahParts.push(`Provinsi ${wilayahProv}`);
+  if (wilayahKab) wilayahParts.push(wilayahKab.toLowerCase().startsWith('kab') || wilayahKab.toLowerCase().startsWith('kota') ? wilayahKab : `Kabupaten/Kota ${wilayahKab}`);
+  if (wilayahProv) wilayahParts.push(wilayahProv.toLowerCase().startsWith('prov') ? wilayahProv : `Provinsi ${wilayahProv}`);
   const wilayahStr = wilayahParts.join(' ');
 
   return `Anda adalah asisten cerdas yang bertugas membuat narasi Laporan Rencana Hasil Kerja (RHK) resmi untuk pegawai Kementerian Sosial RI.
@@ -135,9 +139,12 @@ function buildP2K2ReportPrompt(params: {
   const { formattedTanggal, tanggalLengkap } = formatTanggalLengkap(params.tanggal);
   const d = params.p2k2Data || {};
 
-  const wilayahKec = params.kecamatan?.trim() || '';
-  const wilayahKab = params.kabupatenKota?.trim() || '';
-  const wilayahProv = params.provinsi?.trim() || '';
+  const rawWilayahKec = capitalizeEachWord(params.kecamatan);
+  const wilayahKec = rawWilayahKec !== '-' ? rawWilayahKec : '';
+  const rawWilayahKab = capitalizeEachWord(params.kabupatenKota);
+  const wilayahKab = rawWilayahKab !== '-' ? rawWilayahKab : '';
+  const rawWilayahProv = capitalizeEachWord(params.provinsi);
+  const wilayahProv = rawWilayahProv !== '-' ? rawWilayahProv : '';
   const nama = params.namaPetugas?.trim() || '';
   const jabatan = params.jabatanPetugas?.trim() || 'Pendamping PKH';
 
@@ -149,9 +156,9 @@ function buildP2K2ReportPrompt(params: {
     : d.jabatanPemateri.trim();
 
   const jamSelesaiStr = d.jamSelesai?.trim() || 'selesai';
-  const tempatStr = d.tempatPelaksanaan?.trim() || 'Lokasi Kelompok';
-  const kelompokStr = d.namaKelompok?.trim() || 'Kelompok KPM';
-  const ketuaStr = d.ketuaKelompok?.trim() || '-';
+  const tempatStr = d.tempatPelaksanaan?.trim() ? capitalizeEachWord(d.tempatPelaksanaan.trim()) : 'Lokasi Kelompok';
+  const kelompokStr = d.namaKelompok?.trim() ? capitalizeEachWord(d.namaKelompok.trim()) : 'Kelompok KPM';
+  const ketuaStr = d.ketuaKelompok?.trim() ? capitalizeEachWord(d.ketuaKelompok.trim()) : '-';
   const hadir = d.jumlahHadir || '0';
   const sakit = d.jumlahSakit || '0';
   const alpa = d.jumlahAlpa || '0';
@@ -247,10 +254,14 @@ function buildP2K2SupervisiReportPrompt(params: {
   const { formattedTanggal, tanggalLengkap } = formatTanggalLengkap(params.tanggal);
   const d = params.p2k2Data || {};
 
-  const wilayahKab = d.kabupatenKota?.trim() || params.kabupatenKota?.trim() || '';
-  const wilayahProv = d.provinsi?.trim() || params.provinsi?.trim() || '';
-  const wilayahKec = d.kecamatan?.trim() || params.kecamatan?.trim() || '';
-  const wilayahDesa = d.desaKelurahan?.trim() || '';
+  const rawWilayahKab = capitalizeEachWord(d.kabupatenKota?.trim() || params.kabupatenKota?.trim() || '');
+  const wilayahKab = rawWilayahKab !== '-' ? rawWilayahKab : '';
+  const rawWilayahProv = capitalizeEachWord(d.provinsi?.trim() || params.provinsi?.trim() || '');
+  const wilayahProv = rawWilayahProv !== '-' ? rawWilayahProv : '';
+  const rawWilayahKec = capitalizeEachWord(d.kecamatan?.trim() || params.kecamatan?.trim() || '');
+  const wilayahKec = rawWilayahKec !== '-' ? rawWilayahKec : '';
+  const rawWilayahDesa = capitalizeEachWord(d.desaKelurahan?.trim() || '');
+  const wilayahDesa = rawWilayahDesa !== '-' ? rawWilayahDesa : '';
 
   const namaKatim = d.namaKetuaTim?.trim() || params.namaPetugas?.trim() || 'Ketua Tim';
   const jabatanKatim = params.jabatanPetugas?.trim() || 'Ketua Tim';
@@ -259,9 +270,9 @@ function buildP2K2SupervisiReportPrompt(params: {
   const nipPendamping = d.nipPendamping?.trim() ? ` (NIP: ${d.nipPendamping.trim()})` : '';
 
   const jamSelesaiStr = d.jamSelesai?.trim() || 'selesai';
-  const tempatStr = d.tempatPelaksanaan?.trim() || 'Lokasi Kegiatan';
-  const kelompokStr = d.namaKelompok?.trim() || 'Kelompok KPM';
-  const ketuaStr = d.ketuaKelompok?.trim() || '-';
+  const tempatStr = d.tempatPelaksanaan?.trim() ? capitalizeEachWord(d.tempatPelaksanaan.trim()) : 'Lokasi Kegiatan';
+  const kelompokStr = d.namaKelompok?.trim() ? capitalizeEachWord(d.namaKelompok.trim()) : 'Kelompok KPM';
+  const ketuaStr = d.ketuaKelompok?.trim() ? capitalizeEachWord(d.ketuaKelompok.trim()) : '-';
   const hadir = d.jumlahHadir || '0';
   const sakit = d.jumlahSakit || '0';
   const alpa = d.jumlahAlpa || '0';

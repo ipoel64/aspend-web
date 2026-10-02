@@ -4,6 +4,7 @@ import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 import { MASTER_P2K2_DATA, isP2K2 as isP2K2Rhk } from './master-rhk';
+import { capitalizeEachWord } from './format-utils';
 
 /**
  * Mendapatkan dimensi asli (width & height) dari buffer gambar (PNG / JPEG)
@@ -263,7 +264,9 @@ function generateP2K2TableHtml(
 
   let tempatPelaksanaan = p2k2?.tempatPelaksanaan || reportData.Lokasi || '';
   if (!tempatPelaksanaan) {
-    tempatPelaksanaan = userProfile.kecamatan ? `Kecamatan ${userProfile.kecamatan}` : '-';
+    tempatPelaksanaan = userProfile.kecamatan ? `Kecamatan ${capitalizeEachWord(userProfile.kecamatan)}` : '-';
+  } else {
+    tempatPelaksanaan = capitalizeEachWord(tempatPelaksanaan);
   }
 
   const jamSelesai = p2k2?.jamSelesai || '15:30';
@@ -273,10 +276,10 @@ function generateP2K2TableHtml(
   if (isSupervisi) {
     const pendampingDisplay = `${p2k2?.namaPendamping || '-'}${p2k2?.nipPendamping ? ` (${p2k2.nipPendamping})` : ''}`;
     const katimName = p2k2?.namaKetuaTim || userProfile.nama || '-';
-    const desa = p2k2?.desaKelurahan || '-';
-    const kec = p2k2?.kecamatan || userProfile.kecamatan || '-';
-    const kab = p2k2?.kabupatenKota || userProfile.kabupaten || '-';
-    const prov = p2k2?.provinsi || userProfile.provinsi || '-';
+    const desa = capitalizeEachWord(p2k2?.desaKelurahan);
+    const kec = capitalizeEachWord(p2k2?.kecamatan || userProfile.kecamatan);
+    const kab = capitalizeEachWord(p2k2?.kabupatenKota || userProfile.kabupaten);
+    const prov = capitalizeEachWord(p2k2?.provinsi || userProfile.provinsi);
 
     sectionARows = `
       <tr>
@@ -301,6 +304,10 @@ function generateP2K2TableHtml(
       </tr>
     `;
   } else {
+    const kec = capitalizeEachWord(userProfile.kecamatan);
+    const kab = capitalizeEachWord(userProfile.kabupaten);
+    const prov = capitalizeEachWord(userProfile.provinsi);
+
     sectionARows = `
       <tr>
         <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Nama Pendamping</td>
@@ -311,13 +318,13 @@ function generateP2K2TableHtml(
       </tr>
       <tr>
         <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kecamatan</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.kecamatan || '-'}</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${kec}</td>
         <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Kabupaten / Kota</td>
-        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.kabupaten || '-'}</td>
+        <td style="width: 25%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${kab}</td>
       </tr>
       <tr>
         <td style="width: 25%; font-weight: bold; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">Provinsi</td>
-        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${userProfile.provinsi || '-'}</td>
+        <td colspan="3" style="width: 75%; padding: 2.5pt 5pt; border: 1px solid #000000; font-size: 8.5pt; text-align: left;">${prov}</td>
       </tr>
     `;
   }
@@ -859,7 +866,7 @@ export async function generateReportPDF(
         <tr style="page-break-inside: avoid;">
           <td style="width: 60%; border: none;"></td>
           <td style="width: 40%; border: none; font-size: 10pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.2; page-break-inside: avoid;">
-            <p align="center" style="margin: 0; font-size: 10pt; line-height: 1.2; text-align: center;">${userProfile.kabupaten || 'Binjai'}, ${formatTanggalTtd(validDate)}</p>
+            <p align="center" style="margin: 0; font-size: 10pt; line-height: 1.2; text-align: center;">${capitalizeEachWord(userProfile.kabupaten || 'Binjai')}, ${formatTanggalTtd(validDate)}</p>
             <p align="center" style="margin: 2pt 0 0 0; font-size: 10pt; line-height: 1.2; text-align: center;">${userProfile.jabatan || 'Penata Layanan Operasional'}</p>
             
             <div style="height: 48pt; margin: 3pt 0; text-align: center;">

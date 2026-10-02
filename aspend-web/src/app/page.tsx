@@ -13,6 +13,7 @@ import {
   getUniqueModulP2K2, 
   getSesiByModul 
 } from "@/lib/master-rhk";
+import { capitalizeEachWord } from "@/lib/format-utils";
 import * as XLSX from "xlsx";
 import KpmTableView from "@/components/kpm/KpmTableView";
 import KpmDashboardView from "@/components/kpm/KpmDashboardView";
@@ -485,6 +486,15 @@ export default function Home() {
     }
   }, [profile, fetchSdmPkhList]);
 
+  // Muat data SDM PKH otomatis jika pengguna memilih Katim pada profil
+  useEffect(() => {
+    if (profileForm.jenisSdm === 'SDM PKH' && (profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi')) {
+      if (sdmPkhList.length === 0) {
+        fetchSdmPkhList();
+      }
+    }
+  }, [profileForm.jenisSdm, profileForm.jabatan, sdmPkhList.length, fetchSdmPkhList]);
+
   // Load regencies if province selected
   useEffect(() => {
     if (profile?.provinsi && provincesList.length > 0) {
@@ -577,9 +587,9 @@ export default function Home() {
           nip: profileForm.nip.trim(),
           jenisSdm: profileForm.jenisSdm,
           jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
-          provinsi: profileForm.provinsi.trim(),
-          kabupaten: profileForm.kabupaten.trim(),
-          kecamatan: profileForm.kecamatan.trim(),
+          provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
+          kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
+          kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
         })
       });
       const result = await safeJsonParse(res);
@@ -591,9 +601,9 @@ export default function Home() {
           nip: profileForm.nip.trim(),
           jenisSdm: profileForm.jenisSdm,
           jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
-          provinsi: profileForm.provinsi.trim(),
-          kabupaten: profileForm.kabupaten.trim(),
-          kecamatan: profileForm.kecamatan.trim(),
+          provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
+          kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
+          kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
         } : null);
         if (profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi') {
           fetchSdmPkhList();
@@ -666,8 +676,9 @@ export default function Home() {
   const downloadTemplateSdmPkh = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['Nama SDM', 'NIP'],
-      ['Budi Santoso', '198501012020121001'],
-      ['Siti Rahma', '199002022020122002'],
+      ['Ahmad Fauzi, S.Sos', '199001012022031001'],
+      ['Siti Rahmawati, S.Tr.Sos', '199205122023022005'],
+      ['Budi Santoso, S.Kom', '198808152021021003'],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'SDM_PKH');
@@ -678,25 +689,67 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      showToast('Membaca file Excel...', 'info');
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const workbook = XLSX.read(data, { cellDates: true });
+      const sheetName = workbook.SheetNames.find(n => n.toUpperCase().includes('SDM')) || workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+
+      if (!json || json.length < 2) {
+        showToast('File Excel tidak berisi data.', 'error');
+        return;
+      }
+
+      // Deteksi indeks kolom Nama dan NIP dari baris header (baris 0)
+      const headerRow = (json[0] || []).map((c: any) => String(c || '').trim().toLowerCase());
+      let namaColIdx = -1;
+      let nipColIdx = -1;
+
+      for (let c = 0; c < headerRow.length; c++) {
+        const h = headerRow[c];
+        if (h.includes('nama') || h.includes('sdm') || h.includes('pendamping')) {
+          if (namaColIdx === -1) namaColIdx = c;
+        } else if (h.includes('nip') || h.includes('identitas') || h.includes('nik')) {
+          if (nipColIdx === -1) nipColIdx = c;
+        }
+      }
+
+      // Fallback jika tidak terdeteksi via nama header
+      if (namaColIdx === -1) {
+        namaColIdx = headerRow.length >= 3 ? 1 : 0;
+      }
+      if (nipColIdx === -1) {
+        nipColIdx = headerRow.length >= 3 ? 2 : 1;
+      }
+
       const items = [];
       for (let i = 1; i < json.length; i++) {
         const row = json[i];
-        if (row && row[0]) {
-          items.push({
-            nama: String(row[0]).trim(),
-            nip: row[1] ? String(row[1]).trim() : ''
-          });
-        }
+        if (!row || row.length === 0) continue;
+
+        const rawNama = row[namaColIdx] != null ? String(row[namaColIdx]).trim() : '';
+        const rawNip = row[nipColIdx] != null ? String(row[nipColIdx]).trim() : '';
+
+        // Abaikan baris kosong atau jika baris berisi salinan header
+        const lower = rawNama.toLowerCase();
+        if (!rawNama || lower === 'nama' || lower === 'nama sdm' || lower === 'no') continue;
+
+        // Bersihkan NIP dari notasi eksponensial ilmiah atau desimal
+        const cleanNip = rawNip.replace(/\.0+$/, '').replace(/[^0-9]/g, '');
+
+        items.push({
+          nama: rawNama,
+          nip: cleanNip || rawNip
+        });
       }
+
       if (items.length === 0) {
-        showToast('Tidak ada data yang ditemukan di file Excel.', 'error');
+        showToast('Tidak ada data nama SDM yang valid di file Excel.', 'error');
         return;
       }
+
+      showToast(`Mengimpor ${items.length} data ke Google Sheets...`, 'info');
       const res = await fetch('/api/sdm-pkh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -707,9 +760,10 @@ export default function Home() {
         showToast(result.message || 'Data SDM PKH berhasil diimpor!', 'success');
         fetchSdmPkhList();
       } else {
-        showToast(result.error || 'Gagal mengimpor data.', 'error');
+        showToast(result.error || 'Gagal mengimpor data ke Google Sheets.', 'error');
       }
     } catch (err: any) {
+      console.error('Import error:', err);
       showToast(err.message || 'Gagal membaca file Excel.', 'error');
     } finally {
       e.target.value = '';
@@ -1426,10 +1480,10 @@ export default function Home() {
         namaKetuaTim: createForm.p2k2NamaKetuaTim || profile?.nama || '',
         namaPendamping: createForm.p2k2NamaPendamping,
         nipPendamping: createForm.p2k2NipPendamping,
-        desaKelurahan: createForm.p2k2DesaKelurahan,
-        kecamatan: createForm.p2k2Kecamatan || profile?.kecamatan || '',
-        kabupatenKota: createForm.p2k2Kabupaten || profile?.kabupaten || '',
-        provinsi: createForm.p2k2Provinsi || profile?.provinsi || ''
+        desaKelurahan: capitalizeEachWord(createForm.p2k2DesaKelurahan),
+        kecamatan: capitalizeEachWord(createForm.p2k2Kecamatan || profile?.kecamatan || ''),
+        kabupatenKota: capitalizeEachWord(createForm.p2k2Kabupaten || profile?.kabupaten || ''),
+        provinsi: capitalizeEachWord(createForm.p2k2Provinsi || profile?.provinsi || '')
       } : null;
 
       const res = await fetch('/api/generate-narrative', {
@@ -1442,9 +1496,9 @@ export default function Home() {
           tanggal: createForm.tanggal,
           pukul: createForm.pukul,
           lokasi: isCurrentRhkP2K2 ? createForm.p2k2TempatPelaksanaan : createForm.lokasi,
-          kecamatan: profile?.kecamatan || '',
-          kabupatenKota: profile?.kabupaten || '',
-          provinsi: profile?.provinsi || '',
+          kecamatan: capitalizeEachWord(profile?.kecamatan || ''),
+          kabupatenKota: capitalizeEachWord(profile?.kabupaten || ''),
+          provinsi: capitalizeEachWord(profile?.provinsi || ''),
           namaPetugas: profile?.nama || '',
           jabatanPetugas: profile?.jabatan || '',
           poinKegiatan: createForm.poinKegiatan,
@@ -1566,10 +1620,10 @@ export default function Home() {
         namaKetuaTim: createForm.p2k2NamaKetuaTim || profile?.nama || '',
         namaPendamping: createForm.p2k2NamaPendamping,
         nipPendamping: createForm.p2k2NipPendamping,
-        desaKelurahan: createForm.p2k2DesaKelurahan,
-        kecamatan: createForm.p2k2Kecamatan || profile?.kecamatan || '',
-        kabupatenKota: createForm.p2k2Kabupaten || profile?.kabupaten || '',
-        provinsi: createForm.p2k2Provinsi || profile?.provinsi || ''
+        desaKelurahan: capitalizeEachWord(createForm.p2k2DesaKelurahan),
+        kecamatan: capitalizeEachWord(createForm.p2k2Kecamatan || profile?.kecamatan || ''),
+        kabupatenKota: capitalizeEachWord(createForm.p2k2Kabupaten || profile?.kabupaten || ''),
+        provinsi: capitalizeEachWord(createForm.p2k2Provinsi || profile?.provinsi || '')
       } : null;
 
       // 3. Simpan laporan & Buat PDF resmi di Google Drive folder RHK-agent_Output
@@ -3624,8 +3678,8 @@ export default function Home() {
                   </form>
                 </div>
 
-                {/* Manajemen SDM PKH Dampingan (khusus Katim) */}
-                {(profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi' || profile?.jabatan === 'Katim Kab/Kota' || profile?.jabatan === 'Katim Provinsi') && (
+                {/* Manajemen SDM PKH Dampingan (Hanya muncul jika Jabatan: Katim Kab/Kota atau Katim Provinsi) */}
+                {(profileForm.jenisSdm === 'SDM PKH' && (profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi')) && (
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-100">
                       <div className="flex items-center gap-2.5">

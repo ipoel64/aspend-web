@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { findAspendSpreadsheet, getDriveClient } from '@/lib/google-drive';
 import { getSheetData, deleteSheetRow, updateSheetRow, appendSheetData } from '@/lib/google-sheets';
 import { generateReportPDF } from '@/lib/pdf-generator';
+import { capitalizeEachWord } from '@/lib/format-utils';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -184,9 +185,9 @@ export async function PUT(request: Request) {
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
           jabatan,
-          kabupaten: matchedRow[4] || '',
-          provinsi: matchedRow[9] || '',
-          kecamatan: matchedRow[10] || '',
+          kabupaten: capitalizeEachWord(matchedRow[4] || ''),
+          provinsi: capitalizeEachWord(matchedRow[9] || ''),
+          kecamatan: capitalizeEachWord(matchedRow[10] || ''),
           jenisSdm,
           photoFileId: matchedRow[6] ? extractDriveId(matchedRow[6]) : '',
           signatureFileId: matchedRow[5] ? extractDriveId(matchedRow[5]) : ''
@@ -389,9 +390,9 @@ export async function POST(request: Request) {
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
           jabatan,
-          kabupaten: matchedRow[4] || '',
-          provinsi: matchedRow[9] || '',
-          kecamatan: matchedRow[10] || '',
+          kabupaten: capitalizeEachWord(matchedRow[4] || ''),
+          provinsi: capitalizeEachWord(matchedRow[9] || ''),
+          kecamatan: capitalizeEachWord(matchedRow[10] || ''),
           jenisSdm,
           photoFileId: matchedRow[6] ? extractDriveId(matchedRow[6]) : '',
           signatureFileId: matchedRow[5] ? extractDriveId(matchedRow[5]) : ''

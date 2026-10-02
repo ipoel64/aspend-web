@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { capitalizeEachWord } from '@/lib/format-utils';
 
 // In-memory cache untuk performa tinggi & hemat bandwidth
 const cache: Record<string, { timestamp: number; data: any[] }> = {};
@@ -8,21 +9,21 @@ const BASE_URL = 'https://emsifa.github.io/api-wilayah-indonesia/api';
 
 // Fallback data standar (Sumatera Utara / Binjai / Langkat / Medan) jika offline atau rate-limit
 const DEFAULT_PROVINCES = [
-  { id: '11', name: 'ACEH' },
-  { id: '12', name: 'SUMATERA UTARA' },
-  { id: '13', name: 'SUMATERA BARAT' },
-  { id: '14', name: 'RIAU' },
-  { id: '15', name: 'JAMBI' },
-  { id: '16', name: 'SUMATERA SELATAN' },
-  { id: '17', name: 'BENGKULU' },
-  { id: '18', name: 'LAMPUNG' },
-  { id: '31', name: 'DKI JAKARTA' },
-  { id: '32', name: 'JAWA BARAT' },
-  { id: '33', name: 'JAWA TENGAH' },
-  { id: '34', name: 'DI YOGYAKARTA' },
-  { id: '35', name: 'JAWA TIMUR' },
-  { id: '36', name: 'BANTEN' },
-  { id: '51', name: 'BALI' },
+  { id: '11', name: 'Aceh' },
+  { id: '12', name: 'Sumatera Utara' },
+  { id: '13', name: 'Sumatera Barat' },
+  { id: '14', name: 'Riau' },
+  { id: '15', name: 'Jambi' },
+  { id: '16', name: 'Sumatera Selatan' },
+  { id: '17', name: 'Bengkulu' },
+  { id: '18', name: 'Lampung' },
+  { id: '31', name: 'DKI Jakarta' },
+  { id: '32', name: 'Jawa Barat' },
+  { id: '33', name: 'Jawa Tengah' },
+  { id: '34', name: 'DI Yogyakarta' },
+  { id: '35', name: 'Jawa Timur' },
+  { id: '36', name: 'Banten' },
+  { id: '51', name: 'Bali' },
 ];
 
 export async function GET(request: Request) {
@@ -64,7 +65,13 @@ export async function GET(request: Request) {
       if (!response.ok) {
         throw new Error(`HTTP error ${response.status}`);
       }
-      const data = await response.json();
+      const rawData = await response.json();
+      const data = Array.isArray(rawData)
+        ? rawData.map(item => ({
+            ...item,
+            name: capitalizeEachWord(item.name)
+          }))
+        : rawData;
       cache[cacheKey] = { timestamp: now, data };
       return NextResponse.json({ data });
     } catch (fetchError) {
