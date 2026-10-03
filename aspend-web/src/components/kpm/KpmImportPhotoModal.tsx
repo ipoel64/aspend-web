@@ -521,11 +521,11 @@ export default function KpmImportPhotoModal({
                   {/* Summary Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100">
-                      <div className="text-xs text-gray-500">KPM Terdaftar</div>
+                      <div className="text-xs text-gray-500">KPM ASPEND Cocok</div>
                       <div className="text-lg font-extrabold text-emerald-700">
                         {analysisResult.matchedKpmCount}
                       </div>
-                      <div className="text-[10px] text-emerald-600">Ada di database ASPEND</div>
+                      <div className="text-[10px] text-emerald-600">Sesuai No. KK di ASPEND</div>
                     </div>
 
                     <div className="p-3 rounded-2xl bg-cyan-50 border border-cyan-100">
@@ -544,16 +544,55 @@ export default function KpmImportPhotoModal({
                       <div className="text-[10px] text-teal-600">Tampak Dalam</div>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-100">
-                      <div className="text-xs text-gray-500">KPM Belum Terdaftar</div>
-                      <div className="text-lg font-extrabold text-amber-700">
-                        {analysisResult.unmatchedKpmCount}
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="text-xs text-gray-500">
+                        {sourceType === 'drive' ? 'File Terbaca di Drive' : 'File Terbaca di ZIP'}
                       </div>
-                      <div className="text-[10px] text-amber-600">Tidak ada di ASPEND</div>
+                      <div className={`text-lg font-extrabold ${analysisResult.driveFilesCount > 0 || sourceType === 'zip' ? 'text-indigo-700' : 'text-rose-600'}`}>
+                        {sourceType === 'drive' ? analysisResult.driveFilesCount : (zipFile ? 'File ZIP Terpilih' : 'Foto Terpilih')}
+                      </div>
+                      <div className="text-[10px] text-gray-500">
+                        {sourceType === 'drive' ? (analysisResult.driveFilesCount === 0 ? '0 file (Akses Google Dibatasi)' : 'File siap disalin') : 'Siap diekstrak'}
+                      </div>
                     </div>
                   </div>
 
-                  {analysisResult.driveScanError && (
+                  {/* Callout jika pembacaan Drive menghasilkan 0 file karena izin Google */}
+                  {sourceType === 'drive' && analysisResult.driveFilesCount === 0 && (
+                    <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-amber-950 space-y-2.5 animate-in fade-in duration-200">
+                      <div className="flex items-center gap-2 font-bold text-xs text-amber-900">
+                        <span className="material-symbols-outlined text-base text-amber-600">verified</span>
+                        <span>No. KK Berhasil Dicocokkan ({analysisResult.matchedKpmCount} KPM Terdaftar di ASPEND Cocok)!</span>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        Data No. KK (NKK) Anda <strong>100% cocok dengan {analysisResult.matchedKpmCount} KPM</strong> di database ASPEND. Namun, isi folder Google Drive foto lama terbaca <strong>0 file</strong> karena Google membatasi akses listing file lintas akun.
+                      </p>
+                      <div className="p-3 bg-white/80 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-2">
+                        <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                          <span className="material-symbols-outlined text-sm text-emerald-600">lightbulb</span>
+                          Solusi Cepat &amp; Pasti Berhasil (1 Menit):
+                        </div>
+                        <ol className="list-decimal pl-4 space-y-1 text-[11px] text-gray-700">
+                          <li>Buka folder <strong>RUMAH_Images</strong> di Google Drive Anda.</li>
+                          <li>Klik panah di samping nama folder &gt; pilih <strong>Download</strong> (Google Drive akan otomatis mengunduh file <strong>.zip</strong>).</li>
+                          <li>Beralih ke tab <strong>"Unggah File ZIP / Foto dari Komputer"</strong> di atas, masukkan file ZIP tersebut.</li>
+                          <li>Klik tombol <strong>Analisis</strong>, maka seluruh foto R_LUAR dan R_DALAM akan langsung cocok 100%!</li>
+                        </ol>
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setSourceType('zip'); handleReset(); }}
+                            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined text-sm">folder_zip</span>
+                            Beralih ke Tab Unggah ZIP Sekarang
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {analysisResult.driveScanError && analysisResult.driveFilesCount > 0 && (
                     <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
                       <span className="material-symbols-outlined text-sm shrink-0">warning</span>
                       <span>Peringatan Google Drive: {analysisResult.driveScanError}</span>

@@ -230,12 +230,17 @@ export async function POST(request: Request) {
     // Read current ASPEND Keluarga & Aset
     const rawKeluarga = await getSheetData(accessToken, aspendSpreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`).catch(() => []);
     const aspendKeluargaMap = new Map<string, { rowIndex: number; data: KpmKeluarga }>();
+    const aspendKeluargaByNameMap = new Map<string, { rowIndex: number; data: KpmKeluarga }>();
     rawKeluarga.forEach((r, i) => {
       if (r && r.length > 0) {
         const k = parseKeluargaRow(r);
         const cKK = cleanDigits(k.NoKK);
         if (cKK && !aspendKeluargaMap.has(cKK)) {
           aspendKeluargaMap.set(cKK, { rowIndex: i + 2, data: k });
+        }
+        const cNama = (k.NamaPengurus || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cNama && !aspendKeluargaByNameMap.has(cNama)) {
+          aspendKeluargaByNameMap.set(cNama, { rowIndex: i + 2, data: k });
         }
       }
     });
@@ -330,6 +335,9 @@ export async function POST(request: Request) {
               drivePrefixMap.set(prefix, f);
             }
           });
+          if (files.length === 0) {
+            driveScanError = 'Folder Google Drive terhubung namun terbaca 0 file. Hal ini biasanya terjadi karena folder dibuat oleh akun Google yang berbeda atau pembatasan izin privasi Google Drive API. Disarankan menggunakan Tab 2 (Unggah File ZIP Foto) untuk proses instan.';
+          }
         } catch (err: any) {
           driveScanError = err.message || 'Gagal memindai folder Google Drive.';
           console.warn('Drive folder scan error:', err);
@@ -343,12 +351,18 @@ export async function POST(request: Request) {
       let rDalamMatchCount = 0;
 
       const previewList = parsedRows.map((row) => {
-        const aspendKpm = aspendKeluargaMap.get(row.noKK);
+        let aspendKpm = aspendKeluargaMap.get(row.noKK);
+        if (!aspendKpm && row.pengurus) {
+          const normPengurus = row.pengurus.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          aspendKpm = aspendKeluargaByNameMap.get(normPengurus);
+        }
         const isKpmExists = !!aspendKpm;
+        const effectiveNoKK = aspendKpm ? aspendKpm.data.NoKK : row.noKK;
+
         if (isKpmExists) matchedKpmCount++;
         else unmatchedKpmCount++;
 
-        const aspendAset = aspendAsetMap.get(row.noKK);
+        const aspendAset = aspendAsetMap.get(effectiveNoKK) || aspendAsetMap.get(row.noKK);
 
         // Match R_LUAR file in Drive folder if scanned
         let rLuarFoundFile: { id: string; name: string } | null = null;

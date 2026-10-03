@@ -141,6 +141,25 @@ export async function listFilesInFolder(accessToken: string, folderId: string): 
   const files: Array<{ id: string; name: string; mimeType: string }> = [];
   let pageToken: string | undefined = undefined;
 
+  // 1. Cek izin akses folder terlebih dahulu
+  try {
+    await drive.files.get({
+      fileId: folderId,
+      fields: 'id, name',
+      supportsAllDrives: true,
+    });
+  } catch (err: any) {
+    const msg = err?.response?.data?.error?.message || err?.message || '';
+    if (err.status === 404 || msg.toLowerCase().includes('not found')) {
+      throw new Error('Folder Google Drive tidak ditemukan (404). Pastikan ID/Link folder benar dan folder telah dibagikan.');
+    }
+    if (err.status === 403 || msg.toLowerCase().includes('insufficient') || msg.toLowerCase().includes('permission')) {
+      throw new Error('Izin akses folder ditolak (403). Akun Google saat ini belum memiliki izin melihat isi folder tersebut. Pastikan folder dibagikan langsung ke email akun ini, atau gunakan Tab 2 (Unggah ZIP).');
+    }
+    throw new Error(`Gagal mengakses folder Google Drive: ${msg}`);
+  }
+
+  // 2. Query file di dalam folder
   do {
     const res: any = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
