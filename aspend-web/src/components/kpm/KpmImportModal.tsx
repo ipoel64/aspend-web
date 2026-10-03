@@ -7,6 +7,7 @@ interface KpmImportModalProps {
   onClose: () => void;
   onSuccess: () => void;
   onNavigateHome?: () => void;
+  onOpenImportPhoto?: () => void;
 }
 
 type ImportTarget = 'keluarga' | 'anggota' | 'aset';
@@ -30,6 +31,7 @@ export default function KpmImportModal({
   onClose,
   onSuccess,
   onNavigateHome,
+  onOpenImportPhoto,
 }: KpmImportModalProps) {
   const [target, setTarget] = useState<ImportTarget>('keluarga');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -284,6 +286,32 @@ export default function KpmImportModal({
           <>
             {/* Content Body */}
             <div className="p-6 space-y-4 text-xs text-gray-700 max-h-[80vh] overflow-y-auto">
+          
+          {/* Banner Khusus Impor / Migrasi Foto Rumah KPM */}
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <span className="material-symbols-outlined text-lg">add_photo_alternate</span>
+              </div>
+              <div>
+                <div className="font-bold text-emerald-950 text-xs">Punya Foto Rumah KPM di Google Drive Lama?</div>
+                <div className="text-[11px] text-emerald-800 leading-tight">
+                  Gunakan fitur migrasi foto otomatis untuk menyalin & menghubungkan foto dari Google Drive / ZIP ke profil KPM.
+                </div>
+              </div>
+            </div>
+            {onOpenImportPhoto && (
+              <button
+                type="button"
+                onClick={onOpenImportPhoto}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shrink-0 transition-all shadow-xs cursor-pointer flex items-center gap-1"
+              >
+                <span>Impor Foto</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
+            )}
+          </div>
+
           {/* Step 1: Pilih Target Data */}
           <div>
             <label className="font-bold text-gray-900 block mb-1.5">1. Pilih Kategori Data yang Akan Diimpor:</label>

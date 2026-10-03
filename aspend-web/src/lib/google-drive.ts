@@ -132,3 +132,106 @@ export async function uploadFileToDrive(accessToken: string, fileName: string, m
 
   return file.data;
 }
+
+/**
+ * Mendaftar semua file di dalam folder Google Drive tertentu
+ */
+export async function listFilesInFolder(accessToken: string, folderId: string): Promise<Array<{ id: string; name: string; mimeType: string }>> {
+  const drive = await getDriveClient(accessToken);
+  const files: Array<{ id: string; name: string; mimeType: string }> = [];
+  let pageToken: string | undefined = undefined;
+
+  do {
+    const res: any = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'nextPageToken, files(id, name, mimeType)',
+      pageSize: 1000,
+      pageToken: pageToken,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
+
+    if (res.data.files) {
+      for (const f of res.data.files) {
+        if (f.id && f.name) {
+          files.push({ id: f.id, name: f.name, mimeType: f.mimeType || 'image/jpeg' });
+        }
+      }
+    }
+    pageToken = res.data.nextPageToken;
+  } while (pageToken);
+
+  return files;
+}
+
+/**
+ * Menyalin file dari satu lokasi Drive ke folder target
+ */
+export async function copyFileInDrive(
+  accessToken: string,
+  fileId: string,
+  newFileName: string,
+  targetFolderId?: string
+) {
+  const drive = await getDriveClient(accessToken);
+  const requestBody: any = {
+    name: newFileName,
+  };
+  if (targetFolderId) {
+    requestBody.parents = [targetFolderId];
+  }
+
+  const res = await drive.files.copy({
+    fileId: fileId,
+    requestBody: requestBody,
+    fields: 'id, name, webViewLink',
+    supportsAllDrives: true,
+  });
+
+  if (res.data.id) {
+    try {
+      await drive.permissions.create({
+        fileId: res.data.id,
+        requestBody: { role: 'reader', type: 'anyone' },
+        supportsAllDrives: true,
+      });
+    } catch (err) {
+      console.warn('Set permission failed on copied file:', err);
+    }
+  }
+
+  return res.data;
+}
+
+/**
+ * Ekstrak ID Folder dari URL Google Drive atau ID mentah
+ */
+export function extractDriveFolderId(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch) return folderMatch[1];
+  
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return idMatch[1];
+
+  if (/^[a-zA-Z0-9_-]{15,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed;
+}
+
+/**
+ * Ekstrak Spreadsheet ID dari URL Google Sheets atau ID mentah
+ */
+export function extractSpreadsheetId(input: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  if (/^[a-zA-Z0-9_-]{15,}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed;
+}
+

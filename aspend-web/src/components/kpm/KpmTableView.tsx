@@ -15,6 +15,7 @@ import KpmPermasalahanModal from './KpmPermasalahanModal';
 import KpmFullProfileModal from './KpmFullProfileModal';
 import KpmShareLinkModal from './KpmShareLinkModal';
 import KpmImportModal from './KpmImportModal';
+import KpmImportPhotoModal from './KpmImportPhotoModal';
 import KpmAbsensiModal from './KpmAbsensiModal';
 
 interface KpmTableViewProps {
@@ -88,6 +89,7 @@ export default function KpmTableView({
   const [isFullProfileModalOpen, setIsFullProfileModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImportPhotoModalOpen, setIsImportPhotoModalOpen] = useState(false);
   const [isAbsensiModalOpen, setIsAbsensiModalOpen] = useState(false);
 
   const [activeKeluarga, setActiveKeluarga] = useState<KpmKeluarga | null>(null);
@@ -498,6 +500,14 @@ export default function KpmTableView({
           >
             <span className="material-symbols-outlined text-[15px] text-teal-600">upload_file</span>
             <span>Impor</span>
+          </button>
+          <button
+            onClick={() => setIsImportPhotoModalOpen(true)}
+            className="px-2.5 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+            title="Impor / Migrasi Foto Rumah KPM dari Google Drive atau ZIP"
+          >
+            <span className="material-symbols-outlined text-[15px] text-emerald-600">add_photo_alternate</span>
+            <span>Impor Foto</span>
           </button>
           <a
             href="/api/kpm/export?type=excel-all"
@@ -1399,6 +1409,19 @@ export default function KpmTableView({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onNavigateHome={onNavigateHome}
+        onOpenImportPhoto={() => {
+          setIsImportModalOpen(false);
+          setIsImportPhotoModalOpen(true);
+        }}
+        onSuccess={() => {
+          fetchData();
+          if (onDataChange) onDataChange();
+        }}
+      />
+
+      <KpmImportPhotoModal
+        isOpen={isImportPhotoModalOpen}
+        onClose={() => setIsImportPhotoModalOpen(false)}
         onSuccess={() => {
           fetchData();
           if (onDataChange) onDataChange();
