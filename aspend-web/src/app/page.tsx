@@ -2528,9 +2528,6 @@ export default function Home() {
                 <span className="uppercase text-primary font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
               )}
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-full p-[2px] shadow-sm border border-white flex items-center justify-center">
-              <span className="material-symbols-outlined text-[10px]">workspace_premium</span>
-            </div>
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
             <p className="text-xs text-white truncate font-bold group-hover/prof:underline">{profile?.nama || session?.user?.name}</p>
@@ -2578,19 +2575,6 @@ export default function Home() {
           >
             <span className="material-symbols-outlined text-[20px]">account_circle</span>
             <span>Profil Pengguna</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              handleOpenCreateReport();
-              setIsSidebarOpen(false);
-            }}
-            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-              activePage === 'form' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
-            } cursor-pointer active:scale-95`}
-          >
-            <span className="material-symbols-outlined text-[20px]">add_box</span>
-            <span>Buat Laporan RHK</span>
           </button>
 
           {/* ── Divider ── */}
@@ -3418,9 +3402,6 @@ export default function Home() {
                       ) : (
                         <span className="text-4xl uppercase text-cyan-600 font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
                       )}
-                    </div>
-                    <div className="absolute bottom-1 right-1 bg-gradient-to-r from-amber-400 to-amber-600 text-white rounded-full p-1 shadow-md border-2 border-white flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[14px]">workspace_premium</span>
                     </div>
                   </div>
 
