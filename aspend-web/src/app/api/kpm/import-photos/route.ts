@@ -176,6 +176,7 @@ export async function POST(request: Request) {
     let zipBuffer: Buffer | null = null;
     let uploadedFiles: Array<{ name: string; buffer: Buffer }> = [];
     let itemsToProcess: any[] = [];
+    let zipFilenames: string[] = [];
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -192,6 +193,15 @@ export async function POST(request: Request) {
       const zipFile = formData.get('zipFile') as File | null;
       if (zipFile && zipFile.size > 0) {
         zipBuffer = Buffer.from(await zipFile.arrayBuffer());
+      }
+
+      const zipFilenamesStr = formData.get('zipFilenames') as string | null;
+      if (zipFilenamesStr) {
+        try {
+          zipFilenames = JSON.parse(zipFilenamesStr);
+        } catch {
+          // ignore
+        }
       }
 
       const directImages = formData.getAll('imageFiles') as File[];
@@ -221,6 +231,7 @@ export async function POST(request: Request) {
       oldDriveFolderId = extractDriveFolderId(body.oldDriveFolderId || '');
       mode = body.mode || 'overwrite';
       itemsToProcess = body.items || [];
+      zipFilenames = body.zipFilenames || [];
     }
 
     // Ensure sheets exist in ASPEND
@@ -344,6 +355,20 @@ export async function POST(request: Request) {
         }
       }
 
+      // If zipFilenames provided from client-side scan
+      let zipScanned = false;
+      if (zipFilenames && zipFilenames.length > 0) {
+        zipScanned = true;
+        zipFilenames.forEach((rawName) => {
+          const clean = cleanPhotoFilename(rawName).toLowerCase();
+          driveFilesMap.set(clean, { id: rawName, name: clean });
+          const parts = clean.split('.');
+          if (parts.length >= 2) {
+            drivePrefixMap.set(`${parts[0]}.${parts[1]}`, { id: rawName, name: clean });
+          }
+        });
+      }
+
       // Analyze matching
       let matchedKpmCount = 0;
       let unmatchedKpmCount = 0;
@@ -364,9 +389,9 @@ export async function POST(request: Request) {
 
         const aspendAset = aspendAsetMap.get(effectiveNoKK) || aspendAsetMap.get(row.noKK);
 
-        // Match R_LUAR file in Drive folder if scanned
+        // Match R_LUAR file in Drive folder or ZIP if scanned
         let rLuarFoundFile: { id: string; name: string } | null = null;
-        if (row.rLuarFilename && driveFolderScanned) {
+        if (row.rLuarFilename && (driveFolderScanned || zipScanned)) {
           const lower = row.rLuarFilename.toLowerCase();
           rLuarFoundFile = driveFilesMap.get(lower) || null;
           if (!rLuarFoundFile) {
@@ -378,9 +403,9 @@ export async function POST(request: Request) {
         }
         if (rLuarFoundFile) rLuarMatchCount++;
 
-        // Match R_DALAM file in Drive folder if scanned
+        // Match R_DALAM file in Drive folder or ZIP if scanned
         let rDalamFoundFile: { id: string; name: string } | null = null;
-        if (row.rDalamFilename && driveFolderScanned) {
+        if (row.rDalamFilename && (driveFolderScanned || zipScanned)) {
           const lower = row.rDalamFilename.toLowerCase();
           rDalamFoundFile = driveFilesMap.get(lower) || null;
           if (!rDalamFoundFile) {

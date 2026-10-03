@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 
 interface KpmImportPhotoModalProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export default function KpmImportPhotoModal({
   onClose,
   onSuccess,
 }: KpmImportPhotoModalProps) {
-  const [sourceType, setSourceType] = useState<ImportSourceType>('drive');
+  const [sourceType, setSourceType] = useState<ImportSourceType>('zip'); // Default to ZIP for reliability
 
   // Input fields for Drive method
   const [driveFolderInput, setDriveFolderInput] = useState('');
@@ -56,12 +57,21 @@ export default function KpmImportPhotoModal({
 
   // Input fields for ZIP / Direct upload method
   const [zipFile, setZipFile] = useState<File | null>(null);
+  const [cachedZip, setCachedZip] = useState<JSZip | null>(null);
   const [multipleImages, setMultipleImages] = useState<FileList | null>(null);
 
   // Analysis & Execution states
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [mode, setMode] = useState<'overwrite' | 'skip'>('overwrite');
+
+  const [progress, setProgress] = useState<{
+    current: number;
+    total: number;
+    percent: number;
+    uploaded: number;
+    asetUpdated: number;
+  } | null>(null);
 
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -80,6 +90,7 @@ export default function KpmImportPhotoModal({
   const handleReset = () => {
     setAnalysisResult(null);
     setExecutionResult(null);
+    setProgress(null);
     setErrorMsg('');
   };
 
@@ -93,6 +104,7 @@ export default function KpmImportPhotoModal({
     e.preventDefault();
     setErrorMsg('');
     setExecutionResult(null);
+    setProgress(null);
     setIsAnalyzing(true);
 
     try {
@@ -117,10 +129,28 @@ export default function KpmImportPhotoModal({
           formData.append('excelFile', excelFile);
         }
       } else {
-        // ZIP method
+        // ZIP method: scan filenames locally in browser to avoid sending 200MB file on preview!
         if (!zipFile && (!multipleImages || multipleImages.length === 0)) {
           throw new Error('Harap pilih file ZIP (misal RUMAH_Images.zip) atau kumpulan file foto.');
         }
+
+        let zipFilenames: string[] = [];
+        if (zipFile) {
+          let zipObj = cachedZip;
+          if (!zipObj) {
+            const zip = new JSZip();
+            zipObj = await zip.loadAsync(zipFile);
+            setCachedZip(zipObj);
+          }
+          zipFilenames = Object.keys(zipObj.files).filter(
+            (k) => !zipObj.files[k].dir && !k.startsWith('__MACOSX')
+          );
+        } else if (multipleImages) {
+          zipFilenames = Array.from(multipleImages).map((f) => f.name);
+        }
+
+        formData.append('zipFilenames', JSON.stringify(zipFilenames));
+
         if (sheetInputType === 'url') {
           if (!oldSheetUrl.trim()) {
             throw new Error('Harap masukkan Link atau ID Google Sheet database lama.');
@@ -139,7 +169,17 @@ export default function KpmImportPhotoModal({
         body: formData,
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        if (res.status === 413 || responseText.toLowerCase().includes('too large')) {
+          throw new Error('Ukuran data melebihi batas server (413 Request Entity Too Large).');
+        }
+        throw new Error(`Server error (${res.status}): ${responseText.slice(0, 120)}`);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Gagal menganalisis data impor foto.');
       }
@@ -172,7 +212,14 @@ export default function KpmImportPhotoModal({
           }),
         });
 
-        const data = await res.json();
+        const responseText = await res.text();
+        let data: any = {};
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(`Server error (${res.status}): ${responseText.slice(0, 120)}`);
+        }
+
         if (!res.ok) {
           throw new Error(data.error || 'Gagal menjalankan pemindahan foto antar Google Drive.');
         }
@@ -180,32 +227,115 @@ export default function KpmImportPhotoModal({
         setExecutionResult(data);
         onSuccess();
       } else {
-        // ZIP / File upload
-        const formData = new FormData();
-        formData.append('action', 'commit-upload');
-        formData.append('mode', mode);
-        formData.append('items', JSON.stringify(analysisResult.allMatchedItems));
-
-        if (zipFile) {
-          formData.append('zipFile', zipFile);
+        // ZIP / File upload - Stream upload in batches of 5 KPM to prevent 413 Request Entity Too Large
+        let zipObj = cachedZip;
+        if (!zipObj && zipFile) {
+          const zip = new JSZip();
+          zipObj = await zip.loadAsync(zipFile);
+          setCachedZip(zipObj);
         }
-        if (multipleImages && multipleImages.length > 0) {
-          Array.from(multipleImages).forEach((img) => {
-            formData.append('imageFiles', img);
+
+        const matchedItems = analysisResult.allMatchedItems;
+        const BATCH_SIZE = 5;
+        setProgress({
+          current: 0,
+          total: matchedItems.length,
+          percent: 0,
+          uploaded: 0,
+          asetUpdated: 0,
+        });
+
+        let totalUploaded = 0;
+        let totalAsetUpdated = 0;
+        let totalAsetCreated = 0;
+        const batchErrors: string[] = [];
+
+        for (let i = 0; i < matchedItems.length; i += BATCH_SIZE) {
+          const batchItems = matchedItems.slice(i, i + BATCH_SIZE);
+          const batchFormData = new FormData();
+          batchFormData.append('action', 'commit-upload');
+          batchFormData.append('mode', mode);
+          batchFormData.append('items', JSON.stringify(batchItems));
+
+          // Attach photos for this batch
+          for (const item of batchItems) {
+            if (zipObj) {
+              if (item.rLuarFilename) {
+                const targetName = item.rLuarFilename.toLowerCase();
+                const zipKey = Object.keys(zipObj.files).find(
+                  (k) => k.toLowerCase().endsWith(targetName)
+                );
+                if (zipKey) {
+                  const blob = await zipObj.files[zipKey].async('blob');
+                  batchFormData.append('imageFiles', blob, item.rLuarFilename);
+                }
+              }
+              if (item.rDalamFilename) {
+                const targetName = item.rDalamFilename.toLowerCase();
+                const zipKey = Object.keys(zipObj.files).find(
+                  (k) => k.toLowerCase().endsWith(targetName)
+                );
+                if (zipKey) {
+                  const blob = await zipObj.files[zipKey].async('blob');
+                  batchFormData.append('imageFiles', blob, item.rDalamFilename);
+                }
+              }
+            } else if (multipleImages) {
+              for (const img of Array.from(multipleImages)) {
+                const imgLower = img.name.toLowerCase();
+                if (
+                  imgLower === item.rLuarFilename.toLowerCase() ||
+                  imgLower === item.rDalamFilename.toLowerCase()
+                ) {
+                  batchFormData.append('imageFiles', img);
+                }
+              }
+            }
+          }
+
+          const res = await fetch('/api/kpm/import-photos', {
+            method: 'POST',
+            body: batchFormData,
+          });
+
+          const responseText = await res.text();
+          let resData: any = {};
+          try {
+            resData = JSON.parse(responseText);
+          } catch {
+            if (res.status === 413 || responseText.toLowerCase().includes('too large')) {
+              throw new Error('Ukuran foto pada batch ini melebihi batas server (413).');
+            }
+            throw new Error(`Server error (${res.status}): ${responseText.slice(0, 120)}`);
+          }
+
+          if (!res.ok) {
+            throw new Error(resData.error || 'Gagal mengunggah foto ke ASPEND.');
+          }
+
+          if (resData.uploadedCount) totalUploaded += resData.uploadedCount;
+          if (resData.asetUpdatedCount) totalAsetUpdated += resData.asetUpdatedCount;
+          if (resData.asetCreatedCount) totalAsetCreated += resData.asetCreatedCount;
+          if (resData.errors) batchErrors.push(...resData.errors);
+
+          const currentCount = Math.min(i + BATCH_SIZE, matchedItems.length);
+          setProgress({
+            current: currentCount,
+            total: matchedItems.length,
+            percent: Math.round((currentCount / matchedItems.length) * 100),
+            uploaded: totalUploaded,
+            asetUpdated: totalAsetUpdated,
           });
         }
 
-        const res = await fetch('/api/kpm/import-photos', {
-          method: 'POST',
-          body: formData,
+        setExecutionResult({
+          success: true,
+          message: `Berhasil mengunggah ${totalUploaded} foto ke Google Drive ASPEND. Data Aset diperbarui: ${totalAsetUpdated}, data Aset baru dibuat: ${totalAsetCreated}.`,
+          uploadedCount: totalUploaded,
+          asetUpdatedCount: totalAsetUpdated,
+          asetCreatedCount: totalAsetCreated,
+          errors: batchErrors,
         });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Gagal mengunggah foto ke ASPEND.');
-        }
-
-        setExecutionResult(data);
         onSuccess();
       }
     } catch (err: any) {
@@ -692,11 +822,35 @@ export default function KpmImportPhotoModal({
                       </div>
                     </div>
 
+                    {/* Live Progress Bar saat impor berlangsung */}
+                    {progress && (
+                      <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between text-xs font-bold text-emerald-950">
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-sm animate-spin text-emerald-600">sync</span>
+                            Sedang Mengunggah &amp; Menyimpan Foto KPM ke Google Drive...
+                          </span>
+                          <span>{progress.current} / {progress.total} KPM ({progress.percent}%)</span>
+                        </div>
+                        <div className="w-full bg-emerald-200/60 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="bg-emerald-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${progress.percent}%` }}
+                          />
+                        </div>
+                        <div className="text-[11px] text-emerald-800 flex justify-between font-medium">
+                          <span>Foto berhasil diunggah: <strong>{progress.uploaded} foto</strong></span>
+                          <span>Aset diperbarui: <strong>{progress.asetUpdated} data</strong></span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="pt-2 flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={handleReset}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold text-xs rounded-xl cursor-pointer transition-all"
+                        disabled={isExecuting}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-100 font-bold text-xs rounded-xl cursor-pointer transition-all disabled:opacity-40"
                       >
                         Batal
                       </button>
@@ -709,7 +863,7 @@ export default function KpmImportPhotoModal({
                         {isExecuting ? (
                           <>
                             <span className="material-symbols-outlined text-sm animate-spin">sync</span>
-                            Sedang Menyalin & Mengunggah Foto ke Drive...
+                            {progress ? `Memproses ${progress.current}/${progress.total} KPM...` : 'Sedang Menyalin & Mengunggah Foto ke Drive...'}
                           </>
                         ) : (
                           <>
