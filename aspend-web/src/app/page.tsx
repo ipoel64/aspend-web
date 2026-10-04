@@ -21,6 +21,7 @@ import KpmPermasalahanView from "@/components/kpm/KpmPermasalahanView";
 import KpmGraduasiView from "@/components/kpm/KpmGraduasiView";
 import KpmAnalisaTahapView from "@/components/kpm/KpmAnalisaTahapView";
 import RekapP2K2View from "@/components/RekapP2K2View";
+import VerkomToolsView from "@/components/verkom/VerkomToolsView";
 
 interface Report {
   ReportId: string;
@@ -241,7 +242,7 @@ async function safeJsonParse(res: Response): Promise<any> {
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [activePage, setActivePage] = useState<'dashboard' | 'profile' | 'form' | 'rekap-p2k2' | 'kpm-dashboard' | 'kpm-data' | 'kpm-aset' | 'kpm-graduasi' | 'kpm-masalah' | 'kpm-analisa-tahap' | 'kpm-profil-detail'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'profile' | 'form' | 'rekap-p2k2' | 'verkom' | 'kpm-dashboard' | 'kpm-data' | 'kpm-aset' | 'kpm-graduasi' | 'kpm-masalah' | 'kpm-analisa-tahap' | 'kpm-profil-detail'>('dashboard');
   const [kpmMenuExpanded, setKpmMenuExpanded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -2563,6 +2564,19 @@ export default function Home() {
             <span className="material-symbols-outlined text-[20px]">fact_check</span>
             <span>Rekap Laporan P2K2</span>
           </button>
+
+          <button 
+            onClick={() => {
+              setActivePage('verkom');
+              setIsSidebarOpen(false);
+            }}
+            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+              activePage === 'verkom' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
+            } cursor-pointer`}
+          >
+            <span className="material-symbols-outlined text-[20px]">verified</span>
+            <span>VERKOM Tools</span>
+          </button>
           
           <button 
             onClick={() => {
@@ -2718,6 +2732,8 @@ export default function Home() {
                     ? 'compare_arrows'
                     : activePage === 'rekap-p2k2'
                     ? 'fact_check'
+                    : activePage === 'verkom'
+                    ? 'verified'
                     : activePage === 'profile'
                     ? 'account_circle'
                     : activePage === 'form'
@@ -2737,6 +2753,8 @@ export default function Home() {
                     ? 'Analisa Tahap Bansos'
                     : activePage === 'rekap-p2k2'
                     ? 'Rekap Laporan P2K2'
+                    : activePage === 'verkom'
+                    ? 'VERKOM Tools'
                     : activePage === 'profile'
                     ? 'Profil Pengguna'
                     : activePage === 'form'
@@ -3366,6 +3384,18 @@ export default function Home() {
                 setActivePage('dashboard');
               }}
               showToast={showToast}
+            />
+          </main>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            PAGE: VERKOM TOOLS (VERIFIKASI KOMITMEN CSV CONVERTER)
+            ══════════════════════════════════════════════════════════ */}
+        {activePage === 'verkom' && (
+          <main className="flex-grow w-full max-w-[1440px] mx-auto px-3 sm:px-5 py-4 sm:py-6 pb-24">
+            <VerkomToolsView
+              showToast={showToast}
+              userProfile={profile}
             />
           </main>
         )}
