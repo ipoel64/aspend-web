@@ -121,9 +121,15 @@ export default function KpmTableView({
 
   // Tutup dropdown menu aksi saat klik di luar
   useEffect(() => {
-    const handleClickOutside = () => setOpenActionMenuId(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.kpm-action-dropdown-container')) {
+        return;
+      }
+      setOpenActionMenuId(null);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Filter kelompok options
@@ -565,11 +571,12 @@ export default function KpmTableView({
         </div>
       )}
 
-      {/* Filter & Search Bar (Responsif Penuh, Tanpa Scroll Horizontal) */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-2.5 sm:p-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <div className="relative flex-1 min-w-[150px] sm:max-w-xs">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">
+      {/* Filter & Search Bar (1 Baris Penuh, Ringkas & Pas di 100% Zoom) */}
+      <div className="bg-white rounded-2xl border border-gray-200 px-3 py-2 shadow-xs">
+        <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
+          {/* Field Pencarian Ringkas */}
+          <div className="relative w-36 lg:w-44 shrink-0">
+            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">
               search
             </span>
             <input
@@ -579,13 +586,13 @@ export default function KpmTableView({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Cari NIK, KK, Nama..."
-              className="w-full pl-8 pr-6 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
+              placeholder="Cari NIK, KK..."
+              className="w-full pl-7 pr-5 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -598,7 +605,7 @@ export default function KpmTableView({
               setSelectedKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
+            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Semua Kelompok</option>
             {kelompokOptions.map((kel) => (
@@ -614,7 +621,7 @@ export default function KpmTableView({
               setSelectedStatusKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
+            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Peran: Semua</option>
             <option value="Ketua Kelompok">⭐ Ketua</option>
@@ -627,7 +634,7 @@ export default function KpmTableView({
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
+            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Data: Semua</option>
             <option value="Lengkap">✅ Lengkap</option>
@@ -641,7 +648,7 @@ export default function KpmTableView({
               setSelectedTahapFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
+            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Tahap: Semua</option>
             <option value="Tahap 1">Thp-1 (2026)</option>
@@ -656,7 +663,7 @@ export default function KpmTableView({
               setSelectedKepesertaanFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
+            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Status: Semua</option>
             <option value="Aktif">🟢 Aktif</option>
@@ -674,7 +681,7 @@ export default function KpmTableView({
               setShowOnlyDuplicates(false);
               setCurrentPage(1);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
               isAnyFilterActive
                 ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-xs font-bold active:scale-95'
                 : 'border border-gray-300 hover:bg-gray-100 text-gray-600'
@@ -684,12 +691,11 @@ export default function KpmTableView({
             Reset
           </button>
 
-          {/* Informasi Angka Hasil Filter */}
-          <div className="sm:ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 whitespace-nowrap">
-            <span className="material-symbols-outlined text-slate-400 text-[15px]">filter_list</span>
+          {/* Informasi Angka Hasil Filter Singkat (Menampilkan ... KPM) */}
+          <div className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 whitespace-nowrap">
+            <span className="material-symbols-outlined text-slate-400 text-[14px]">filter_list</span>
             <span>
-              Menampilkan <strong className="text-cyan-800 font-bold">{filteredData.length}</strong> dari{' '}
-              <strong className="text-slate-900 font-bold">{dataList.length}</strong> KPM
+              Menampilkan <strong className="text-cyan-800 font-bold">{filteredData.length}</strong> KPM
             </span>
           </div>
         </div>
@@ -746,9 +752,11 @@ export default function KpmTableView({
                     kpm.StatusGraduasi === 'Graduasi Alami' ||
                     kpm.CatatanTemuan?.includes('Sudah Graduasi');
                   const isGraduasiOrInactive = isGraduasi || kpm.StatusKepesertaan === 'Tidak Aktif';
+                  const rowActionId = kpm.KpmId || kpm.NIK || kpm.NoKK || `kpm-${idx}`;
+                  const isMenuOpen = openActionMenuId === rowActionId;
 
                   return (
-                    <React.Fragment key={`kpm-row-${kpm.KpmId || 'kpm'}-${kpm.NIK || ''}-${idx}`}>
+                    <React.Fragment key={`kpm-row-${rowActionId}-${idx}`}>
                       {/* Pembatas / Header Grup Kelompok */}
                       {isNewGroup && (() => {
                         const grpSummary = kelompokSummaryMap[(kpm.Kelompok || '').trim()] || { total: 1, aktif: 1, tidakAktif: 0 };
@@ -788,6 +796,8 @@ export default function KpmTableView({
 
                       <tr
                         className={`transition-all border-b border-slate-300 ${
+                          isMenuOpen ? 'relative z-30' : ''
+                        } ${
                           isGraduasiOrInactive
                             ? 'bg-slate-100/80 text-slate-400 opacity-60 border-l-4 border-l-slate-400 hover:bg-slate-100'
                             : isDupNik || isDupKK
@@ -967,16 +977,16 @@ export default function KpmTableView({
                         </td>
 
                         {/* Aksi Tunggal Terpadu (Dropdown Menu Lengkap Menggantikan 8 Tombol) */}
-                        <td className="px-2 py-2 text-center whitespace-nowrap">
-                          <div className="relative inline-block text-left">
+                        <td className={`px-2 py-2 text-center whitespace-nowrap ${isMenuOpen ? 'relative z-40' : ''}`}>
+                          <div className="relative inline-block text-left kpm-action-dropdown-container">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setOpenActionMenuId(openActionMenuId === kpm.KpmId ? null : kpm.KpmId);
+                                setOpenActionMenuId((prev) => (prev === rowActionId ? null : rowActionId));
                               }}
                               className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
-                                openActionMenuId === kpm.KpmId
+                                isMenuOpen
                                   ? 'bg-cyan-700 text-white border-cyan-800 ring-2 ring-cyan-400/50'
                                   : 'bg-white hover:bg-cyan-50 text-slate-700 hover:text-cyan-800 border-slate-300 hover:border-cyan-300'
                               }`}
@@ -987,10 +997,10 @@ export default function KpmTableView({
                               <span className="material-symbols-outlined text-[14px] text-slate-400">expand_more</span>
                             </button>
 
-                            {openActionMenuId === kpm.KpmId && (
+                            {isMenuOpen && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                className={`absolute right-0 z-40 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-left ${
+                                className={`absolute right-0 z-50 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-left ${
                                   idx >= paginatedData.length - 2 && paginatedData.length > 2
                                     ? 'bottom-full mb-1'
                                     : 'top-full mt-1'
