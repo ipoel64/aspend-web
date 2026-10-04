@@ -2479,36 +2479,38 @@ export default function Home() {
         </div>
       )}
 
-      {/* ─── Backdrop Overlay untuk Sidebar Drawer ─────────── */}
+      {/* ─── Backdrop Overlay untuk Sidebar Drawer (Hanya di layar mobile) ─────────── */}
       <div 
         onClick={() => setIsSidebarOpen(false)}
-        className={`fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-50 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-50 transition-opacity duration-300 md:hidden ${
           isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       />
 
-      {/* ─── SideNavBar Drawer (Tersembunyi Total secara Default) ─── */}
+      {/* ─── SideNavBar: Tetap Muncul & Ringkas di Desktop, Drawer di Mobile ─── */}
       <aside 
-        className={`sidebar bg-primary text-white fixed left-0 top-0 h-full w-[280px] shadow-2xl flex flex-col py-6 px-4 z-50 transition-transform duration-300 ease-in-out border-r border-white/20 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`sidebar bg-primary text-white flex flex-col py-4 px-2.5 shrink-0 border-r border-white/20 transition-all duration-300 ease-in-out select-none ${
+          isSidebarOpen
+            ? 'fixed left-0 top-0 h-full w-[250px] z-50 translate-x-0 shadow-2xl md:static md:w-[220px] md:h-screen md:z-20 md:shadow-none'
+            : 'fixed left-0 top-0 h-full w-[250px] z-50 -translate-x-full md:static md:translate-x-0 md:w-[220px] md:h-screen md:z-20 md:shadow-none'
         }`}
       >
         {/* Drawer Header: Logo, Title, and Close Button */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/15 mb-4">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="ASPEND Logo" width={36} height={36} className="rounded-xl shadow-lg border border-white/20 object-cover bg-white" />
-            <div>
-              <span className="font-['Outfit'] font-bold text-lg text-white tracking-wide block leading-tight">ASPEND</span>
-              <span className="text-[10px] text-white/80 font-medium tracking-wide uppercase">Pendamping PKH</span>
+        <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Image src="/logo.png" alt="ASPEND Logo" width={30} height={30} className="rounded-xl shadow-md border border-white/20 object-cover bg-white shrink-0" />
+            <div className="min-w-0">
+              <span className="font-['Outfit'] font-bold text-base text-white tracking-wide block leading-tight truncate">ASPEND</span>
+              <span className="text-[9px] text-white/80 font-medium tracking-wide uppercase truncate block">Pendamping PKH</span>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/25 active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer md:hidden shrink-0"
             title="Tutup Menu"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
 
@@ -2516,202 +2518,200 @@ export default function Home() {
         <div 
           onClick={() => {
             setActivePage('profile');
-            setIsSidebarOpen(false);
+            if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
           }}
-          className="flex items-center gap-3 p-3 rounded-xl bg-white/10 hover:bg-white/20 transition-all cursor-pointer mb-5 border border-white/10 group/prof"
+          className="flex items-center gap-2.5 p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all cursor-pointer mb-2.5 border border-white/10 group/prof"
           title="Buka Profil Pengguna"
         >
           <div className="relative flex-shrink-0">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/90 bg-white flex items-center justify-center font-bold text-base text-primary shadow-md">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-white/90 bg-white flex items-center justify-center font-bold text-xs text-primary shadow-sm">
               {userAvatarUrl ? (
                 <img src={userAvatarUrl} alt="Foto Profil" className="w-full h-full object-cover" />
               ) : (
-                <span className="uppercase text-primary font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
+                <span className="uppercase text-primary font-bold text-xs">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
               )}
             </div>
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
-            <p className="text-xs text-white truncate font-bold group-hover/prof:underline">{profile?.nama || session?.user?.name}</p>
-            <p className="text-[10px] text-white/80 truncate">{profile?.jabatan || 'Pendamping PKH'}</p>
-            <p className="text-[9px] text-white/60 truncate font-mono mt-0.5">{profile?.email || session?.user?.email}</p>
+            <p className="text-xs text-white truncate font-bold group-hover/prof:underline leading-tight">{profile?.nama || session?.user?.name}</p>
+            <p className="text-[9.5px] text-white/80 truncate leading-tight mt-0.5">{profile?.jabatan || 'Pendamping PKH'}</p>
+            <p className="text-[8.5px] text-white/60 truncate font-mono mt-0.5 leading-tight">{profile?.email || session?.user?.email}</p>
           </div>
         </div>
 
         {/* Navigation Links */}
-        <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
+        <div className="flex-1 space-y-1 overflow-y-auto pr-0.5 custom-scrollbar">
           <button 
             onClick={() => {
               setActivePage('dashboard');
-              setIsSidebarOpen(false);
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
             }}
-            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
               activePage === 'dashboard' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
             } cursor-pointer`}
           >
-            <span className="material-symbols-outlined text-[20px]">dashboard</span>
-            <span>Dashboard RHK</span>
+            <span className="material-symbols-outlined text-[19px]">dashboard</span>
+            <span className="truncate">Dashboard RHK</span>
           </button>
 
           <button 
             onClick={() => {
               setActivePage('rekap-p2k2');
-              setIsSidebarOpen(false);
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
             }}
-            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
               activePage === 'rekap-p2k2' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
             } cursor-pointer`}
           >
-            <span className="material-symbols-outlined text-[20px]">fact_check</span>
-            <span>Rekap Laporan P2K2</span>
+            <span className="material-symbols-outlined text-[19px]">fact_check</span>
+            <span className="truncate">Rekap Laporan P2K2</span>
           </button>
 
           <button 
             onClick={() => {
               setActivePage('verkom');
-              setIsSidebarOpen(false);
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
             }}
-            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
               activePage === 'verkom' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
             } cursor-pointer`}
           >
-            <span className="material-symbols-outlined text-[20px]">verified</span>
-            <span>VERKOM Tools</span>
+            <span className="material-symbols-outlined text-[19px]">verified</span>
+            <span className="truncate">VERKOM Tools</span>
           </button>
           
           <button 
             onClick={() => {
               setActivePage('profile');
-              setIsSidebarOpen(false);
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
             }}
-            className={`w-full text-left nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
               activePage === 'profile' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
             } cursor-pointer`}
           >
-            <span className="material-symbols-outlined text-[20px]">account_circle</span>
-            <span>Profil Pengguna</span>
+            <span className="material-symbols-outlined text-[19px]">account_circle</span>
+            <span className="truncate">Profil Pengguna</span>
           </button>
 
           {/* ── Divider ── */}
-          <div className="my-2 border-t border-white/15"></div>
+          <div className="my-1.5 border-t border-white/15"></div>
 
           {/* ── Profil KPM (Expandable Menu) ── */}
           <button 
             onClick={() => setKpmMenuExpanded(!kpmMenuExpanded)}
-            className={`w-full text-left nav-item flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+            className={`w-full text-left nav-item flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
               activePage.startsWith('kpm-') ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
             } cursor-pointer`}
           >
-            <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-[20px]">group</span>
-              <span>Profil KPM</span>
+            <div className="flex items-center gap-2.5 truncate">
+              <span className="material-symbols-outlined text-[19px]">group</span>
+              <span className="truncate">Profil KPM</span>
             </div>
-            <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${kpmMenuExpanded ? 'rotate-180' : ''}`}>
+            <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 shrink-0 ${kpmMenuExpanded ? 'rotate-180' : ''}`}>
               expand_more
             </span>
           </button>
 
           {/* Sub-menu KPM */}
           <div className={`overflow-hidden transition-all duration-300 ${kpmMenuExpanded ? 'max-h-[380px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-            <div className="ml-3 pl-3 border-l-2 border-white/20 space-y-1">
+            <div className="ml-2 pl-2.5 border-l-2 border-white/20 space-y-1">
               <button 
                 onClick={() => {
                   setActivePage('kpm-dashboard');
-                  setIsSidebarOpen(false);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 text-[13px] font-medium ${
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-[12px] font-medium ${
                   activePage === 'kpm-dashboard' ? 'text-white bg-white/20 font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                 } cursor-pointer`}
               >
-                <span className="material-symbols-outlined text-[18px]">analytics</span>
-                <span>Dashboard KPM</span>
+                <span className="material-symbols-outlined text-[16px]">analytics</span>
+                <span className="truncate">Dashboard KPM</span>
               </button>
               <button 
                 onClick={() => {
                   setActivePage('kpm-data');
-                  setIsSidebarOpen(false);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 text-[13px] font-medium ${
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-[12px] font-medium ${
                   activePage === 'kpm-data' ? 'text-white bg-white/20 font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                 } cursor-pointer`}
               >
-                <span className="material-symbols-outlined text-[18px]">family_restroom</span>
-                <span>Data KPM</span>
+                <span className="material-symbols-outlined text-[16px]">family_restroom</span>
+                <span className="truncate">Data KPM</span>
               </button>
               <button 
                 onClick={() => {
                   setActivePage('kpm-masalah');
-                  setIsSidebarOpen(false);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 text-[13px] font-medium ${
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-[12px] font-medium ${
                   activePage === 'kpm-masalah' ? 'text-white bg-white/20 font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                 } cursor-pointer`}
               >
-                <span className="material-symbols-outlined text-[18px]">report_problem</span>
-                <span>Permasalahan KPM</span>
+                <span className="material-symbols-outlined text-[16px]">report_problem</span>
+                <span className="truncate">Permasalahan KPM</span>
               </button>
               <button 
                 onClick={() => {
                   setActivePage('kpm-graduasi');
-                  setIsSidebarOpen(false);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 text-[13px] font-medium ${
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-[12px] font-medium ${
                   activePage === 'kpm-graduasi' ? 'text-white bg-white/20 font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                 } cursor-pointer`}
               >
-                <span className="material-symbols-outlined text-[18px]">school</span>
-                <span>Graduasi & PPSE</span>
+                <span className="material-symbols-outlined text-[16px]">school</span>
+                <span className="truncate">Graduasi & PPSE</span>
               </button>
               <button 
                 onClick={() => {
                   setActivePage('kpm-analisa-tahap');
-                  setIsSidebarOpen(false);
+                  if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
                 }}
-                className={`w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 text-[13px] font-medium ${
+                className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 text-[12px] font-medium ${
                   activePage === 'kpm-analisa-tahap' ? 'text-white bg-white/20 font-bold' : 'text-white/80 hover:text-white hover:bg-white/10'
                 } cursor-pointer`}
               >
-                <span className="material-symbols-outlined text-[18px]">compare_arrows</span>
-                <span>Analisa Tahap</span>
+                <span className="material-symbols-outlined text-[16px]">compare_arrows</span>
+                <span className="truncate">Analisa Tahap</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Footer: Logout */}
-        <div className="mt-auto border-t border-white/15 pt-3 space-y-1">
+        <div className="mt-auto border-t border-white/15 pt-2 space-y-1">
           <button 
             onClick={() => {
-              setIsSidebarOpen(false);
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
               signOut();
             }} 
-            className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-white/90 hover:text-white hover:bg-rose-500/30 cursor-pointer transition-colors"
+            className="w-full text-left flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-white/90 hover:text-white hover:bg-rose-500/30 cursor-pointer transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
+            <span className="material-symbols-outlined text-[19px]">logout</span>
             <span>Keluar</span>
           </button>
         </div>
       </aside>
 
       {/* ─── Main Content Area (100% Lebar Layar Penuh) ─────── */}
-      <div className="flex-1 flex flex-col h-full transition-all duration-300 w-full overflow-y-auto bg-[#F5F7FA]">
+      <div className="flex-1 flex flex-col h-full transition-all duration-300 w-full min-w-0 overflow-y-auto bg-[#F5F7FA]">
         
-        {/* ─── Top App Bar dengan Toggle Menu Profesional ─────────── */}
+        {/* ─── Top App Bar ─────────── */}
         <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-200/90 px-3 sm:px-5 h-14 flex items-center justify-between shadow-2xs shrink-0">
           <div className="flex items-center gap-3">
-            {/* Toggle Menu Button Profesional di Pojok Kiri Atas */}
+            {/* Toggle Menu Button di Mobile (Hanya muncul di mobile jika sidebar tersembunyi) */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-slate-50 to-white hover:from-cyan-50 hover:to-sky-50 active:scale-95 border border-slate-200 hover:border-cyan-400 text-slate-700 hover:text-cyan-800 shadow-2xs hover:shadow-xs transition-all duration-200 cursor-pointer group"
+              className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 shadow-2xs transition-all cursor-pointer"
               title="Buka Menu Navigasi ASPEND"
             >
-              <span className="material-symbols-outlined text-[20px] text-cyan-700 group-hover:scale-110 transition-transform">menu</span>
-              <span className="text-xs font-bold font-['Outfit'] tracking-wide text-slate-700 group-hover:text-cyan-900">
-                Menu
-              </span>
+              <span className="material-symbols-outlined text-[20px] text-cyan-700">menu</span>
+              <span className="text-xs font-bold font-['Outfit']">Menu</span>
             </button>
 
-            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+            <div className="h-5 w-px bg-slate-200 md:hidden" />
 
             {/* Breadcrumb Brand & Page Indicator */}
             <div className="flex items-center gap-2">
@@ -2796,7 +2796,7 @@ export default function Home() {
             PAGE: DASHBOARD RHK
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'dashboard' && (
-          <main className="flex-grow p-3 md:p-4 w-full max-w-[1440px] mx-auto">
+          <main className="flex-grow p-3 md:p-5 w-full mx-auto">
             {isProfileIncomplete && (
               <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                 <div className="flex items-start gap-3">
@@ -3375,7 +3375,7 @@ export default function Home() {
             PAGE: REKAP LAPORAN P2K2 (RHK-2)
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'rekap-p2k2' && (
-          <main className="flex-grow w-full max-w-[1440px] mx-auto pb-24">
+          <main className="flex-grow w-full px-3 md:px-5 py-4 pb-24">
             <RekapP2K2View
               reports={reports}
               userProfile={profile}
@@ -3392,7 +3392,7 @@ export default function Home() {
             PAGE: VERKOM TOOLS (VERIFIKASI KOMITMEN CSV CONVERTER)
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'verkom' && (
-          <main className="flex-grow w-full max-w-[1440px] mx-auto px-3 sm:px-5 py-4 sm:py-6 pb-24">
+          <main className="flex-grow w-full px-3 md:px-5 py-4 pb-24">
             <VerkomToolsView
               showToast={showToast}
               userProfile={profile}
@@ -4620,7 +4620,7 @@ export default function Home() {
             PAGE: DASHBOARD KPM
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'kpm-dashboard' && (
-          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full max-w-[1600px] mx-auto pb-24">
+          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full pb-24">
             <KpmDashboardView
               onNavigateToData={() => setActivePage('kpm-data')}
               onSelectKpm={() => setActivePage('kpm-data')}
@@ -4634,7 +4634,7 @@ export default function Home() {
         {(activePage === 'kpm-data' ||
           activePage === 'kpm-aset' ||
           activePage === 'kpm-profil-detail') && (
-          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full max-w-[1600px] mx-auto pb-24">
+          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full pb-24">
             <KpmTableView
               onNavigateHome={() => setActivePage('dashboard')}
               onNavigateToKpmDashboard={() => setActivePage('kpm-dashboard')}
@@ -4646,7 +4646,7 @@ export default function Home() {
             PAGE: PERMASALAHAN KPM (2 Layar: Belum Selesai & Selesai)
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'kpm-masalah' && (
-          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full max-w-[1600px] mx-auto pb-24">
+          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full pb-24">
             <KpmPermasalahanView
               onNavigateHome={() => setActivePage('dashboard')}
               onNavigateToKpmData={() => setActivePage('kpm-data')}
@@ -4658,7 +4658,7 @@ export default function Home() {
             PAGE: GRADUASI & PPSE (2 Layar: Calon & Berhasil)
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'kpm-graduasi' && (
-          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full max-w-[1600px] mx-auto pb-24">
+          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full pb-24">
             <KpmGraduasiView
               onNavigateHome={() => setActivePage('dashboard')}
               onNavigateToKpmData={() => setActivePage('kpm-data')}
@@ -4670,7 +4670,7 @@ export default function Home() {
             PAGE: ANALISA PERBANDINGAN TAHAP BANSOS
             ══════════════════════════════════════════════════════════ */}
         {activePage === 'kpm-analisa-tahap' && (
-          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full max-w-[1600px] mx-auto pb-24">
+          <main className="flex-grow px-3 py-4 sm:px-5 sm:py-6 w-full pb-24">
             <KpmAnalisaTahapView
               onNavigateHome={() => setActivePage('dashboard')}
               onNavigateToKpmData={() => setActivePage('kpm-data')}
