@@ -93,6 +93,7 @@ export default function KpmTableView({
   const [isAbsensiModalOpen, setIsAbsensiModalOpen] = useState(false);
 
   const [activeKeluarga, setActiveKeluarga] = useState<KpmKeluarga | null>(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   // Delete confirmation modal
   const [deletingKpm, setDeletingKpm] = useState<KpmKeluarga | null>(null);
@@ -116,6 +117,13 @@ export default function KpmTableView({
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Tutup dropdown menu aksi saat klik di luar
+  useEffect(() => {
+    const handleClickOutside = () => setOpenActionMenuId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // Filter kelompok options
@@ -557,10 +565,10 @@ export default function KpmTableView({
         </div>
       )}
 
-      {/* Filter & Search Bar (1 Baris Hemat Tempat) */}
-      <div className="bg-white rounded-2xl border border-gray-200 px-3 py-2 shadow-xs">
-        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto">
-          <div className="relative w-44 lg:w-56 shrink-0">
+      {/* Filter & Search Bar (Responsif Penuh, Tanpa Scroll Horizontal) */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-2.5 sm:p-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="relative flex-1 min-w-[150px] sm:max-w-xs">
             <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">
               search
             </span>
@@ -572,7 +580,7 @@ export default function KpmTableView({
                 setCurrentPage(1);
               }}
               placeholder="Cari NIK, KK, Nama..."
-              className="w-full pl-8 pr-6 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none"
+              className="w-full pl-8 pr-6 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
             />
             {searchQuery && (
               <button
@@ -590,7 +598,7 @@ export default function KpmTableView({
               setSelectedKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
           >
             <option value="">Semua Kelompok</option>
             {kelompokOptions.map((kel) => (
@@ -606,7 +614,7 @@ export default function KpmTableView({
               setSelectedStatusKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
           >
             <option value="">Peran: Semua</option>
             <option value="Ketua Kelompok">⭐ Ketua</option>
@@ -619,7 +627,7 @@ export default function KpmTableView({
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
           >
             <option value="">Data: Semua</option>
             <option value="Lengkap">✅ Lengkap</option>
@@ -633,7 +641,7 @@ export default function KpmTableView({
               setSelectedTahapFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
           >
             <option value="">Tahap: Semua</option>
             <option value="Tahap 1">Thp-1 (2026)</option>
@@ -648,7 +656,7 @@ export default function KpmTableView({
               setSelectedKepesertaanFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1.5 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer"
           >
             <option value="">Status: Semua</option>
             <option value="Aktif">🟢 Aktif</option>
@@ -666,7 +674,7 @@ export default function KpmTableView({
               setShowOnlyDuplicates(false);
               setCurrentPage(1);
             }}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer shrink-0 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               isAnyFilterActive
                 ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-xs font-bold active:scale-95'
                 : 'border border-gray-300 hover:bg-gray-100 text-gray-600'
@@ -676,9 +684,9 @@ export default function KpmTableView({
             Reset
           </button>
 
-          {/* Informasi Angka Hasil Filter (Tetap 1 Baris di Sisi Kanan) */}
-          <div className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 whitespace-nowrap">
-            <span className="material-symbols-outlined text-slate-400 text-[14px]">filter_list</span>
+          {/* Informasi Angka Hasil Filter */}
+          <div className="sm:ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 whitespace-nowrap">
+            <span className="material-symbols-outlined text-slate-400 text-[15px]">filter_list</span>
             <span>
               Menampilkan <strong className="text-cyan-800 font-bold">{filteredData.length}</strong> dari{' '}
               <strong className="text-slate-900 font-bold">{dataList.length}</strong> KPM
@@ -705,7 +713,7 @@ export default function KpmTableView({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[360px]">
             <table className="w-full text-left border-collapse">
               <colgroup>
                 <col className="w-9" />
@@ -714,8 +722,7 @@ export default function KpmTableView({
                 <col className="min-w-[115px]" />
                 <col className="min-w-[115px]" />
                 <col className="min-w-[85px]" />
-                <col className="min-w-[120px]" />
-                <col className="min-w-[80px]" />
+                <col className="min-w-[95px]" />
                 <col className="min-w-[160px]" />
               </colgroup>
               <tbody className="divide-y divide-slate-300 text-xs">
@@ -750,7 +757,7 @@ export default function KpmTableView({
                             key={`grp-hdr-${kpm.Kelompok || 'tanpa-kelompok'}-${currentPage}-${idx}`}
                             className="bg-slate-100/95 border-t-2 border-b border-slate-300 select-none"
                           >
-                            <td colSpan={9} className="px-3 py-2 bg-gradient-to-r from-slate-100 via-sky-50/70 to-white">
+                            <td colSpan={8} className="px-3 py-2 bg-gradient-to-r from-slate-100 via-sky-50/70 to-white">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="material-symbols-outlined text-cyan-700 text-lg">groups</span>
@@ -959,90 +966,177 @@ export default function KpmTableView({
                           })()}
                         </td>
 
-                        {/* Quick Relation Badges (Data Lainnya) */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
+                        {/* Aksi Tunggal Terpadu (Dropdown Menu Lengkap Menggantikan 8 Tombol) */}
+                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                          <div className="relative inline-block text-left">
                             <button
-                              onClick={() => {
-                                setActiveKeluarga(kpm);
-                                setIsAnggotaModalOpen(true);
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenActionMenuId(openActionMenuId === kpm.KpmId ? null : kpm.KpmId);
                               }}
-                              className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
-                              title="Kelola Anggota Keluarga"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">group</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveKeluarga(kpm);
-                                setIsAsetModalOpen(true);
-                              }}
-                              className="p-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors cursor-pointer"
-                              title="Data Aset & Lokasi"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">home</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveKeluarga(kpm);
-                                setIsGraduasiModalOpen(true);
-                              }}
-                              className={`p-1 rounded-lg transition-colors cursor-pointer ${
-                                isGraduasi
-                                  ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-2xs'
-                                  : 'bg-violet-50 hover:bg-violet-100 text-violet-700'
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                                openActionMenuId === kpm.KpmId
+                                  ? 'bg-cyan-700 text-white border-cyan-800 ring-2 ring-cyan-400/50'
+                                  : 'bg-white hover:bg-cyan-50 text-slate-700 hover:text-cyan-800 border-slate-300 hover:border-cyan-300'
                               }`}
-                              title={isGraduasi ? 'Status: Sudah Graduasi' : 'Status Graduasi'}
+                              title="Buka Menu Pilihan Aksi KPM"
                             >
-                              <span className="material-symbols-outlined text-[16px]">school</span>
+                              <span className="material-symbols-outlined text-[15px] text-cyan-600">settings</span>
+                              <span>Aksi</span>
+                              <span className="material-symbols-outlined text-[14px] text-slate-400">expand_more</span>
                             </button>
-                            <button
-                              onClick={() => {
-                                setActiveKeluarga(kpm);
-                                setIsPermasalahanModalOpen(true);
-                              }}
-                              className="p-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors cursor-pointer"
-                              title="Catat Permasalahan"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">report_problem</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setActiveKeluarga(kpm);
-                                setIsShareModalOpen(true);
-                              }}
-                              className="p-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 transition-colors cursor-pointer"
-                              title="Bagikan Link Portal KPM (Self-Service)"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">link</span>
-                            </button>
-                          </div>
-                        </td>
 
-                        {/* Action Menu (Aksi) */}
-                        <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => handleOpenFullProfile(kpm)}
-                              className="p-1 bg-gray-100 hover:bg-cyan-100 hover:text-cyan-800 text-gray-700 rounded-lg transition-colors cursor-pointer"
-                              title="Lihat Profil Lengkap"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">visibility</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenEdit(kpm)}
-                              className="p-1 bg-gray-100 hover:bg-blue-100 hover:text-blue-800 text-gray-700 rounded-lg transition-colors cursor-pointer"
-                              title="Edit Data Keluarga"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">edit</span>
-                            </button>
-                            <button
-                              onClick={() => setDeletingKpm(kpm)}
-                              className="p-1 bg-gray-100 hover:bg-rose-100 hover:text-rose-800 text-gray-700 rounded-lg transition-colors cursor-pointer"
-                              title="Hapus KPM"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
-                            </button>
+                            {openActionMenuId === kpm.KpmId && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className={`absolute right-0 z-40 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-left ${
+                                  idx >= paginatedData.length - 2 && paginatedData.length > 2
+                                    ? 'bottom-full mb-1'
+                                    : 'top-full mt-1'
+                                }`}
+                              >
+                                <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50/80">
+                                  <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Menu Aksi KPM</p>
+                                  <p className="font-bold text-slate-800 truncate text-[11px]">{kpm.NamaPengurus}</p>
+                                </div>
+
+                                <div className="py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      handleOpenFullProfile(kpm);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-cyan-50 flex items-center gap-2.5 text-slate-700 hover:text-cyan-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-cyan-600 group-hover:scale-110 transition-transform">visibility</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Lihat Profil Lengkap</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Semua data & ringkasan KPM</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      handleOpenEdit(kpm);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center gap-2.5 text-slate-700 hover:text-blue-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-blue-600 group-hover:scale-110 transition-transform">edit</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Edit Data KPM</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Ubah biodata pengurus & KK</div>
+                                    </div>
+                                  </button>
+                                </div>
+
+                                <div className="border-t border-slate-100 my-0.5" />
+
+                                <div className="py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setActiveKeluarga(kpm);
+                                      setIsAnggotaModalOpen(true);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center gap-2.5 text-slate-700 hover:text-emerald-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-emerald-600 group-hover:scale-110 transition-transform">group</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Anggota Keluarga</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Kelola ART & komponen PKH</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setActiveKeluarga(kpm);
+                                      setIsAsetModalOpen(true);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2.5 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-amber-600 group-hover:scale-110 transition-transform">home</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Aset & Kondisi Rumah</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Foto rumah, usaha & GPS</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setActiveKeluarga(kpm);
+                                      setIsGraduasiModalOpen(true);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-violet-50 flex items-center gap-2.5 text-slate-700 hover:text-violet-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-violet-600 group-hover:scale-110 transition-transform">school</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Status Graduasi & PPSE</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">{isGraduasi ? 'Telah Tergraduasi' : 'Pemberdayaan keluarga'}</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setActiveKeluarga(kpm);
+                                      setIsPermasalahanModalOpen(true);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2.5 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-rose-600 group-hover:scale-110 transition-transform">report_problem</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Catat Permasalahan</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Aduan & kendala bansos</div>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setActiveKeluarga(kpm);
+                                      setIsShareModalOpen(true);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-purple-50 flex items-center gap-2.5 text-slate-700 hover:text-purple-800 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-purple-600 group-hover:scale-110 transition-transform">link</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Bagikan Link Portal</div>
+                                      <div className="text-[10px] text-slate-400 mt-0.5">Link akses mandiri KPM</div>
+                                    </div>
+                                  </button>
+                                </div>
+
+                                <div className="border-t border-slate-100 my-0.5" />
+
+                                <div className="py-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null);
+                                      setDeletingKpm(kpm);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-red-50 flex items-center gap-2.5 text-rose-600 hover:text-red-700 transition-colors cursor-pointer group"
+                                  >
+                                    <span className="material-symbols-outlined text-base text-rose-500 group-hover:scale-110 transition-transform">delete</span>
+                                    <div>
+                                      <div className="font-semibold text-xs leading-none">Hapus Data KPM</div>
+                                      <div className="text-[10px] text-rose-400 mt-0.5">Hapus permanen dari sistem</div>
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
 
