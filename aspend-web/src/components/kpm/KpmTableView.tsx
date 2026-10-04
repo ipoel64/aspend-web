@@ -93,7 +93,12 @@ export default function KpmTableView({
   const [isAbsensiModalOpen, setIsAbsensiModalOpen] = useState(false);
 
   const [activeKeluarga, setActiveKeluarga] = useState<KpmKeluarga | null>(null);
-  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [actionModalKpm, setActionModalKpm] = useState<KpmKeluarga | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{
+    url: string;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
 
   // Delete confirmation modal
   const [deletingKpm, setDeletingKpm] = useState<KpmKeluarga | null>(null);
@@ -117,19 +122,6 @@ export default function KpmTableView({
 
   useEffect(() => {
     fetchData();
-  }, []);
-
-  // Tutup dropdown menu aksi saat klik di luar
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('.kpm-action-dropdown-container')) {
-        return;
-      }
-      setOpenActionMenuId(null);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Filter kelompok options
@@ -575,8 +567,8 @@ export default function KpmTableView({
       <div className="bg-white rounded-2xl border border-gray-200 px-3 py-2 shadow-xs">
         <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
           {/* Field Pencarian Ringkas */}
-          <div className="relative w-36 lg:w-44 shrink-0">
-            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[15px]">
+          <div className="relative w-28 sm:w-32 lg:w-36 shrink-0">
+            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[14px]">
               search
             </span>
             <input
@@ -587,7 +579,7 @@ export default function KpmTableView({
                 setCurrentPage(1);
               }}
               placeholder="Cari NIK, KK..."
-              className="w-full pl-7 pr-5 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
+              className="w-full pl-6 pr-5 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
             />
             {searchQuery && (
               <button
@@ -605,7 +597,7 @@ export default function KpmTableView({
               setSelectedKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[130px]"
           >
             <option value="">Semua Kelompok</option>
             {kelompokOptions.map((kel) => (
@@ -621,7 +613,7 @@ export default function KpmTableView({
               setSelectedStatusKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Peran: Semua</option>
             <option value="Ketua Kelompok">⭐ Ketua</option>
@@ -634,7 +626,7 @@ export default function KpmTableView({
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Data: Semua</option>
             <option value="Lengkap">✅ Lengkap</option>
@@ -648,7 +640,7 @@ export default function KpmTableView({
               setSelectedTahapFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Tahap: Semua</option>
             <option value="Tahap 1">Thp-1 (2026)</option>
@@ -663,7 +655,7 @@ export default function KpmTableView({
               setSelectedKepesertaanFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
           >
             <option value="">Status: Semua</option>
             <option value="Aktif">🟢 Aktif</option>
@@ -681,7 +673,7 @@ export default function KpmTableView({
               setShowOnlyDuplicates(false);
               setCurrentPage(1);
             }}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
               isAnyFilterActive
                 ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-xs font-bold active:scale-95'
                 : 'border border-gray-300 hover:bg-gray-100 text-gray-600'
@@ -691,12 +683,13 @@ export default function KpmTableView({
             Reset
           </button>
 
-          {/* Informasi Angka Hasil Filter Singkat (Menampilkan ... KPM) */}
-          <div className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 whitespace-nowrap">
-            <span className="material-symbols-outlined text-slate-400 text-[14px]">filter_list</span>
-            <span>
-              Menampilkan <strong className="text-cyan-800 font-bold">{filteredData.length}</strong> KPM
-            </span>
+          {/* Angka Hasil Filter Cukup Angka Saja yang Mencolok & Ukuran Sedikit Besar */}
+          <div
+            className="ml-auto shrink-0 flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-cyan-600 to-teal-600 text-white rounded-xl shadow-xs"
+            title={`Total ${filteredData.length} KPM ditemukan`}
+          >
+            <span className="material-symbols-outlined text-[15px] opacity-85">groups</span>
+            <span className="font-black text-sm font-mono tracking-tight leading-none">{filteredData.length}</span>
           </div>
         </div>
       </div>
@@ -753,7 +746,6 @@ export default function KpmTableView({
                     kpm.CatatanTemuan?.includes('Sudah Graduasi');
                   const isGraduasiOrInactive = isGraduasi || kpm.StatusKepesertaan === 'Tidak Aktif';
                   const rowActionId = kpm.KpmId || kpm.NIK || kpm.NoKK || `kpm-${idx}`;
-                  const isMenuOpen = openActionMenuId === rowActionId;
 
                   return (
                     <React.Fragment key={`kpm-row-${rowActionId}-${idx}`}>
@@ -796,8 +788,6 @@ export default function KpmTableView({
 
                       <tr
                         className={`transition-all border-b border-slate-300 ${
-                          isMenuOpen ? 'relative z-30' : ''
-                        } ${
                           isGraduasiOrInactive
                             ? 'bg-slate-100/80 text-slate-400 opacity-60 border-l-4 border-l-slate-400 hover:bg-slate-100'
                             : isDupNik || isDupKK
@@ -812,23 +802,44 @@ export default function KpmTableView({
                         </td>
 
                         <td className="px-2.5 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            {/* Thumbnail Foto Rumah (Fallback ke Foto KTP) */}
+                          <div className="flex items-center gap-3">
+                            {/* Thumbnail Foto Rumah / KTP (Ukuran Lebih Besar & Bisa di-Preview Saat Diklik) */}
                             {(() => {
                               const housePhotoId = kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam || kpm.FotoKTP;
+                              const hasPhoto = Boolean(housePhotoId);
+                              const photoLabel = kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam
+                                ? `Foto Rumah: ${kpm.NamaPengurus}`
+                                : `Foto KTP: ${kpm.NamaPengurus}`;
                               return (
                                 <div
-                                  className={`w-8 h-8 rounded-lg overflow-hidden border border-gray-200 bg-cyan-100 flex items-center justify-center font-bold text-cyan-800 shrink-0 text-xs shadow-2xs ${
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (hasPhoto) {
+                                      setPreviewPhoto({
+                                        url: `/api/image-proxy?id=${housePhotoId}`,
+                                        title: photoLabel,
+                                        subtitle: `NIK: ${kpm.NIK || '—'} • KK: ${kpm.NoKK || '—'} • ${kpm.Kelompok ? `Kelompok ${kpm.Kelompok}` : ''}`,
+                                      });
+                                    } else {
+                                      handleOpenFullProfile(kpm);
+                                    }
+                                  }}
+                                  className={`relative group/thumb w-12 h-12 rounded-xl overflow-hidden border border-gray-200 bg-cyan-100 flex items-center justify-center font-bold text-cyan-800 shrink-0 text-base shadow-xs cursor-pointer hover:border-cyan-400 hover:shadow-md transition-all ${
                                     isGraduasiOrInactive ? 'grayscale opacity-60' : ''
                                   }`}
-                                  title={kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam ? 'Foto Rumah KPM' : 'Foto KTP Pengurus'}
+                                  title={hasPhoto ? 'Klik untuk memperbesar / melihat foto' : 'Klik untuk melihat profil lengkap'}
                                 >
-                                  {housePhotoId ? (
-                                    <img
-                                      src={`/api/image-proxy?id=${housePhotoId}`}
-                                      alt={kpm.NamaPengurus}
-                                      className="w-full h-full object-cover"
-                                    />
+                                  {hasPhoto ? (
+                                    <>
+                                      <img
+                                        src={`/api/image-proxy?id=${housePhotoId}`}
+                                        alt={kpm.NamaPengurus}
+                                        className="w-full h-full object-cover transition-transform duration-200 group-hover/thumb:scale-110"
+                                      />
+                                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <span className="material-symbols-outlined text-lg">zoom_in</span>
+                                      </div>
+                                    </>
                                   ) : (
                                     kpm.NamaPengurus.charAt(0)
                                   )}
@@ -976,178 +987,17 @@ export default function KpmTableView({
                           })()}
                         </td>
 
-                        {/* Aksi Tunggal Terpadu (Dropdown Menu Lengkap Menggantikan 8 Tombol) */}
-                        <td className={`px-2 py-2 text-center whitespace-nowrap ${isMenuOpen ? 'relative z-40' : ''}`}>
-                          <div className="relative inline-block text-left kpm-action-dropdown-container">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenActionMenuId((prev) => (prev === rowActionId ? null : rowActionId));
-                              }}
-                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
-                                isMenuOpen
-                                  ? 'bg-cyan-700 text-white border-cyan-800 ring-2 ring-cyan-400/50'
-                                  : 'bg-white hover:bg-cyan-50 text-slate-700 hover:text-cyan-800 border-slate-300 hover:border-cyan-300'
-                              }`}
-                              title="Buka Menu Pilihan Aksi KPM"
-                            >
-                              <span className="material-symbols-outlined text-[15px] text-cyan-600">settings</span>
-                              <span>Aksi</span>
-                              <span className="material-symbols-outlined text-[14px] text-slate-400">expand_more</span>
-                            </button>
-
-                            {isMenuOpen && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className={`absolute right-0 z-50 w-56 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs text-left ${
-                                  idx >= paginatedData.length - 2 && paginatedData.length > 2
-                                    ? 'bottom-full mb-1'
-                                    : 'top-full mt-1'
-                                }`}
-                              >
-                                <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50/80">
-                                  <p className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Menu Aksi KPM</p>
-                                  <p className="font-bold text-slate-800 truncate text-[11px]">{kpm.NamaPengurus}</p>
-                                </div>
-
-                                <div className="py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleOpenFullProfile(kpm);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-cyan-50 flex items-center gap-2.5 text-slate-700 hover:text-cyan-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-cyan-600 group-hover:scale-110 transition-transform">visibility</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Lihat Profil Lengkap</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Semua data & ringkasan KPM</div>
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      handleOpenEdit(kpm);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-blue-50 flex items-center gap-2.5 text-slate-700 hover:text-blue-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-blue-600 group-hover:scale-110 transition-transform">edit</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Edit Data KPM</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Ubah biodata pengurus & KK</div>
-                                    </div>
-                                  </button>
-                                </div>
-
-                                <div className="border-t border-slate-100 my-0.5" />
-
-                                <div className="py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setActiveKeluarga(kpm);
-                                      setIsAnggotaModalOpen(true);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-emerald-50 flex items-center gap-2.5 text-slate-700 hover:text-emerald-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-emerald-600 group-hover:scale-110 transition-transform">group</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Anggota Keluarga</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Kelola ART & komponen PKH</div>
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setActiveKeluarga(kpm);
-                                      setIsAsetModalOpen(true);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2.5 text-slate-700 hover:text-amber-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-amber-600 group-hover:scale-110 transition-transform">home</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Aset & Kondisi Rumah</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Foto rumah, usaha & GPS</div>
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setActiveKeluarga(kpm);
-                                      setIsGraduasiModalOpen(true);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-violet-50 flex items-center gap-2.5 text-slate-700 hover:text-violet-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-violet-600 group-hover:scale-110 transition-transform">school</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Status Graduasi & PPSE</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">{isGraduasi ? 'Telah Tergraduasi' : 'Pemberdayaan keluarga'}</div>
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setActiveKeluarga(kpm);
-                                      setIsPermasalahanModalOpen(true);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 flex items-center gap-2.5 text-slate-700 hover:text-rose-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-rose-600 group-hover:scale-110 transition-transform">report_problem</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Catat Permasalahan</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Aduan & kendala bansos</div>
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setActiveKeluarga(kpm);
-                                      setIsShareModalOpen(true);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-purple-50 flex items-center gap-2.5 text-slate-700 hover:text-purple-800 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-purple-600 group-hover:scale-110 transition-transform">link</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Bagikan Link Portal</div>
-                                      <div className="text-[10px] text-slate-400 mt-0.5">Link akses mandiri KPM</div>
-                                    </div>
-                                  </button>
-                                </div>
-
-                                <div className="border-t border-slate-100 my-0.5" />
-
-                                <div className="py-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenActionMenuId(null);
-                                      setDeletingKpm(kpm);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-left hover:bg-red-50 flex items-center gap-2.5 text-rose-600 hover:text-red-700 transition-colors cursor-pointer group"
-                                  >
-                                    <span className="material-symbols-outlined text-base text-rose-500 group-hover:scale-110 transition-transform">delete</span>
-                                    <div>
-                                      <div className="font-semibold text-xs leading-none">Hapus Data KPM</div>
-                                      <div className="text-[10px] text-rose-400 mt-0.5">Hapus permanen dari sistem</div>
-                                    </div>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                        {/* Aksi Tunggal Terpadu (Membuka Jendela Pop-up Modal Profesional) */}
+                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setActionModalKpm(kpm)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-cyan-50 text-slate-700 hover:text-cyan-800 border border-slate-300 hover:border-cyan-400 rounded-xl text-xs font-bold transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                            title={`Buka Menu Pilihan Aksi untuk ${kpm.NamaPengurus}`}
+                          >
+                            <span className="material-symbols-outlined text-[15px] text-cyan-600">settings</span>
+                            <span>Aksi</span>
+                          </button>
                         </td>
 
                         {/* KELENGKAPAN DATA (Paling Ujung Kanan) */}
@@ -1235,7 +1085,7 @@ export default function KpmTableView({
                                   </div>
                                 </div>
 
-                                {/* Micro Badges: 1 Baris Ramping & Tidak Memakan Ruang */}
+                                {/* Micro Badges: Lebih Kecil & Sangat Ringkas */}
                                 <div className="flex items-center gap-1 flex-nowrap pt-0.5">
                                   {/* 1. Data KPM */}
                                   <button
@@ -1244,7 +1094,7 @@ export default function KpmTableView({
                                       e.stopPropagation();
                                       handleOpenEdit(kpm);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
                                       isKpmComplete
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                         : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
@@ -1255,7 +1105,7 @@ export default function KpmTableView({
                                         : `Data Pokok KPM Belum Lengkap (${details.kpmMissingSummary || 'ada field/dokumen yang kosong'}). Klik untuk melengkapi.`
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[11px] shrink-0">
+                                    <span className="material-symbols-outlined text-[10px] shrink-0">
                                       {isKpmComplete ? 'check_circle' : 'warning'}
                                     </span>
                                     <span>KPM</span>
@@ -1269,7 +1119,7 @@ export default function KpmTableView({
                                       setActiveKeluarga(kpm);
                                       setIsAnggotaModalOpen(true);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
                                       kpm.HasDuplicateAnggotaNik
                                         ? 'bg-rose-100 text-rose-900 border-rose-400 hover:bg-rose-200'
                                         : isAnggotaComplete
@@ -1284,13 +1134,13 @@ export default function KpmTableView({
                                         : 'Belum ada data anggota keluarga. Klik untuk menambahkan anggota.'
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[11px] shrink-0">
+                                    <span className="material-symbols-outlined text-[10px] shrink-0">
                                       {kpm.HasDuplicateAnggotaNik ? 'warning' : isAnggotaComplete ? 'group' : 'group_off'}
                                     </span>
-                                    <span>{anggotaCount} Ang</span>
+                                    <span>{anggotaCount} ART</span>
                                     {kpm.HasDuplicateAnggotaNik && (
-                                      <span className="text-[9px] bg-rose-600 text-white px-1 rounded-full font-bold ml-0.5">
-                                        NIK Ganda
+                                      <span className="text-[8.5px] bg-rose-600 text-white px-1 rounded-full font-bold ml-0.5">
+                                        Ganda
                                       </span>
                                     )}
                                   </button>
@@ -1303,7 +1153,7 @@ export default function KpmTableView({
                                       setActiveKeluarga(kpm);
                                       setIsAsetModalOpen(true);
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
                                       isAsetComplete
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                         : hasAset
@@ -1318,7 +1168,7 @@ export default function KpmTableView({
                                         : 'Belum ada data aset & lokasi. Klik untuk menambahkan aset.'
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[11px] shrink-0">
+                                    <span className="material-symbols-outlined text-[10px] shrink-0">
                                       {isAsetComplete ? 'home' : hasAset ? 'home' : 'add_home'}
                                     </span>
                                     <span>Aset</span>
@@ -1537,6 +1387,307 @@ export default function KpmTableView({
         onClose={() => setIsAbsensiModalOpen(false)}
         dataList={dataList}
       />
+
+      {/* Jendela Pop-up Menu Aksi KPM Profesional */}
+      {actionModalKpm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setActionModalKpm(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Pop-up Aksi */}
+            <div className="bg-gradient-to-r from-slate-900 via-cyan-950 to-teal-900 text-white p-4.5 relative">
+              <button
+                type="button"
+                onClick={() => setActionModalKpm(null)}
+                className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+
+              <div className="flex items-center gap-3 pr-8">
+                {/* Avatar / Foto */}
+                <div className="w-13 h-13 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/30 shrink-0 flex items-center justify-center font-bold text-lg text-white shadow-inner">
+                  {actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP ? (
+                    <img
+                      src={`/api/image-proxy?id=${actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP}`}
+                      alt={actionModalKpm.NamaPengurus}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    actionModalKpm.NamaPengurus.charAt(0)
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-base text-white tracking-tight truncate max-w-[280px]">
+                      {actionModalKpm.NamaPengurus}
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        actionModalKpm.StatusKelompok === 'Ketua Kelompok'
+                          ? 'bg-amber-400 text-amber-950'
+                          : 'bg-white/20 text-white'
+                      }`}
+                    >
+                      {actionModalKpm.StatusKelompok || 'Anggota'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs text-cyan-200/90 font-mono mt-0.5">
+                    <span>NIK: {actionModalKpm.NIK || '—'}</span>
+                    <span>•</span>
+                    <span>KK: {actionModalKpm.NoKK || '—'}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5 truncate">
+                    {actionModalKpm.Kelompok ? `Kelompok ${actionModalKpm.Kelompok}` : 'Tanpa Kelompok'} •{' '}
+                    {actionModalKpm.Kelurahan || actionModalKpm.Kecamatan || '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Menu Aksi Pilihan */}
+            <div className="p-4 space-y-2 max-h-[70vh] overflow-y-auto">
+              {/* Section 1: Data Utama */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    handleOpenFullProfile(k);
+                  }}
+                  className="p-3 rounded-2xl border border-cyan-200 bg-cyan-50/60 hover:bg-cyan-100 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-cyan-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">visibility</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-cyan-900">
+                      Lihat Profil Lengkap
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Ringkasan biodata & dokumen</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    handleOpenEdit(k);
+                  }}
+                  className="p-3 rounded-2xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">edit</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-blue-900">
+                      Edit Data KPM
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Ubah biodata & nomor KK</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Section 2: Modul Terkait */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setActiveKeluarga(k);
+                    setIsAnggotaModalOpen(true);
+                  }}
+                  className="p-3 rounded-2xl border border-slate-200 hover:border-emerald-300 bg-white hover:bg-emerald-50/50 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">groups</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-emerald-900 flex items-center gap-1.5">
+                      <span>Anggota Keluarga</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full font-bold">
+                        {actionModalKpm.AnggotaCount || 0}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Kelola ART & komponen bansos</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setActiveKeluarga(k);
+                    setIsAsetModalOpen(true);
+                  }}
+                  className="p-3 rounded-2xl border border-slate-200 hover:border-amber-300 bg-white hover:bg-amber-50/50 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">home</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-amber-900 flex items-center gap-1.5">
+                      <span>Aset & Rumah</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          actionModalKpm.HasAset
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {actionModalKpm.HasAset ? 'Ada' : 'Belum'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Foto rumah, usaha & GPS</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setActiveKeluarga(k);
+                    setIsGraduasiModalOpen(true);
+                  }}
+                  className="p-3 rounded-2xl border border-slate-200 hover:border-purple-300 bg-white hover:bg-purple-50/50 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">school</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-purple-900">
+                      Graduasi & PPSE
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Pemberdayaan & kemandirian</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setActiveKeluarga(k);
+                    setIsPermasalahanModalOpen(true);
+                  }}
+                  className="p-3 rounded-2xl border border-slate-200 hover:border-rose-300 bg-white hover:bg-rose-50/50 text-left transition-all cursor-pointer group flex items-start gap-3 shadow-2xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <span className="material-symbols-outlined text-lg">report_problem</span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-rose-900">
+                      Permasalahan
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Catatan & tindak lanjut aduan</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Section 3: Bagikan Link & Hapus */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setActiveKeluarga(k);
+                    setIsShareModalOpen(true);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/50 hover:bg-indigo-50/50 text-left transition-all cursor-pointer flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-indigo-600 text-base">link</span>
+                    <span className="font-bold text-xs text-slate-700">Bagikan Link Portal Mandiri KPM</span>
+                  </div>
+                  <span className="material-symbols-outlined text-slate-400 text-base">chevron_right</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const k = actionModalKpm;
+                    setActionModalKpm(null);
+                    setDeletingKpm(k);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-rose-200 hover:border-rose-300 bg-rose-50/40 hover:bg-rose-100/60 text-left transition-all cursor-pointer flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-2.5 text-rose-700">
+                    <span className="material-symbols-outlined text-rose-600 text-base group-hover:scale-110 transition-transform">
+                      delete
+                    </span>
+                    <span className="font-bold text-xs">Hapus Data KPM</span>
+                  </div>
+                  <span className="text-[10px] text-rose-500 font-medium">Hapus permanen</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal Preview Foto KPM */}
+      {previewPhoto && (
+        <div
+          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Bar Preview */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900/95 border-b border-slate-800 text-white">
+              <div>
+                <h4 className="font-bold text-sm tracking-tight text-white">{previewPhoto.title}</h4>
+                {previewPhoto.subtitle && (
+                  <p className="text-xs text-slate-400 mt-0.5">{previewPhoto.subtitle}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewPhoto.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                  title="Buka ukuran penuh di tab baru"
+                >
+                  <span className="material-symbols-outlined text-base">open_in_new</span>
+                  <span className="hidden sm:inline">Ukuran Penuh</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPhoto(null)}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors cursor-pointer"
+                  title="Tutup"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Display Foto */}
+            <div className="p-4 flex items-center justify-center bg-black/60 min-h-[300px] max-h-[75vh] overflow-hidden">
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.title}
+                className="max-h-[70vh] max-w-full object-contain rounded-xl shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deletingKpm && (
