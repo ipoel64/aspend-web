@@ -95,7 +95,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   // Logo Kemensos (Kiri)
   try {
     if (LOGO_KEMENSOS_BASE64) {
-      doc.addImage(LOGO_KEMENSOS_BASE64, 'PNG', marginX, 10, 22, 22);
+      doc.addImage(LOGO_KEMENSOS_BASE64, 'PNG', marginX, 9.5, 21, 21);
     }
   } catch (err) {
     console.warn('Gagal memuat logo Kemensos di PDF:', err);
@@ -104,8 +104,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   // Logo PKH (Kanan)
   try {
     if (LOGO_PKH_BASE64) {
-      // PKH logo proporsional (lebar sedikit lebih besar)
-      doc.addImage(LOGO_PKH_BASE64, 'PNG', pageWidth - marginX - 25, 10, 25, 20);
+      doc.addImage(LOGO_PKH_BASE64, 'PNG', pageWidth - marginX - 25, 10, 24, 19.5);
     }
   } catch (err) {
     console.warn('Gagal memuat logo PKH di PDF:', err);
@@ -115,46 +114,34 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   doc.setTextColor(20, 20, 20);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('KEMENTERIAN SOSIAL REPUBLIK INDONESIA', pageWidth / 2, 13, { align: 'center' });
+  doc.text('KEMENTERIAN SOSIAL REPUBLIK INDONESIA', pageWidth / 2, 13.5, { align: 'center' });
 
   doc.setFontSize(9.5);
-  doc.text('DIREKTORAT JAMINAN SOSIAL KELUARGA', pageWidth / 2, 17.5, { align: 'center' });
+  doc.text('DIREKTORAT JAMINAN SOSIAL KELUARGA', pageWidth / 2, 18, { align: 'center' });
 
   doc.setFontSize(9);
-  doc.text('PROGRAM KELUARGA HARAPAN (PKH)', pageWidth / 2, 22, { align: 'center' });
+  doc.text('PROGRAM KELUARGA HARAPAN (PKH)', pageWidth / 2, 22.5, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(80, 80, 80);
-  doc.text('Sekretariat: Jl. Salemba Raya No. 28, Jakarta Pusat 10430 Telp. (021) 3103591', pageWidth / 2, 26, { align: 'center' });
+  doc.text('Sekretariat: Jl. Salemba Raya No. 28, Jakarta Pusat 10430 Telp. (021) 3103591', pageWidth / 2, 26.5, { align: 'center' });
 
-  // Garis Pembatas Kop Surat Ganda (Tebal & Tipis)
+  // Garis Pembatas Kop Surat Ganda (Diturunkan agar tidak bertabrakan dengan logo)
   doc.setDrawColor(20, 20, 20);
   doc.setLineWidth(0.8);
-  doc.line(marginX, 29.5, pageWidth - marginX, 29.5);
+  doc.line(marginX, 33, pageWidth - marginX, 33);
   doc.setLineWidth(0.2);
-  doc.line(marginX, 30.5, pageWidth - marginX, 30.5);
+  doc.line(marginX, 33.8, pageWidth - marginX, 33.8);
 
-  // 2. JUDUL DOKUMEN
+  // 2. JUDUL DOKUMEN (Status Kepesertaan Dikosongkan Sesuai Permintaan User)
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
-  doc.text('DAFTAR HADIR PERTEMUAN PENINGKATAN KEMAMPUAN KELUARGA (P2K2 / FDS)', pageWidth / 2, 36.5, { align: 'center' });
-
-  const statusLabel =
-    params.filterStatus === 'aktif'
-      ? 'STATUS KEPESERTAAN: KPM AKTIF'
-      : params.filterStatus === 'non-aktif'
-      ? 'STATUS KEPESERTAAN: KPM NON-AKTIF / GRADUASI'
-      : 'STATUS KEPESERTAAN: SELURUH KPM (GABUNGAN)';
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text(statusLabel, pageWidth / 2, 40.5, { align: 'center' });
+  doc.text('DAFTAR HADIR PERTEMUAN PENINGKATAN KEMAMPUAN KELUARGA (P2K2 / FDS)', pageWidth / 2, 39.5, { align: 'center' });
 
   // 3. METADATA KEGIATAN (2 Kolom Rapi)
-  const metaY = 44.5;
+  const metaY = 46.5;
   const col1X = marginX;
   const col1ValX = marginX + 32;
   const col2X = marginX + 96;
@@ -200,7 +187,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   doc.text(splitModul, col1ValX, metaY + rowHeight * 3);
 
   doc.setFont('helvetica', 'normal');
-  doc.text('NIP / No. Registrasi', col2X, metaY + rowHeight * 3);
+  doc.text('NIP', col2X, metaY + rowHeight * 3);
   doc.text(`: ${params.nipPendamping || '-'}`, col2ValX, metaY + rowHeight * 3);
 
   // Baris 5
@@ -257,7 +244,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
     const roleSuffix = kpm.StatusKelompok === 'Ketua Kelompok' ? '\n(KETUA KELOMPOK)' : '';
     const namaText = `${kpm.NamaPengurus || ''}${roleSuffix}`;
     const nikKkText = `${kpm.NIK || '—'}\nKK: ${kpm.NoKK || '—'}`;
-    const alamatText = `${kpm.Alamat || ''}${kpm.Lingkungan ? ` (Lingk. ${kpm.Lingkungan})` : ''}`.trim() || '—';
+    const alamatText = kpm.Alamat?.trim() || '—';
 
     return [
       no.toString(),
@@ -265,8 +252,8 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
       nikKkText,
       alamatText,
       isGrad ? 'GRADUASI' : 'AKTIF',
-      isOdd ? `${no}. ..........................` : '',
-      !isOdd ? `${no}. ..........................` : '',
+      isOdd ? `${no}. ...............` : '',
+      !isOdd ? `${no}. ...............` : '',
     ];
   });
 
@@ -275,16 +262,12 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
     margin: { left: marginX, right: marginX, bottom: 12 },
     head: [
       [
-        { content: 'NO', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        { content: 'NAMA LENGKAP PENGURUS', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
-        { content: 'NIK / NO. KK', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-        { content: 'ALAMAT / LINGKUNGAN', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
-        { content: 'STATUS', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'NO', styles: { halign: 'center', valign: 'middle' } },
+        { content: 'NAMA LENGKAP PENGURUS', styles: { halign: 'left', valign: 'middle' } },
+        { content: 'NIK / NO. KK', styles: { halign: 'center', valign: 'middle' } },
+        { content: 'ALAMAT', styles: { halign: 'left', valign: 'middle' } },
+        { content: 'STATUS', styles: { halign: 'center', valign: 'middle' } },
         { content: 'TANDA TANGAN / CAP JEMPOL', colSpan: 2, styles: { halign: 'center', valign: 'middle' } },
-      ],
-      [
-        { content: 'GANJIL', styles: { halign: 'center', valign: 'middle' } },
-        { content: 'GENAP', styles: { halign: 'center', valign: 'middle' } },
       ],
     ],
     body: tableRows,
@@ -306,12 +289,12 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
     },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center', valign: 'middle' },
-      1: { cellWidth: 46, halign: 'left', valign: 'middle', fontStyle: 'bold' },
-      2: { cellWidth: 36, halign: 'center', valign: 'middle' },
-      3: { cellWidth: 40, halign: 'left', valign: 'middle' },
-      4: { cellWidth: 16, halign: 'center', valign: 'middle', fontStyle: 'bold' },
-      5: { cellWidth: 20, halign: 'left', valign: 'top', minCellHeight: 8.5 },
-      6: { cellWidth: 20, halign: 'left', valign: 'top', minCellHeight: 8.5 },
+      1: { cellWidth: 48, halign: 'left', valign: 'middle', fontStyle: 'bold' },
+      2: { cellWidth: 38, halign: 'center', valign: 'middle' },
+      3: { cellWidth: 34, halign: 'left', valign: 'middle' },
+      4: { cellWidth: 14, halign: 'center', valign: 'middle', fontStyle: 'bold' },
+      5: { cellWidth: 22, halign: 'left', valign: 'bottom', minCellHeight: 9.5 },
+      6: { cellWidth: 22, halign: 'left', valign: 'bottom', minCellHeight: 9.5 },
     },
     didDrawPage: (data) => {
       // Header halaman berulang (halaman 2 dst)
@@ -329,7 +312,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
     },
   });
 
-  // 6. BLOK TANDA TANGAN DI BAGIAN BAWAH
+  // 6. BLOK TANDA TANGAN DI BAGIAN BAWAH (Posisi Ditengah Halaman)
   const finalY = (doc as any).lastAutoTable?.finalY || tableStartY + 50;
   let ttdY = finalY + 8;
 
@@ -339,13 +322,14 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
     ttdY = 18;
   }
 
-  const ttdCol1X = marginX + 15;
-  const ttdCol2X = pageWidth - marginX - 55;
+  // Posisi simetris di tengah halaman (Lebar total 210mm)
+  const ttdCol1X = 60;
+  const ttdCol2X = 150;
 
   doc.setFontSize(8);
   doc.setTextColor(20, 20, 20);
 
-  // Kiri: Mengetahui Ketua Kelompok
+  // Kiri-Tengah: Mengetahui Ketua Kelompok
   doc.setFont('helvetica', 'normal');
   doc.text('Mengetahui,', ttdCol1X, ttdY, { align: 'center' });
   doc.setFont('helvetica', 'bold');
@@ -358,7 +342,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   doc.text(namaKetua, ttdCol1X, ttdY + 24, { align: 'center' });
   doc.line(ttdCol1X - 25, ttdY + 25, ttdCol1X + 25, ttdY + 25);
 
-  // Kanan: Pendamping Sosial PKH
+  // Kanan-Tengah: Pendamping Sosial PKH
   const kotaKab = sampleKpm?.KabKota || 'Kota Binjai';
   doc.setFont('helvetica', 'normal');
   doc.text(`${kotaKab}, ${formattedTtdDate}`, ttdCol2X, ttdY, { align: 'center' });
@@ -369,7 +353,7 @@ export function buildKpmAbsensiPdf(params: KpmAbsensiPdfParams): jsPDF {
   doc.line(ttdCol2X - 25, ttdY + 25, ttdCol2X + 25, ttdY + 25);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text(`NIP/Reg: ${params.nipPendamping || '-'}`, ttdCol2X, ttdY + 29, { align: 'center' });
+  doc.text(`NIP: ${params.nipPendamping || '-'}`, ttdCol2X, ttdY + 29, { align: 'center' });
 
   return doc;
 }

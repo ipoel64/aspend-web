@@ -507,14 +507,6 @@ export default function KpmTableView({
             <span className="material-symbols-outlined text-[15px] text-teal-600">upload_file</span>
             <span>Impor</span>
           </button>
-          <button
-            onClick={() => setIsImportPhotoModalOpen(true)}
-            className="px-2.5 py-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
-            title="Impor / Migrasi Foto Rumah KPM dari Google Drive atau ZIP"
-          >
-            <span className="material-symbols-outlined text-[15px] text-emerald-600">add_photo_alternate</span>
-            <span>Impor Foto</span>
-          </button>
           <a
             href="/api/kpm/export?type=excel-all"
             target="_blank"
@@ -884,72 +876,87 @@ export default function KpmTableView({
                           </div>
                         </td>
 
-                        <td className="px-2 py-2.5 font-mono whitespace-nowrap min-w-[140px]">
-                          {/* NIK baris 1 */}
-                          <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap">
-                            <span className={`${isGraduasiOrInactive ? 'text-slate-500' : 'text-gray-900'} font-bold tracking-tight text-xs`}>{kpm.NIK || '—'}</span>
-                            {kpm.NIK && (
-                              <button
-                                type="button"
+                        <td className="px-2 py-2 font-mono whitespace-nowrap min-w-[140px]">
+                          {/* NIK baris 1 (Klik angka untuk salin) */}
+                          <div className="whitespace-nowrap">
+                            {kpm.NIK ? (
+                              <span
                                 onClick={(e) => handleCopy(kpm.NIK, `nik-${kpm.KpmId || idx}`, e)}
-                                className="p-0.5 hover:bg-gray-200/80 rounded transition-colors text-gray-400 hover:text-cyan-700 cursor-pointer inline-flex items-center shrink-0"
-                                title={copiedKey === `nik-${kpm.KpmId || idx}` ? 'NIK Berhasil Disalin!' : 'Salin NIK'}
+                                className={`cursor-pointer font-bold tracking-tight text-xs transition-colors hover:text-cyan-700 hover:underline inline-flex items-center gap-1 ${
+                                  copiedKey === `nik-${kpm.KpmId || idx}`
+                                    ? 'text-emerald-600 font-extrabold'
+                                    : isGraduasiOrInactive
+                                    ? 'text-slate-500'
+                                    : 'text-gray-900'
+                                }`}
+                                title={copiedKey === `nik-${kpm.KpmId || idx}` ? 'NIK Berhasil Disalin!' : 'Klik untuk menyalin NIK'}
                               >
-                                <span className={`material-symbols-outlined text-[13px] ${copiedKey === `nik-${kpm.KpmId || idx}` ? 'text-emerald-600 font-bold' : ''}`}>
-                                  {copiedKey === `nik-${kpm.KpmId || idx}` ? 'check' : 'content_copy'}
-                                </span>
-                              </button>
+                                {kpm.NIK}
+                                {copiedKey === `nik-${kpm.KpmId || idx}` && (
+                                  <span className="text-[10px] text-emerald-600 font-bold">✓</span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
                             )}
                           </div>
 
-                          {/* No. KK baris 2 */}
-                          <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap mt-0.5">
-                            <span className={`${isGraduasiOrInactive ? 'text-slate-400' : 'text-gray-500'} text-[11px]`}>KK: {kpm.NoKK || '—'}</span>
-                            {kpm.NoKK && (
-                              <button
-                                type="button"
+                          {/* No. KK baris 2 (Klik angka untuk salin) */}
+                          <div className="whitespace-nowrap mt-0.5">
+                            {kpm.NoKK ? (
+                              <span
                                 onClick={(e) => handleCopy(kpm.NoKK, `kk-${kpm.KpmId || idx}`, e)}
-                                className="p-0.5 hover:bg-gray-200/80 rounded transition-colors text-gray-400 hover:text-cyan-700 cursor-pointer inline-flex items-center shrink-0"
-                                title={copiedKey === `kk-${kpm.KpmId || idx}` ? 'No. KK Berhasil Disalin!' : 'Salin No. KK'}
+                                className={`cursor-pointer text-[11px] transition-colors hover:text-cyan-700 hover:underline inline-flex items-center gap-1 ${
+                                  copiedKey === `kk-${kpm.KpmId || idx}`
+                                    ? 'text-emerald-600 font-bold'
+                                    : isGraduasiOrInactive
+                                    ? 'text-slate-400'
+                                    : 'text-gray-500'
+                                }`}
+                                title={copiedKey === `kk-${kpm.KpmId || idx}` ? 'No. KK Berhasil Disalin!' : 'Klik untuk menyalin No. KK'}
                               >
-                                <span className={`material-symbols-outlined text-[13px] ${copiedKey === `kk-${kpm.KpmId || idx}` ? 'text-emerald-600 font-bold' : ''}`}>
-                                  {copiedKey === `kk-${kpm.KpmId || idx}` ? 'check' : 'content_copy'}
-                                </span>
-                              </button>
+                                KK: {kpm.NoKK}
+                                {copiedKey === `kk-${kpm.KpmId || idx}` && (
+                                  <span className="text-[10px] text-emerald-600 font-bold">✓</span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-[11px]">KK: —</span>
                             )}
                           </div>
                         </td>
 
-                        <td className="px-2 py-2.5">
+                        <td className="px-2 py-2">
                           <span className={`font-semibold ${isGraduasiOrInactive ? 'text-slate-500' : 'text-gray-800'} text-xs block truncate max-w-[120px]`}>{kpm.Kelompok || '—'}</span>
                           {kpm.NoHP && (
-                            <div className={`text-[11px] ${isGraduasiOrInactive ? 'text-slate-400' : 'text-gray-600'} font-mono flex items-center gap-1 mt-0.5 whitespace-nowrap`}>
-                              <span className="material-symbols-outlined text-xs text-emerald-600 shrink-0">call</span>
-                              <span>{formatIndonesianPhone(kpm.NoHP)}</span>
-                              <button
-                                type="button"
+                            <div className="flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                              <span className="material-symbols-outlined text-[13px] text-emerald-600 shrink-0">call</span>
+                              <span
                                 onClick={(e) => handleCopy(formatIndonesianPhone(kpm.NoHP), `hp-${kpm.KpmId || idx}`, e)}
-                                className="p-0.5 hover:bg-gray-200/80 rounded transition-colors text-gray-400 hover:text-emerald-700 cursor-pointer inline-flex items-center"
-                                title={copiedKey === `hp-${kpm.KpmId || idx}` ? 'No. Telp Berhasil Disalin!' : 'Salin No. Telp'}
+                                className={`cursor-pointer font-mono text-[11px] transition-colors hover:text-emerald-700 hover:underline inline-flex items-center gap-1 ${
+                                  copiedKey === `hp-${kpm.KpmId || idx}`
+                                    ? 'text-emerald-600 font-bold'
+                                    : isGraduasiOrInactive
+                                    ? 'text-slate-400'
+                                    : 'text-gray-600'
+                                }`}
+                                title={copiedKey === `hp-${kpm.KpmId || idx}` ? 'No. Telp Berhasil Disalin!' : 'Klik untuk menyalin No. Telp'}
                               >
-                                <span className={`material-symbols-outlined text-[13px] ${copiedKey === `hp-${kpm.KpmId || idx}` ? 'text-emerald-600 font-bold' : ''}`}>
-                                  {copiedKey === `hp-${kpm.KpmId || idx}` ? 'check' : 'content_copy'}
-                                </span>
-                              </button>
+                                {formatIndonesianPhone(kpm.NoHP)}
+                                {copiedKey === `hp-${kpm.KpmId || idx}` && (
+                                  <span className="text-[10px] text-emerald-600 font-bold">✓</span>
+                                )}
+                              </span>
                             </div>
                           )}
                         </td>
 
-                        <td className={`px-2 py-2.5 ${isGraduasiOrInactive ? 'text-slate-400' : 'text-gray-600'}`}>
+                        <td className={`px-2 py-2 ${isGraduasiOrInactive ? 'text-slate-400' : 'text-gray-600'}`}>
                           <p className={`truncate max-w-[120px] font-bold text-xs ${isGraduasiOrInactive ? 'text-slate-500' : 'text-gray-900'}`}>
                             {kpm.Kelurahan || kpm.Kecamatan || '—'}
                           </p>
                           <p className={`text-[10px] truncate max-w-[120px] ${isGraduasiOrInactive ? 'text-slate-400' : 'text-gray-600'}`}>
                             {kpm.Alamat || '—'}
-                          </p>
-                          <p className={`text-[10px] font-semibold truncate max-w-[120px] flex items-center gap-1 mt-0.5 ${isGraduasiOrInactive ? 'text-slate-400' : 'text-cyan-800'}`}>
-                            <span className={`material-symbols-outlined text-[12px] shrink-0 ${isGraduasiOrInactive ? 'text-slate-400' : 'text-cyan-600'}`}>home_pin</span>
-                            <span>{kpm.Lingkungan ? `Lingk: ${kpm.Lingkungan}` : 'Lingk: —'}</span>
                           </p>
                         </td>
 
@@ -1085,8 +1092,8 @@ export default function KpmTableView({
                                   </div>
                                 </div>
 
-                                {/* Micro Badges: Lebih Kecil & Sangat Ringkas */}
-                                <div className="flex items-center gap-1 flex-nowrap pt-0.5">
+                                {/* Micro Badges: Ultra Ramping & Tipis */}
+                                <div className="flex items-center gap-1 flex-nowrap mt-0.5">
                                   {/* 1. Data KPM */}
                                   <button
                                     type="button"
@@ -1094,7 +1101,7 @@ export default function KpmTableView({
                                       e.stopPropagation();
                                       handleOpenEdit(kpm);
                                     }}
-                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`h-[17px] px-1 py-0 rounded text-[8.5px] font-bold leading-none inline-flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border shadow-2xs ${
                                       isKpmComplete
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                         : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
@@ -1105,7 +1112,7 @@ export default function KpmTableView({
                                         : `Data Pokok KPM Belum Lengkap (${details.kpmMissingSummary || 'ada field/dokumen yang kosong'}). Klik untuk melengkapi.`
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[10px] shrink-0">
+                                    <span className="material-symbols-outlined text-[9px] shrink-0">
                                       {isKpmComplete ? 'check_circle' : 'warning'}
                                     </span>
                                     <span>KPM</span>
@@ -1119,7 +1126,7 @@ export default function KpmTableView({
                                       setActiveKeluarga(kpm);
                                       setIsAnggotaModalOpen(true);
                                     }}
-                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`h-[17px] px-1 py-0 rounded text-[8.5px] font-bold leading-none inline-flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border shadow-2xs ${
                                       kpm.HasDuplicateAnggotaNik
                                         ? 'bg-rose-100 text-rose-900 border-rose-400 hover:bg-rose-200'
                                         : isAnggotaComplete
@@ -1134,12 +1141,12 @@ export default function KpmTableView({
                                         : 'Belum ada data anggota keluarga. Klik untuk menambahkan anggota.'
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[10px] shrink-0">
+                                    <span className="material-symbols-outlined text-[9px] shrink-0">
                                       {kpm.HasDuplicateAnggotaNik ? 'warning' : isAnggotaComplete ? 'group' : 'group_off'}
                                     </span>
                                     <span>{anggotaCount} ART</span>
                                     {kpm.HasDuplicateAnggotaNik && (
-                                      <span className="text-[8.5px] bg-rose-600 text-white px-1 rounded-full font-bold ml-0.5">
+                                      <span className="text-[7.5px] bg-rose-600 text-white px-0.5 rounded-full font-bold ml-0.5">
                                         Ganda
                                       </span>
                                     )}
@@ -1153,7 +1160,7 @@ export default function KpmTableView({
                                       setActiveKeluarga(kpm);
                                       setIsAsetModalOpen(true);
                                     }}
-                                    className={`px-1 py-0.5 rounded text-[9px] font-bold leading-none flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border ${
+                                    className={`h-[17px] px-1 py-0 rounded text-[8.5px] font-bold leading-none inline-flex items-center gap-0.5 shrink-0 transition-colors cursor-pointer border shadow-2xs ${
                                       isAsetComplete
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                                         : hasAset
@@ -1168,7 +1175,7 @@ export default function KpmTableView({
                                         : 'Belum ada data aset & lokasi. Klik untuk menambahkan aset.'
                                     }
                                   >
-                                    <span className="material-symbols-outlined text-[10px] shrink-0">
+                                    <span className="material-symbols-outlined text-[9px] shrink-0">
                                       {isAsetComplete ? 'home' : hasAset ? 'home' : 'add_home'}
                                     </span>
                                     <span>Aset</span>

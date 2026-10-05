@@ -41,9 +41,40 @@ export default function KpmAbsensiModal({
   // Waktu & Identitas
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [lokasi, setLokasi] = useState('Rumah Ketua Kelompok');
-  const [namaPendamping, setNamaPendamping] = useState('SYAIFUL KHOLIFAH');
-  const [nipPendamping, setNipPendamping] = useState('1275012710******');
+  const [namaPendamping, setNamaPendamping] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aspend_pendamping_nama') || 'SYAIFUL KHOLIFAH';
+    }
+    return 'SYAIFUL KHOLIFAH';
+  });
+  const [nipPendamping, setNipPendamping] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('aspend_pendamping_nip') || '';
+    }
+    return '';
+  });
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Auto-sync pendamping name & unsensored NIP from profile or SDM PKH
+  React.useEffect(() => {
+    async function loadPendampingProfile() {
+      try {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+        if (data?.profile) {
+          if (data.profile.nama && !localStorage.getItem('aspend_pendamping_nama')) {
+            setNamaPendamping(data.profile.nama);
+          }
+          if (data.profile.nip && !localStorage.getItem('aspend_pendamping_nip')) {
+            setNipPendamping(data.profile.nip);
+          }
+        }
+      } catch {
+        // Fallback silently if offline or failed
+      }
+    }
+    loadPendampingProfile();
+  }, []);
 
   // List of kelompok
   const kelompokOptions = useMemo(() => {
@@ -155,17 +186,6 @@ export default function KpmAbsensiModal({
               <span>{isDownloading ? 'Memproses PDF...' : 'Download PDF Absensi'}</span>
             </button>
 
-            {/* Tombol Cetak Browser */}
-            <button
-              onClick={() => window.print()}
-              disabled={filteredList.length === 0}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer"
-              title="Pratinjau / Cetak Melalui Browser"
-            >
-              <span className="material-symbols-outlined text-[17px]">print</span>
-              <span>Cetak Browser</span>
-            </button>
-
             <button
               onClick={onClose}
               className="p-1.5 hover:bg-white/20 rounded-xl transition-colors cursor-pointer text-white"
@@ -229,11 +249,11 @@ export default function KpmAbsensiModal({
           </div>
 
           {/* Modul P2K2 Dropdown (Sesuai Database RHK-2) */}
-          <div className="lg:col-span-2">
+          <div>
             <label className="font-bold text-slate-700 block mb-1 flex items-center justify-between">
               <span>Nama Modul P2K2:</span>
-              <span className="text-[10px] text-cyan-700 font-semibold bg-cyan-50 px-1.5 py-0.5 rounded">
-                Master Database P2K2
+              <span className="text-[10px] text-cyan-700 font-semibold bg-cyan-50 px-1 py-0.2 rounded">
+                Master RHK
               </span>
             </label>
             <select
@@ -255,7 +275,7 @@ export default function KpmAbsensiModal({
           </div>
 
           {/* Sesi Modul Dropdown (Sesuai Modul Pilihan) */}
-          <div className="lg:col-span-2">
+          <div>
             <label className="font-bold text-slate-700 block mb-1">Sesi Modul P2K2:</label>
             <select
               value={sesiP2K2}
@@ -268,6 +288,42 @@ export default function KpmAbsensiModal({
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Nama Pendamping (Bisa Diedit & Tersimpan) */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Nama Pendamping:</label>
+            <input
+              type="text"
+              value={namaPendamping}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNamaPendamping(val);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('aspend_pendamping_nama', val);
+                }
+              }}
+              className="w-full p-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-cyan-500 text-xs font-medium"
+              placeholder="Nama Pendamping"
+            />
+          </div>
+
+          {/* NIP Pendamping (Tanpa Sensor) */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">NIP Pendamping:</label>
+            <input
+              type="text"
+              value={nipPendamping}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNipPendamping(val);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('aspend_pendamping_nip', val);
+                }
+              }}
+              className="w-full p-2 border border-slate-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-cyan-500 text-xs font-mono font-medium"
+              placeholder="NIP tanpa sensor"
+            />
           </div>
         </div>
 
@@ -316,19 +372,12 @@ export default function KpmAbsensiModal({
             <div className="border-b border-black mt-2 pt-0.5"></div>
           </div>
 
-          {/* Judul Dokumen */}
+          {/* Judul Dokumen (Status Kepesertaan Dikosongkan Sesuai Permintaan User) */}
           <div className="text-center mb-4">
             <h2 className="font-black text-xs sm:text-sm uppercase tracking-wider text-slate-900 underline">
               DAFTAR HADIR PERTEMUAN PENINGKATAN KEMAMPUAN KELUARGA (P2K2 / FDS)
             </h2>
-            <p className="text-[10.5px] font-bold text-slate-700 mt-1 uppercase">
-              STATUS KEPESERTAAN:{' '}
-              {filterStatus === 'aktif'
-                ? 'KPM AKTIF (PESERTA BERJALAN)'
-                : filterStatus === 'non-aktif'
-                ? 'KPM TIDAK AKTIF / SUDAH GRADUASI'
-                : 'SELURUH KPM (GABUNGAN)'}
-            </p>
+            <div className="h-2"></div>
           </div>
 
           {/* Metadata Kegiatan (2 Kolom) */}
@@ -362,7 +411,7 @@ export default function KpmAbsensiModal({
               <span>: <strong>{modulP2K2}</strong></span>
             </div>
             <div className="flex">
-              <span className="w-36 font-semibold shrink-0">NIP / No. Registrasi</span>
+              <span className="w-36 font-semibold shrink-0">NIP</span>
               <span>: {nipPendamping || '-'}</span>
             </div>
             <div className="flex">
@@ -391,18 +440,14 @@ export default function KpmAbsensiModal({
           <table className="w-full border-collapse border border-black text-xs">
             <thead>
               <tr className="bg-slate-100 font-bold text-center border-b border-black">
-                <th className="border border-black py-2 px-1 w-8" rowSpan={2}>NO</th>
-                <th className="border border-black py-2 px-2 text-left" rowSpan={2}>NAMA LENGKAP PENGURUS</th>
-                <th className="border border-black py-2 px-2 text-center w-36" rowSpan={2}>NIK / NO. KK</th>
-                <th className="border border-black py-2 px-2 text-left" rowSpan={2}>ALAMAT / LINGKUNGAN</th>
-                <th className="border border-black py-2 px-2 text-center w-20" rowSpan={2}>STATUS</th>
-                <th className="border border-black py-1.5 px-2 text-center" colSpan={2}>
+                <th className="border border-black py-2 px-1 w-8">NO</th>
+                <th className="border border-black py-2 px-2 text-left">NAMA LENGKAP PENGURUS</th>
+                <th className="border border-black py-2 px-2 text-center w-36">NIK / NO. KK</th>
+                <th className="border border-black py-2 px-2 text-left">ALAMAT</th>
+                <th className="border border-black py-2 px-2 text-center w-20">STATUS</th>
+                <th className="border border-black py-2 px-2 text-center" colSpan={2}>
                   TANDA TANGAN / CAP JEMPOL
                 </th>
-              </tr>
-              <tr className="bg-slate-100 font-bold text-center border-b border-black text-[10px]">
-                <th className="border border-black py-1 px-1 w-20">GANJIL</th>
-                <th className="border border-black py-1 px-1 w-20">GENAP</th>
               </tr>
             </thead>
             <tbody>
@@ -433,17 +478,17 @@ export default function KpmAbsensiModal({
                       <div className="text-[10px] text-slate-600">KK: {kpm.NoKK}</div>
                     </td>
                     <td className="border border-black py-2.5 px-2 text-[11px]">
-                      {kpm.Alamat || ''} {kpm.Lingkungan ? `(${kpm.Lingkungan})` : ''}
+                      {kpm.Alamat || '—'}
                     </td>
                     <td className="border border-black py-2.5 px-1 text-center font-bold text-[10px]">
                       {isGrad ? 'GRADUASI' : 'AKTIF'}
                     </td>
-                    {/* Staggered Signature Boxes */}
-                    <td className="border-t border-b border-l border-black py-2.5 px-1.5 w-20 text-left font-bold text-[11px] align-top h-10">
-                      {isOdd ? `${no}. .................` : ''}
+                    {/* Staggered Signature Boxes - Bottom Aligned */}
+                    <td className="border border-black py-1 px-1.5 w-20 text-left font-bold text-[10.5px] align-bottom h-12">
+                      {isOdd ? `${no}. ...............` : ''}
                     </td>
-                    <td className="border-t border-b border-r border-black py-2.5 px-1.5 w-20 text-left font-bold text-[11px] align-top h-10">
-                      {!isOdd ? `${no}. .................` : ''}
+                    <td className="border border-black py-1 px-1.5 w-20 text-left font-bold text-[10.5px] align-bottom h-12">
+                      {!isOdd ? `${no}. ...............` : ''}
                     </td>
                   </tr>
                 );
@@ -451,9 +496,9 @@ export default function KpmAbsensiModal({
             </tbody>
           </table>
 
-          {/* Footer Pengesahan */}
-          <div className="mt-8 grid grid-cols-2 text-xs pt-4 page-break-inside-avoid">
-            <div className="text-center">
+          {/* Footer Pengesahan (Posisi Ditengah Halaman) */}
+          <div className="mt-8 flex justify-around max-w-xl mx-auto text-xs pt-4 page-break-inside-avoid">
+            <div className="w-56 text-center">
               <p>Mengetahui,</p>
               <p className="font-bold">Ketua Kelompok PKH</p>
               <div className="h-16"></div>
@@ -463,12 +508,12 @@ export default function KpmAbsensiModal({
               </p>
             </div>
 
-            <div className="text-center">
+            <div className="w-56 text-center">
               <p>{sampleKpm?.KabKota || 'Kota Binjai'}, {formattedTtdDate}</p>
               <p className="font-bold">Pendamping Sosial PKH</p>
               <div className="h-16"></div>
               <p className="font-bold underline uppercase">{namaPendamping}</p>
-              <p className="font-mono text-[11px]">NIP/Reg: {nipPendamping}</p>
+              <p className="font-mono text-[11px]">NIP: {nipPendamping || '-'}</p>
             </div>
           </div>
         </div>
