@@ -22,6 +22,7 @@ import KpmGraduasiView from "@/components/kpm/KpmGraduasiView";
 import KpmAnalisaTahapView from "@/components/kpm/KpmAnalisaTahapView";
 import RekapP2K2View from "@/components/RekapP2K2View";
 import VerkomToolsView from "@/components/verkom/VerkomToolsView";
+import NotaDinasView from "@/components/nota-dinas/NotaDinasView";
 
 interface Report {
   ReportId: string;
@@ -242,7 +243,7 @@ async function safeJsonParse(res: Response): Promise<any> {
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const [activePage, setActivePage] = useState<'dashboard' | 'profile' | 'form' | 'rekap-p2k2' | 'verkom' | 'kpm-dashboard' | 'kpm-data' | 'kpm-aset' | 'kpm-graduasi' | 'kpm-masalah' | 'kpm-analisa-tahap' | 'kpm-profil-detail'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'profile' | 'form' | 'rekap-p2k2' | 'verkom' | 'nota-dinas' | 'kpm-dashboard' | 'kpm-data' | 'kpm-aset' | 'kpm-graduasi' | 'kpm-masalah' | 'kpm-analisa-tahap' | 'kpm-profil-detail'>('dashboard');
   const [kpmMenuExpanded, setKpmMenuExpanded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -2582,6 +2583,19 @@ export default function Home() {
           
           <button 
             onClick={() => {
+              setActivePage('nota-dinas');
+              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
+            }}
+            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
+              activePage === 'nota-dinas' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
+            } cursor-pointer`}
+          >
+            <span className="material-symbols-outlined text-[19px]">description</span>
+            <span className="truncate">Nota Dinas</span>
+          </button>
+          
+          <button 
+            onClick={() => {
               setActivePage('profile');
               if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
             }}
@@ -2697,100 +2711,18 @@ export default function Home() {
       {/* ─── Main Content Area (100% Lebar Layar Penuh) ─────── */}
       <div className="flex-1 flex flex-col h-full transition-all duration-300 w-full min-w-0 overflow-y-auto bg-[#F5F7FA]">
         
-        {/* ─── Top App Bar ─────────── */}
-        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-200/90 px-3 sm:px-5 h-14 flex items-center justify-between shadow-2xs shrink-0">
-          <div className="flex items-center gap-3">
-            {/* Toggle Menu Button di Mobile (Hanya muncul di mobile jika sidebar tersembunyi) */}
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 shadow-2xs transition-all cursor-pointer"
-              title="Buka Menu Navigasi ASPEND"
-            >
-              <span className="material-symbols-outlined text-[20px] text-cyan-700">menu</span>
-              <span className="text-xs font-bold font-['Outfit']">Menu</span>
-            </button>
-
-            <div className="h-5 w-px bg-slate-200 md:hidden" />
-
-            {/* Breadcrumb Brand & Page Indicator */}
-            <div className="flex items-center gap-2">
-              <Image src="/logo.png" alt="ASPEND Logo" width={26} height={26} className="rounded-lg shadow-2xs hidden sm:inline" />
-              <span className="font-['Outfit'] font-bold text-sm text-slate-800 tracking-tight hidden md:inline">ASPEND</span>
-              <span className="text-slate-300 hidden md:inline text-xs">•</span>
-              <span className="text-xs font-bold text-cyan-900 bg-cyan-50 border border-cyan-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
-                <span className="material-symbols-outlined text-[15px] text-cyan-700">
-                  {activePage.startsWith('kpm-data')
-                    ? 'family_restroom'
-                    : activePage === 'kpm-dashboard'
-                    ? 'analytics'
-                    : activePage === 'kpm-masalah'
-                    ? 'report_problem'
-                    : activePage === 'kpm-graduasi'
-                    ? 'school'
-                    : activePage === 'kpm-analisa-tahap'
-                    ? 'compare_arrows'
-                    : activePage === 'rekap-p2k2'
-                    ? 'fact_check'
-                    : activePage === 'verkom'
-                    ? 'verified'
-                    : activePage === 'profile'
-                    ? 'account_circle'
-                    : activePage === 'form'
-                    ? 'add_box'
-                    : 'dashboard'}
-                </span>
-                <span>
-                  {activePage.startsWith('kpm-data')
-                    ? 'Data KPM PKH'
-                    : activePage === 'kpm-dashboard'
-                    ? 'Dashboard KPM'
-                    : activePage === 'kpm-masalah'
-                    ? 'Permasalahan KPM'
-                    : activePage === 'kpm-graduasi'
-                    ? 'Graduasi & PPSE'
-                    : activePage === 'kpm-analisa-tahap'
-                    ? 'Analisa Tahap Bansos'
-                    : activePage === 'rekap-p2k2'
-                    ? 'Rekap Laporan P2K2'
-                    : activePage === 'verkom'
-                    ? 'VERKOM Tools'
-                    : activePage === 'profile'
-                    ? 'Profil Pengguna'
-                    : activePage === 'form'
-                    ? 'Buat Laporan RHK'
-                    : 'Dashboard RHK'}
-                </span>
-              </span>
-            </div>
-          </div>
-
-          {/* Sisi Kanan: Profil Pengguna Cepat */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActivePage('profile')}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 cursor-pointer transition-all text-left"
-              title="Buka Profil Pengguna"
-            >
-              <div className="w-7 h-7 rounded-full bg-cyan-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden">
-                {userAvatarUrl ? (
-                  <img src={userAvatarUrl} alt="Foto Profil" className="w-full h-full object-cover" />
-                ) : (
-                  profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || 'P'
-                )}
-              </div>
-              <div className="hidden sm:block leading-tight">
-                <p className="text-xs font-bold text-slate-800 truncate max-w-[120px]">
-                  {profile?.nama || session?.user?.name || 'Pendamping'}
-                </p>
-                <p className="text-[10px] text-slate-500 truncate max-w-[120px]">
-                  {profile?.jabatan || 'PKH'}
-                </p>
-              </div>
-            </button>
-          </div>
-        </header>
+        {/* Tombol Menu Melayang Khusus Mobile (Sidebar Toggle saat Layar Kecil) */}
+        {!isSidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden fixed top-3 left-3 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/85 hover:bg-slate-900 text-white shadow-lg backdrop-blur-md transition-all cursor-pointer border border-white/20 active:scale-95"
+            title="Buka Menu Navigasi ASPEND"
+          >
+            <span className="material-symbols-outlined text-[18px] text-cyan-400">menu</span>
+            <span className="text-xs font-bold font-['Outfit']">Menu</span>
+          </button>
+        )}
         
         {/* ══════════════════════════════════════════════════════════
             PAGE: DASHBOARD RHK
@@ -3397,6 +3329,15 @@ export default function Home() {
               showToast={showToast}
               userProfile={profile}
             />
+          </main>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            PAGE: NOTA DINAS (RESMI KEMENSOS RI BERBASIS AI)
+            ══════════════════════════════════════════════════════════ */}
+        {activePage === 'nota-dinas' && (
+          <main className="flex-grow w-full px-3 md:px-5 py-4 pb-24">
+            <NotaDinasView profile={profile} />
           </main>
         )}
 
