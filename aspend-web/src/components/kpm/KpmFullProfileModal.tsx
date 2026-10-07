@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { KpmFullData } from '@/lib/kpm-sheets';
 import { KpmKeluarga } from '@/lib/kpm-constants';
 import { generateKpmFullProfilePdf, formatTanggalIndonesia } from '@/lib/kpm-profil-pdf';
@@ -19,6 +20,30 @@ interface KpmFullProfileModalProps {
   onManagePermasalahan?: () => void;
 }
 
+/**
+ * Normalisasi koordinat GPS (membersihkan pemisah ribuan titik seperti '3.639.911' menjadi 3.639911)
+ */
+function parseCleanCoordinate(val?: string): number | null {
+  if (!val) return null;
+  let str = val.trim();
+  if (!str) return null;
+  const isNegative = str.startsWith('-');
+  str = str.replace(/^-/, '').trim();
+
+  // Bila ada lebih dari 1 titik (misal format ribuan 3.639.911 atau 98.497.874)
+  const dotParts = str.split('.');
+  if (dotParts.length > 2) {
+    str = dotParts[0] + '.' + dotParts.slice(1).join('');
+  } else if (dotParts.length === 1 && str.includes(',')) {
+    str = str.replace(',', '.');
+  }
+
+  str = str.replace(/[^0-9.]/g, '');
+  const num = parseFloat(str);
+  if (isNaN(num)) return null;
+  return isNegative ? -num : num;
+}
+
 export default function KpmFullProfileModal({
   isOpen,
   onClose,
@@ -32,6 +57,9 @@ export default function KpmFullProfileModal({
   onManageGraduasi,
   onManagePermasalahan,
 }: KpmFullProfileModalProps) {
+  const { data: session } = useSession();
+  const pendampingName = session?.user?.name || 'Pendamping Sosial PKH';
+
   const [profileData, setProfileData] = useState<KpmFullData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
@@ -79,10 +107,24 @@ export default function KpmFullProfileModal({
   }, [isOpen, kpmId, noKK, nik, initialKeluarga]);
 
   const keluarga = profileData?.keluarga || initialKeluarga;
-  const anggotaList = profileData?.anggota || [];
+  const anggotaList =
+    profileData?.anggota && profileData.anggota.length > 0
+      ? profileData.anggota
+      : initialKeluarga?.AnggotaList || [];
   const aset = profileData?.aset;
   const graduasi = profileData?.graduasi;
   const masalahList = profileData?.permasalahan || [];
+
+  const fotoRumahUtama =
+    keluarga?.FotoRumah ||
+    aset?.FotoRumahLuar ||
+    keluarga?.FotoRumahLuar ||
+    aset?.FotoRumahDalam ||
+    keluarga?.FotoRumahDalam ||
+    null;
+
+  const cleanLat = parseCleanCoordinate(aset?.Latitude);
+  const cleanLng = parseCleanCoordinate(aset?.Longitude);
 
   const temuanList: string[] = useMemo(() => {
     try {
@@ -99,19 +141,26 @@ export default function KpmFullProfileModal({
     keluarga?.StatusKepesertaan === 'Tidak Aktif' ||
     temuanList.includes('Sudah Graduasi');
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!profileData && !keluarga) return;
     setIsGeneratingPdf(true);
     try {
-      const fullData: KpmFullData = profileData || {
+      const effectiveAnggota =
+        profileData?.anggota && profileData.anggota.length > 0
+          ? profileData.anggota
+          : initialKeluarga?.AnggotaList && initialKeluarga.AnggotaList.length > 0
+          ? initialKeluarga.AnggotaList
+          : [];
+
+      const fullData: KpmFullData = {
         keluarga: keluarga || null,
-        anggota: anggotaList,
+        anggota: effectiveAnggota,
         aset: aset || null,
         graduasi: graduasi || null,
         permasalahan: masalahList,
       };
 
-      const doc = generateKpmFullProfilePdf(fullData, 'Pendamping Sosial PKH');
+      const doc = await generateKpmFullProfilePdf(fullData, pendampingName);
       const safeName = (keluarga?.NamaPengurus || 'KPM').replace(/[^a-zA-Z0-9]/g, '_');
       const safeNik = (keluarga?.NIK || '').replace(/[^0-9]/g, '');
       doc.save(`Profil_KPM_${safeName}_${safeNik}.pdf`);
@@ -189,7 +238,7 @@ export default function KpmFullProfileModal({
             <button
               type="button"
               onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf || !keluarga}
+              disabled={isGeneratingPdf || !keluarga || isLoading}
               className="px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               title="Download dokumen resmi Profil Lengkap KPM dalam format PDF"
             >
@@ -252,105 +301,198 @@ export default function KpmFullProfileModal({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Pengurus</span>
-                    <p className="font-bold text-slate-900 text-sm">{keluarga.NamaPengurus}</p>
-                    <span className="text-[10px] text-slate-500 block">Peran: {keluarga.StatusKelompok || 'Anggota'}</span>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIK Pengurus</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NIK}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleCopy(keluarga.NIK, 'nik', e)}
-                        className="text-slate-400 hover:text-cyan-700 cursor-pointer"
-                        title="Salin NIK"
-                      >
-                        <span className="material-symbols-outlined text-xs">
-                          {copiedKey === 'nik' ? 'check' : 'content_copy'}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">No. Kartu Keluarga</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NoKK}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleCopy(keluarga.NoKK, 'nokk', e)}
-                        className="text-slate-400 hover:text-cyan-700 cursor-pointer"
-                        title="Salin No KK"
-                      >
-                        <span className="material-symbols-outlined text-xs">
-                          {copiedKey === 'nokk' ? 'check' : 'content_copy'}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nomor HP / WhatsApp</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-bold text-slate-900">{keluarga.NoHP || '—'}</span>
-                      {keluarga.NoHP && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleCopy(keluarga.NoHP, 'nohp', e)}
-                          className="text-slate-400 hover:text-cyan-700 cursor-pointer"
-                          title="Salin No HP"
-                        >
-                          <span className="material-symbols-outlined text-xs">
-                            {copiedKey === 'nohp' ? 'check' : 'content_copy'}
-                          </span>
-                        </button>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                  {/* SISI KIRI: Foto Rumah Berukuran Cukup Besar (4 kolom di desktop) */}
+                  <div className="lg:col-span-4 flex flex-col">
+                    <div className="relative w-full h-64 sm:h-72 lg:h-full min-h-[250px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 flex flex-col group shadow-2xs">
+                      {fotoRumahUtama ? (
+                        <>
+                          <img
+                            src={`/api/image-proxy?id=${fotoRumahUtama}`}
+                            alt="Foto Rumah KPM"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                            onClick={() => setPreviewPhoto(fotoRumahUtama)}
+                          />
+                          <div
+                            onClick={() => setPreviewPhoto(fotoRumahUtama)}
+                            className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent flex flex-col justify-between p-3.5 cursor-pointer opacity-90 group-hover:opacity-100 transition-opacity"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                                <span className="material-symbols-outlined text-xs">roofing</span>
+                                <span>Foto Fisik Rumah</span>
+                              </span>
+                              <span className="w-7 h-7 rounded-full bg-white/25 hover:bg-white/40 backdrop-blur-xs text-white flex items-center justify-center transition-colors">
+                                <span className="material-symbols-outlined text-sm">zoom_in</span>
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-white text-xs font-bold drop-shadow-sm">
+                                {aset?.StatusRumah ? `Status: ${aset.StatusRumah}` : 'Rumah Tinggal KPM'}
+                              </p>
+                              <p className="text-slate-300 text-[10px] mt-0.5">
+                                Klik untuk melihat ukuran penuh
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center p-6 text-slate-400 text-center gap-2">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-200/70 flex items-center justify-center text-slate-400">
+                            <span className="material-symbols-outlined text-3xl">home</span>
+                          </div>
+                          <p className="font-bold text-xs text-slate-700">Belum Ada Foto Rumah</p>
+                          <p className="text-[10px] text-slate-400 max-w-[200px]">
+                            Foto fisik rumah tinggal KPM belum diunggah
+                          </p>
+                        </div>
                       )}
                     </div>
+
+                    {/* Sub-thumbnails Tampak Luar & Dalam jika tersedia */}
+                    {((aset?.FotoRumahLuar && aset?.FotoRumahDalam) || aset?.FotoUsaha) && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {aset?.FotoRumahLuar && aset.FotoRumahLuar !== fotoRumahUtama && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPhoto(aset.FotoRumahLuar!)}
+                            className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center gap-2 text-left transition-colors cursor-pointer"
+                          >
+                            <img
+                              src={`/api/image-proxy?id=${aset.FotoRumahLuar}`}
+                              alt="Tampak Luar"
+                              className="w-8 h-8 rounded-lg object-cover shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[9px] font-bold text-slate-800 block truncate">Tampak Luar</span>
+                              <span className="text-[8px] text-cyan-700 font-semibold block">Pratinjau</span>
+                            </div>
+                          </button>
+                        )}
+                        {aset?.FotoRumahDalam && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPhoto(aset.FotoRumahDalam!)}
+                            className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center gap-2 text-left transition-colors cursor-pointer"
+                          >
+                            <img
+                              src={`/api/image-proxy?id=${aset.FotoRumahDalam}`}
+                              alt="Tampak Dalam"
+                              className="w-8 h-8 rounded-lg object-cover shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[9px] font-bold text-slate-800 block truncate">Tampak Dalam</span>
+                              <span className="text-[8px] text-cyan-700 font-semibold block">Pratinjau</span>
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Kelompok PKH</span>
-                    <p className="font-bold text-cyan-900">{keluarga.Kelompok || '—'}</p>
-                  </div>
+                  {/* SISI KANAN: Data Diri Lengkap (8 kolom di desktop) */}
+                  <div className="lg:col-span-8 flex flex-col justify-between space-y-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Pengurus</span>
+                        <p className="font-bold text-slate-900 text-sm">{keluarga.NamaPengurus}</p>
+                        <span className="text-[10px] text-cyan-800 font-medium block">Peran: {keluarga.StatusKelompok || 'Anggota'}</span>
+                      </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tahap Bansos</span>
-                    <p className="font-bold text-slate-900">{keluarga.TahapBansos || 'Tahap 1 (2026)'}</p>
-                  </div>
-                </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIK Pengurus</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NIK}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopy(keluarga.NIK, 'nik', e)}
+                            className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                            title="Salin NIK"
+                          >
+                            <span className="material-symbols-outlined text-xs">
+                              {copiedKey === 'nik' ? 'check' : 'content_copy'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
 
-                {/* Detail Alamat Wilayah */}
-                <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-1.5">
-                  <div className="flex items-center gap-1 font-semibold text-slate-700">
-                    <span className="material-symbols-outlined text-base text-cyan-600">location_on</span>
-                    <span>Alamat Lengkap Tempat Tinggal:</span>
-                  </div>
-                  <p className="font-medium text-slate-900 pl-5 leading-relaxed">
-                    {keluarga.Alamat || '—'}
-                    {keluarga.Lingkungan ? ` • Dusun/Lingkungan: ${keluarga.Lingkungan}` : ''}
-                    {keluarga.Kelurahan ? ` • Kel/Desa: ${keluarga.Kelurahan}` : ''}
-                    {keluarga.Kecamatan ? ` • Kec: ${keluarga.Kecamatan}` : ''}
-                    {keluarga.KabKota ? ` • Kab/Kota: ${keluarga.KabKota}` : ''}
-                    {keluarga.Provinsi ? ` • Prov: ${keluarga.Provinsi}` : ''}
-                  </p>
-                </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">No. Kartu Keluarga</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NoKK}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopy(keluarga.NoKK, 'nokk', e)}
+                            className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                            title="Salin No KK"
+                          >
+                            <span className="material-symbols-outlined text-xs">
+                              {copiedKey === 'nokk' ? 'check' : 'content_copy'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
 
-                {/* Pernyataan Resmi KPM (jika ada) */}
-                {keluarga.Pernyataan && (
-                  <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                      <span className="material-symbols-outlined text-base text-amber-700">verified</span>
-                      <span>Surat Pernyataan Komitmen Resmi KPM:</span>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nomor HP / WhatsApp</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-slate-900">{keluarga.NoHP || '—'}</span>
+                          {keluarga.NoHP && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopy(keluarga.NoHP, 'nohp', e)}
+                              className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                              title="Salin No HP"
+                            >
+                              <span className="material-symbols-outlined text-xs">
+                                {copiedKey === 'nohp' ? 'check' : 'content_copy'}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Kelompok PKH</span>
+                        <p className="font-bold text-cyan-900">{keluarga.Kelompok || '—'}</p>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tahap Bansos</span>
+                        <p className="font-bold text-slate-900">{keluarga.TahapBansos || 'Tahap 1 (2026)'}</p>
+                      </div>
                     </div>
-                    <p className="italic text-amber-950 pl-5 text-[11px] leading-relaxed">
-                      "{keluarga.Pernyataan}"
-                    </p>
+
+                    {/* Detail Alamat Wilayah */}
+                    <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-1.5">
+                      <div className="flex items-center gap-1 font-semibold text-slate-700">
+                        <span className="material-symbols-outlined text-base text-cyan-600">location_on</span>
+                        <span>Alamat Lengkap Tempat Tinggal:</span>
+                      </div>
+                      <p className="font-medium text-slate-900 pl-5 leading-relaxed">
+                        {keluarga.Alamat || '—'}
+                        {keluarga.Lingkungan ? ` • Dusun/Lingkungan: ${keluarga.Lingkungan}` : ''}
+                        {keluarga.Kelurahan ? ` • Kel/Desa: ${keluarga.Kelurahan}` : ''}
+                        {keluarga.Kecamatan ? ` • Kec: ${keluarga.Kecamatan}` : ''}
+                        {keluarga.KabKota ? ` • Kab/Kota: ${keluarga.KabKota}` : ''}
+                        {keluarga.Provinsi ? ` • Prov: ${keluarga.Provinsi}` : ''}
+                      </p>
+                    </div>
+
+                    {/* Pernyataan Resmi KPM (jika ada) */}
+                    {keluarga.Pernyataan && (
+                      <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                          <span className="material-symbols-outlined text-base text-amber-700">verified</span>
+                          <span>Surat Pernyataan Komitmen Resmi KPM:</span>
+                        </div>
+                        <p className="italic text-amber-950 pl-5 text-[11px] leading-relaxed">
+                          "{keluarga.Pernyataan}"
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* ======================================================== */}
@@ -589,24 +731,48 @@ export default function KpmFullProfileModal({
                   </div>
                 )}
 
-                {/* Titik Koordinat GPS & Keterangan */}
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Titik Koordinat Lokasi (GPS)</span>
-                    <p className="font-mono font-bold text-slate-800 text-xs mt-0.5">
-                      Lat: {aset?.Latitude || '—'} • Long: {aset?.Longitude || '—'}
-                    </p>
+                {/* Peta Lokasi Rumah KPM (View Maps Interaktif via OpenStreetMap) */}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg text-rose-600">location_on</span>
+                      <div>
+                        <h4 className="font-bold text-xs text-slate-900">
+                          Peta Lokasi Tempat Tinggal (GPS View Maps)
+                        </h4>
+                        <span className="text-[10px] text-slate-500">
+                          Titik koordinat lokasi presisi rumah tinggal KPM
+                        </span>
+                      </div>
+                    </div>
+                    <div className="font-mono text-[11px] font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+                      Lat: <span className="text-cyan-800">{aset?.Latitude || '—'}</span> • Long:{' '}
+                      <span className="text-cyan-800">{aset?.Longitude || '—'}</span>
+                    </div>
                   </div>
-                  {aset?.Latitude && aset?.Longitude && (
-                    <a
-                      href={`https://www.google.com/maps?q=${aset.Latitude},${aset.Longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors self-start sm:self-auto"
-                    >
-                      <span className="material-symbols-outlined text-sm">map</span>
-                      <span>Buka di Google Maps</span>
-                    </a>
+
+                  {cleanLat !== null && cleanLng !== null ? (
+                    <div className="relative w-full h-64 sm:h-72 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-200">
+                      <iframe
+                        title="Peta Lokasi Rumah KPM"
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        scrolling="no"
+                        marginHeight={0}
+                        marginWidth={0}
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${cleanLng - 0.005}%2C${cleanLat - 0.005}%2C${cleanLng + 0.005}%2C${cleanLat + 0.005}&layer=mapnik&marker=${cleanLat}%2C${cleanLng}`}
+                        className="w-full h-full"
+                      />
+                    </div>
+                  ) : (
+                    <div className="py-8 flex flex-col items-center justify-center gap-1.5 text-center bg-white rounded-xl border border-dashed border-slate-200 text-slate-400">
+                      <span className="material-symbols-outlined text-2xl text-slate-300">wrong_location</span>
+                      <p className="text-xs font-semibold text-slate-600">Titik Koordinat Belum Diisi / Tidak Valid</p>
+                      <p className="text-[10px] text-slate-400">
+                        Edit data aset untuk mengisi titik Latitude dan Longitude tempat tinggal KPM
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -780,7 +946,7 @@ export default function KpmFullProfileModal({
             <button
               type="button"
               onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf || !keluarga}
+              disabled={isGeneratingPdf || !keluarga || isLoading}
               className="px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>

@@ -445,69 +445,112 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Update & Tambahkan Anggota Keluarga
+    // 4. Update & Tambahkan Anggota Keluarga (Cegah Duplikasi Berdasarkan NIK)
     if (Array.isArray(dataAnggota) && dataAnggota.length > 0 && targetNoKK) {
       try {
+        const rawCurrentAnggota = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A:N`);
+        const normTargetKK = normalizeKK(targetNoKK);
+
+        // Petakan baris yang ada untuk targetNoKK (1-indexed)
+        const existingMembersMap: Array<{ rowIndex: number; data: KpmAnggota }> = [];
+        for (let r = 1; r < rawCurrentAnggota.length; r++) {
+          const row = rawCurrentAnggota[r];
+          if (!row || row.length === 0) continue;
+          const rKK = cleanTextCell(row[1]);
+          if (rKK === targetNoKK || (normTargetKK && normalizeKK(rKK) === normTargetKK)) {
+            existingMembersMap.push({
+              rowIndex: r + 1,
+              data: parseAnggotaRow(row),
+            });
+          }
+        }
+
         for (let i = 0; i < dataAnggota.length; i++) {
           const ang = dataAnggota[i];
           if (!ang.Nama || !ang.NIK) continue;
+          const cleanNik = cleanTextCell(ang.NIK);
 
-          if (ang.AnggotaId) {
-            const rowIdx = await findRowByKey(activeToken, spreadsheetId, KPM_SHEET_ANGGOTA, ang.AnggotaId, 0);
-            if (rowIdx > 1) {
-              const updatedAng: KpmAnggota = {
-                AnggotaId: ang.AnggotaId,
-                NoKK: targetNoKK,
-                NIK: ang.NIK,
-                Nama: ang.Nama,
-                JenisKelamin: ang.JenisKelamin || 'Laki-laki',
-                TanggalLahir: ang.TanggalLahir || '',
-                Komponen: ang.Komponen || '',
-                HubunganKeluarga: ang.HubunganKeluarga || 'Anak',
-                Posyandu: ang.Posyandu || '',
-                Sekolah: ang.Sekolah || '',
-                Kelas: ang.Kelas || '',
-                Pekerjaan: ang.Pekerjaan || '',
-                Keterangan: ang.Keterangan || '',
-                CreatedAt: ang.CreatedAt || new Date().toISOString(),
-              };
-              await updateSheetRow(
-                activeToken,
-                spreadsheetId,
-                `${KPM_SHEET_ANGGOTA}!A${rowIdx}:N${rowIdx}`,
-                [anggotaToRow(updatedAng)]
-              );
-              continue;
-            }
+          // Cari apakah anggota sudah ada di sheet (berdasarkan AnggotaId atau NIK)
+          const matched = existingMembersMap.find(
+            (m) => (ang.AnggotaId && m.data.AnggotaId === ang.AnggotaId) || (cleanNik && cleanTextCell(m.data.NIK) === cleanNik)
+          );
+
+          if (matched) {
+            // Update baris anggota yang sudah ada
+            const updatedAng: KpmAnggota = {
+              AnggotaId: matched.data.AnggotaId || ang.AnggotaId || generateAnggotaId(i + 1),
+              NoKK: targetNoKK,
+              NIK: ang.NIK,
+              Nama: ang.Nama,
+              JenisKelamin: ang.JenisKelamin || matched.data.JenisKelamin || 'Laki-laki',
+              TanggalLahir: ang.TanggalLahir || matched.data.TanggalLahir || '',
+              Komponen: ang.Komponen || matched.data.Komponen || '',
+              HubunganKeluarga: ang.HubunganKeluarga || matched.data.HubunganKeluarga || 'Anak',
+              Posyandu: ang.Posyandu !== undefined ? ang.Posyandu : matched.data.Posyandu,
+              Sekolah: ang.Sekolah !== undefined ? ang.Sekolah : matched.data.Sekolah,
+              Kelas: ang.Kelas !== undefined ? ang.Kelas : matched.data.Kelas,
+              Pekerjaan: ang.Pekerjaan !== undefined ? ang.Pekerjaan : matched.data.Pekerjaan,
+              Keterangan: ang.Keterangan !== undefined ? ang.Keterangan : matched.data.Keterangan,
+              CreatedAt: matched.data.CreatedAt || new Date().toISOString(),
+            };
+            await updateSheetRow(
+              activeToken,
+              spreadsheetId,
+              `${KPM_SHEET_ANGGOTA}!A${matched.rowIndex}:N${matched.rowIndex}`,
+              [anggotaToRow(updatedAng)]
+            );
+          } else {
+            // Tambah anggota baru karena NIK belum ada
+            const newAngId = generateAnggotaId(i + 1);
+            const newAng: KpmAnggota = {
+              AnggotaId: newAngId,
+              NoKK: targetNoKK,
+              NIK: ang.NIK,
+              Nama: ang.Nama,
+              JenisKelamin: ang.JenisKelamin || 'Laki-laki',
+              TanggalLahir: ang.TanggalLahir || '',
+              Komponen: ang.Komponen || '',
+              HubunganKeluarga: ang.HubunganKeluarga || 'Anak',
+              Posyandu: ang.Posyandu || '',
+              Sekolah: ang.Sekolah || '',
+              Kelas: ang.Kelas || '',
+              Pekerjaan: ang.Pekerjaan || '',
+              Keterangan: ang.Keterangan || '',
+              CreatedAt: new Date().toISOString(),
+            };
+            await appendSheetData(activeToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A:N`, [anggotaToRow(newAng)]);
           }
-
-          // Tambah anggota baru jika belum memiliki AnggotaId
-          const newAng: KpmAnggota = {
-            AnggotaId: generateAnggotaId(i + 1),
-            NoKK: targetNoKK,
-            NIK: ang.NIK,
-            Nama: ang.Nama,
-            JenisKelamin: ang.JenisKelamin || 'Laki-laki',
-            TanggalLahir: ang.TanggalLahir || '',
-            Komponen: ang.Komponen || '',
-            HubunganKeluarga: ang.HubunganKeluarga || 'Anak',
-            Posyandu: ang.Posyandu || '',
-            Sekolah: ang.Sekolah || '',
-            Kelas: ang.Kelas || '',
-            Pekerjaan: ang.Pekerjaan || '',
-            Keterangan: ang.Keterangan || '',
-            CreatedAt: new Date().toISOString(),
-          };
-          await appendSheetData(activeToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A:N`, [anggotaToRow(newAng)]);
         }
       } catch (angErr) {
         console.warn('Save anggota warning in portal:', angErr);
       }
     }
 
+    // Ambil daftar anggota terkini setelah disimpan
+    let freshAnggotaList: KpmAnggota[] = [];
+    if (targetNoKK) {
+      try {
+        const rawLatest = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A2:N`);
+        const normTargetKK = normalizeKK(targetNoKK);
+        freshAnggotaList = rawLatest
+          .filter((r) => {
+            if (!r || r.length === 0) return false;
+            const rKK = cleanTextCell(r[1]);
+            return rKK === targetNoKK || (normTargetKK && normalizeKK(rKK) === normTargetKK);
+          })
+          .map(parseAnggotaRow);
+      } catch (err) {
+        console.warn('Fetch fresh anggota error:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Data KPM Anda berhasil disimpan ke sistem ASPEND PKH.',
+      data: {
+        keluarga: updatedKeluarga,
+        anggota: freshAnggotaList,
+      },
     });
   } catch (error: any) {
     console.error('KPM Portal POST error:', error);

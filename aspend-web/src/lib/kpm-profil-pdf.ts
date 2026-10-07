@@ -26,10 +26,59 @@ export function formatTanggalIndonesia(dateStr?: string): string {
   return `${day} ${bln} ${year}`;
 }
 
+export function formatTanggalWaktuIndonesia(date: Date = new Date()): string {
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const dayName = days[date.getDay()];
+  const day = String(date.getDate()).padStart(2, '0');
+  const monthName = NAMA_BULAN[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${dayName}, ${day} ${monthName} ${year} • Pukul ${hours}:${minutes} WIB`;
+}
+
 /**
- * Generate formal PDF document of KPM Full Profile
+ * Fetch image as Base64 Data URL for embedding into jsPDF
  */
-export function generateKpmFullProfilePdf(data: KpmFullData, pendampingName?: string): jsPDF {
+async function fetchImageAsBase64(fileId?: string): Promise<string | null> {
+  if (!fileId || typeof fileId !== 'string' || !fileId.trim()) return null;
+  const cleanId = fileId.trim();
+  if (cleanId.startsWith('data:image/')) return cleanId;
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    const res = await fetch(`/api/image-proxy?id=${encodeURIComponent(cleanId)}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (!blob || blob.size === 0) return null;
+
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string' && reader.result.startsWith('data:image/')) {
+          resolve(reader.result);
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn('Gagal memuat foto PDF id:', cleanId, err);
+    return null;
+  }
+}
+
+/**
+ * Generate formal PDF document of KPM Full Profile (Complete with photos, anggota, and audit metadata)
+ */
+export async function generateKpmFullProfilePdf(data: KpmFullData, pendampingName?: string): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -42,10 +91,42 @@ export function generateKpmFullProfilePdf(data: KpmFullData, pendampingName?: st
   const usableWidth = pageWidth - marginX * 2; // 182mm
 
   const keluarga = data.keluarga;
-  const anggotaList = data.anggota || [];
+  const anggotaList = (data.anggota && data.anggota.length > 0)
+    ? data.anggota
+    : ((data.keluarga as any)?.AnggotaList || []);
   const aset = data.aset;
   const graduasi = data.graduasi;
   const masalahList = data.permasalahan || [];
+
+  // Ambil seluruh foto dokumen & fisik rumah KPM secara paralel
+  const fotoRumahLuarId = keluarga?.FotoRumah || aset?.FotoRumahLuar || keluarga?.FotoRumahLuar;
+  const fotoRumahDalamId = aset?.FotoRumahDalam || keluarga?.FotoRumahDalam;
+  const fotoKtpId = keluarga?.FotoKTP;
+  const fotoKkId = keluarga?.FotoKK;
+  const fotoTabunganId = keluarga?.FotoBukuTabungan;
+  const fotoKksId = keluarga?.FotoKKS;
+  const fotoUsahaId = aset?.FotoUsaha;
+  const fotoBuktiCatatanId = keluarga?.FotoBuktiCatatan;
+
+  const [
+    imgRumahLuar,
+    imgRumahDalam,
+    imgKtp,
+    imgKk,
+    imgTabungan,
+    imgKks,
+    imgUsaha,
+    imgBuktiCatatan,
+  ] = await Promise.all([
+    fetchImageAsBase64(fotoRumahLuarId),
+    fetchImageAsBase64(fotoRumahDalamId),
+    fetchImageAsBase64(fotoKtpId),
+    fetchImageAsBase64(fotoKkId),
+    fetchImageAsBase64(fotoTabunganId),
+    fetchImageAsBase64(fotoKksId),
+    fetchImageAsBase64(fotoUsahaId),
+    fetchImageAsBase64(fotoBuktiCatatanId),
+  ]);
 
   let temuanList: string[] = [];
   try {
@@ -217,7 +298,7 @@ export function generateKpmFullProfilePdf(data: KpmFullData, pendampingName?: st
   renderSectionHeader(`B. DAFTAR ANGGOTA KELUARGA (${anggotaList.length} JIWA TERDAFTAR)`);
 
   if (anggotaList.length > 0) {
-    const tableBody = anggotaList.map((m, idx) => [
+    const tableBody = anggotaList.map((m: any, idx: number) => [
       String(idx + 1),
       m.Nama || '—',
       m.NIK || '—',
@@ -358,57 +439,174 @@ export function generateKpmFullProfilePdf(data: KpmFullData, pendampingName?: st
   }
 
   // ==========================================
-  // 6. LEMBAR PENGESAHAN / TANDA TANGAN
+  // 6. DOKUMENTASI FOTO BERKAS & RUMAH KPM
   // ==========================================
-  if (currentY > 240) {
-    doc.addPage();
-    currentY = 20;
+  interface PhotoDocItem {
+    label: string;
+    kategori: string;
+    base64: string;
+  }
+
+  const photosToRender: PhotoDocItem[] = [];
+  if (imgRumahLuar) photosToRender.push({ label: 'Foto Fisik Rumah (Tampak Luar)', kategori: 'Kondisi Rumah', base64: imgRumahLuar });
+  if (imgRumahDalam) photosToRender.push({ label: 'Foto Fisik Rumah (Tampak Dalam)', kategori: 'Kondisi Rumah', base64: imgRumahDalam });
+  if (imgKtp) photosToRender.push({ label: 'Foto KTP Pengurus KPM', kategori: 'Dokumen Identitas', base64: imgKtp });
+  if (imgKk) photosToRender.push({ label: 'Foto Kartu Keluarga (KK)', kategori: 'Dokumen Identitas', base64: imgKk });
+  if (imgKks) photosToRender.push({ label: 'Foto Kartu KKS Bansos', kategori: 'Dokumen Bansos', base64: imgKks });
+  if (imgTabungan) photosToRender.push({ label: 'Foto Buku Tabungan Bansos', kategori: 'Dokumen Rekening', base64: imgTabungan });
+  if (imgUsaha) photosToRender.push({ label: 'Foto Sarana / Tempat Usaha', kategori: 'Aset Ekonomi', base64: imgUsaha });
+  if (imgBuktiCatatan) photosToRender.push({ label: 'Foto Bukti Temuan Lapangan', kategori: 'Catatan Khusus', base64: imgBuktiCatatan });
+
+  renderSectionHeader(`F. DOKUMENTASI FOTO BERKAS & FISIK RUMAH KPM (${photosToRender.length} FOTO TERSEDIA)`);
+
+  if (photosToRender.length > 0) {
+    const colCount = 2;
+    const cardGap = 4;
+    const cardW = (usableWidth - cardGap) / colCount; // ~89mm
+    const cardH = 55; // card height
+    const imgH = 44;  // image height
+    const imgW = cardW - 4; // image width
+
+    for (let i = 0; i < photosToRender.length; i += colCount) {
+      if (currentY + cardH + 4 > 275) {
+        doc.addPage();
+        currentY = 16;
+      }
+
+      const p1 = photosToRender[i];
+      const p2 = photosToRender[i + 1];
+
+      // Card 1
+      const x1 = marginX;
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(x1, currentY, cardW, cardH, 1.5, 1.5, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(x1, currentY, cardW, cardH, 1.5, 1.5, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(15, 23, 42);
+      doc.text(p1.label, x1 + 2.5, currentY + 4.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(100, 116, 139);
+      doc.text(p1.kategori, x1 + cardW - 2.5, currentY + 4.5, { align: 'right' });
+
+      try {
+        const format1 = p1.base64.includes('image/png') ? 'PNG' : 'JPEG';
+        doc.addImage(p1.base64, format1, x1 + 2, currentY + 6.5, imgW, imgH, undefined, 'FAST');
+      } catch (e) {
+        console.warn('Gagal menambahkan foto 1 ke pdf:', e);
+      }
+
+      // Card 2
+      if (p2) {
+        const x2 = marginX + cardW + cardGap;
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(x2, currentY, cardW, cardH, 1.5, 1.5, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x2, currentY, cardW, cardH, 1.5, 1.5, 'S');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(15, 23, 42);
+        doc.text(p2.label, x2 + 2.5, currentY + 4.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6);
+        doc.setTextColor(100, 116, 139);
+        doc.text(p2.kategori, x2 + cardW - 2.5, currentY + 4.5, { align: 'right' });
+
+        try {
+          const format2 = p2.base64.includes('image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(p2.base64, format2, x2 + 2, currentY + 6.5, imgW, imgH, undefined, 'FAST');
+        } catch (e) {
+          console.warn('Gagal menambahkan foto 2 ke pdf:', e);
+        }
+      }
+
+      currentY += cardH + cardGap;
+    }
   } else {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Belum ada berkas foto yang diunggah untuk profil KPM ini.', marginX + 3, currentY);
     currentY += 6;
   }
 
-  const today = formatTanggalIndonesia(new Date().toISOString().split('T')[0]);
-  const kotaName = keluarga?.KabKota || 'Wilayah Dampingan';
+  // =========================================================================
+  // 7. INFORMASI PENDAMPING SOSIAL & WAKTU UNDUH DATA (PENGGANTI TANDA TANGAN)
+  // =========================================================================
+  if (currentY + 26 > 275) {
+    doc.addPage();
+    currentY = 16;
+  } else {
+    currentY += 4;
+  }
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(30, 41, 59);
+  const downloadTime = formatTanggalWaktuIndonesia(new Date());
+  const wilayahStr = [
+    keluarga?.Kelurahan ? `Kel. ${keluarga.Kelurahan}` : '',
+    keluarga?.Kecamatan ? `Kec. ${keluarga.Kecamatan}` : '',
+    keluarga?.KabKota || '',
+  ].filter(Boolean).join(', ') || 'Wilayah PKH';
 
-  // Tanggal di kanan atas blok tanda tangan
-  doc.text(`${kotaName}, ${today}`, pageWidth - marginX - 5, currentY, { align: 'right' });
-  currentY += 6;
+  // Box Informasi Validitas & Waktu Unduh
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(marginX, currentY, usableWidth, 21, 1.5, 1.5, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(marginX, currentY, usableWidth, 21, 1.5, 1.5, 'S');
 
-  const colWidth = usableWidth / 2;
+  // Aksen Biru di Sisi Kiri
+  doc.setFillColor(0, 91, 148);
+  doc.rect(marginX, currentY, 2, 21, 'F');
 
-  // Kiri: Pengurus KPM
+  // Judul Blok
   doc.setFont('helvetica', 'bold');
-  doc.text('Pengurus KPM PKH,', marginX + colWidth / 2, currentY, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.setTextColor(0, 91, 148);
+  doc.text('INFORMASI PENDAMPING SOSIAL & WAKTU UNDUH DATA', marginX + 4.5, currentY + 5);
 
-  // Kanan: Pendamping Sosial PKH
-  doc.text('Pendamping Sosial PKH,', marginX + colWidth + colWidth / 2, currentY, { align: 'center' });
-
-  currentY += 18;
-
-  // Nama Pengurus
-  doc.text(keluarga?.NamaPengurus || '( ........................................ )', marginX + colWidth / 2, currentY, {
-    align: 'center',
-  });
+  // Baris 1: Pendamping Sosial & Wilayah Dampingan
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text(`NIK: ${keluarga?.NIK || '—'}`, marginX + colWidth / 2, currentY + 3.5, { align: 'center' });
-
-  // Nama Pendamping
+  doc.text('Pendamping Sosial PKH:', marginX + 4.5, currentY + 10);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
-  doc.text(pendampingName || '( ........................................ )', marginX + colWidth + colWidth / 2, currentY, {
-    align: 'center',
-  });
+  doc.text(pendampingName || 'Pendamping Sosial PKH', marginX + 38, currentY + 10);
+
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
-  doc.text('Pendamping Sosial Wilayah', marginX + colWidth + colWidth / 2, currentY + 3.5, { align: 'center' });
+  doc.text('Wilayah Dampingan:', marginX + 96, currentY + 10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text(wilayahStr, marginX + 125, currentY + 10);
+
+  // Baris 2: Waktu Unduh Data
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Waktu Unduh Data:', marginX + 4.5, currentY + 15);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 118, 110);
+  doc.text(downloadTime, marginX + 38, currentY + 15);
+
+  // Catatan Sistem di Bawah
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    'Dokumen ini dicetak otomatis secara elektronik melalui Sistem Informasi ASPEND Web PKH Kementerian Sosial RI.',
+    marginX + 4.5,
+    currentY + 19.5
+  );
+
+  currentY += 25;
 
   // Footer di setiap halaman
   const totalPages = (doc.internal as any).getNumberOfPages();

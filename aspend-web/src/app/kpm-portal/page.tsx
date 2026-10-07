@@ -134,7 +134,17 @@ function KpmPortalContent() {
       setFotoRumah(keluarga.FotoRumah || '');
       setPernyataan(keluarga.Pernyataan || '');
 
-      setAnggotaList(anggota);
+      const rawAnggota: KpmAnggota[] = json.data?.anggota || [];
+      const uniqueAnggota: KpmAnggota[] = [];
+      const seenNiks = new Set<string>();
+      for (const a of rawAnggota) {
+        const aNik = (a.NIK || '').replace(/\D/g, '');
+        if (aNik && seenNiks.has(aNik)) continue;
+        if (aNik) seenNiks.add(aNik);
+        uniqueAnggota.push(a);
+      }
+
+      setAnggotaList(uniqueAnggota);
 
       if (aset) {
         setStatusRumah(aset.StatusRumah || 'Milik Sendiri');
@@ -243,15 +253,20 @@ function KpmPortalContent() {
       alert('Nama dan NIK anggota keluarga wajib diisi.');
       return;
     }
-    if (tempNik.replace(/\D/g, '').length !== 16) {
+    const cleanNik = tempNik.replace(/\D/g, '');
+    if (cleanNik.length !== 16) {
       alert('NIK anggota harus terdiri dari 16 digit angka.');
+      return;
+    }
+    if (anggotaList.some((a) => (a.NIK || '').replace(/\D/g, '') === cleanNik)) {
+      alert('Anggota dengan NIK ini sudah ada dalam daftar.');
       return;
     }
 
     const newMember: KpmAnggota = {
       AnggotaId: '', // akan dibuat otomatis oleh backend
       NoKK: kpmData?.NoKK || '',
-      NIK: tempNik.replace(/\D/g, ''),
+      NIK: cleanNik,
       Nama: tempNama.trim(),
       JenisKelamin: tempJK,
       TanggalLahir: tempTglLahir,
@@ -314,8 +329,6 @@ function KpmPortalContent() {
           NoKK: kpmData?.NoKK || '',
           NamaPengurus: namaPengurus,
           NoHP: noHP,
-          Kelompok: kelompok,
-          StatusKelompok: statusKelompok,
           Alamat: alamat,
           Lingkungan: lingkungan,
           Provinsi: provinsi,
@@ -331,8 +344,8 @@ function KpmPortalContent() {
         };
       }
 
-      // Siapkan payload dataAnggota jika di blok anggota atau final
-      if (currentBlock === 'anggota' || nextTab === 'done') {
+      // Siapkan payload dataAnggota HANYA jika di blok anggota
+      if (currentBlock === 'anggota') {
         payload.dataAnggota = anggotaList;
         payload.deletedAnggotaIds = deletedAnggotaIds;
       }
@@ -362,6 +375,11 @@ function KpmPortalContent() {
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.error || 'Gagal menyimpan perubahan');
+      }
+
+      // Update data anggota terkini jika dikembalikan oleh backend
+      if (json.data?.anggota) {
+        setAnggotaList(json.data.anggota);
       }
 
       // Reset daftar deleted IDs setelah tersimpan
@@ -641,30 +659,6 @@ function KpmPortalContent() {
                         placeholder="Contoh: 08123456789"
                         className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none font-mono"
                       />
-                    </div>
-                    <div>
-                      <label className="block font-semibold mb-1">Nama Kelompok PKH</label>
-                      <input
-                        type="text"
-                        value={kelompok}
-                        onChange={(e) => setKelompok(e.target.value)}
-                        placeholder="Contoh: Mawar 1 / Harapan Kita"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold mb-1">Status dalam Kelompok</label>
-                      <select
-                        value={statusKelompok}
-                        onChange={(e) => setStatusKelompok(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
-                      >
-                        {STATUS_KELOMPOK_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   </div>
 
