@@ -319,26 +319,53 @@ export async function POST(request: Request) {
     
     if (existingRows.length === 0) {
       await appendSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A1:AA`, [KPM_KELUARGA_HEADERS]);
-    } else {
+    }
+
+    const cleanBodyNik = cleanTextCell(body.NIK);
+    const cleanBodyKK = cleanTextCell(body.NoKK);
+    const normBodyKK = normalizeKK(cleanBodyKK);
+
+    let matchingExistingRowIndex = -1; // 1-indexed
+
+    if (existingRows.length > 1) {
       const dataRows = existingRows.slice(1);
-      // Cek apakah NIK atau No. KK sudah ada (Kolom B = NIK [index 1], Kolom C = NoKK [index 2])
-      const isDuplicate = dataRows.some((row) => {
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
         const cellNik = cleanTextCell(row[1]);
         const cellKK = cleanTextCell(row[2]);
-        return (
-          (cellNik && cellNik === body.NIK) ||
-          (cellKK && normalizeKK(cellKK) === normalizeKK(body.NoKK))
-        );
-      });
-      if (isDuplicate) {
-        return NextResponse.json(
-          {
-            error:
-              'NIK atau No. KK sudah terdaftar di database KPM. Silakan gunakan tombol Edit pada data yang bersangkutan jika ingin memperbarui, bukan menambah baru.',
-          },
-          { status: 400 }
-        );
+        const isSameNik = Boolean(cleanBodyNik && cellNik && cellNik === cleanBodyNik);
+        const isSameKK = Boolean(cleanBodyKK && cellKK && (cellKK === cleanBodyKK || (normBodyKK && normalizeKK(cellKK) === normBodyKK)));
+        if (isSameNik || isSameKK) {
+          matchingExistingRowIndex = i + 2; // header is row 1, data starts at row 2
+          break;
+        }
       }
+    }
+
+    if (matchingExistingRowIndex > 1) {
+      // Jika request adalah operasi edit (atau memiliki flag isEdit), perbarui baris yang ada secara in-place alih-alih menduplikasi!
+      if (body.isEdit || body.action === 'edit') {
+        const existingRow = existingRows[matchingExistingRowIndex - 1];
+        const existingKeluarga = existingRow ? parseKeluargaRow(existingRow) : ({} as Partial<KpmKeluarga>);
+        const updatedKeluarga: KpmKeluarga = {
+          ...(existingKeluarga as KpmKeluarga),
+          ...body,
+          KpmId: existingKeluarga.KpmId || body.KpmId || (cleanBodyNik ? `KPM-${cleanBodyNik}` : generateKpmId()),
+          UpdatedAt: new Date().toISOString(),
+        };
+        updatedKeluarga.StatusData = isKpmDataLengkap(updatedKeluarga) ? 'Lengkap' : 'Belum Lengkap';
+        const rowData = keluargaToRow(updatedKeluarga);
+        await updateSheetRow(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A${matchingExistingRowIndex}:AA${matchingExistingRowIndex}`, [rowData]);
+        return NextResponse.json(updatedKeluarga, { status: 200 });
+      }
+
+      return NextResponse.json(
+        {
+          error:
+            'NIK atau No. KK sudah terdaftar di database KPM. Sistem tidak mengizinkan penambahan data ganda. Silakan gunakan tombol Edit pada data yang bersangkutan jika ingin memperbarui, bukan menambah baru.',
+        },
+        { status: 400 }
+      );
     }
 
     const newKeluarga: KpmKeluarga = {
@@ -377,117 +404,135 @@ export async function PUT(request: Request) {
 
     let foundRowIndex = -1; // 1-indexed (nomor baris aktual di Google Sheets)
     const targetKpmId = (body.KpmId || '').trim();
-    const targetNik = (body.OriginalNIK || body.NIK || '').trim();
-    const targetNoKK = (body.OriginalNoKK || body.NoKK || '').trim();
+    const targetNik = cleanTextCell(body.OriginalNIK || body.NIK || '');
+    const targetNoKK = cleanTextCell(body.OriginalNoKK || body.NoKK || '');
+    const normTargetKK = normalizeKK(targetNoKK);
+    const targetNama = (body.OriginalNamaPengurus || body.NamaPengurus || '').trim().toLowerCase();
+    const targetKelompok = (body.OriginalKelompok || body.Kelompok || '').trim().toLowerCase();
+
+    const matchingRowIndices1Based: number[] = [];
 
     // 1. Cari berdasarkan KpmId (jika ada) di kolom A (index 0)
     if (targetKpmId) {
       for (let i = 1; i < rawRows.length; i++) {
         const cellKpmId = cleanTextCell(rawRows[i][0]);
         if (cellKpmId && cellKpmId.toLowerCase() === targetKpmId.toLowerCase()) {
-          foundRowIndex = i + 1;
-          break;
+          matchingRowIndices1Based.push(i + 1);
         }
       }
     }
 
-    // 2. Jika belum ditemukan atau KpmId kosong, cari berdasarkan NIK di kolom B (index 1)
-    if (foundRowIndex === -1 && targetNik) {
+    // 2. Cari berdasarkan NIK di kolom B (index 1)
+    if (targetNik) {
       for (let i = 1; i < rawRows.length; i++) {
         const cellNik = cleanTextCell(rawRows[i][1]);
-        if (cellNik && cellNik === targetNik) {
-          foundRowIndex = i + 1;
-          break;
+        if (cellNik && cellNik === targetNik && !matchingRowIndices1Based.includes(i + 1)) {
+          matchingRowIndices1Based.push(i + 1);
         }
       }
     }
 
-    // 3. Jika masih belum ditemukan, cari berdasarkan No. KK di kolom C (index 2)
-    if (foundRowIndex === -1 && targetNoKK) {
-      const normTargetKK = normalizeKK(targetNoKK);
+    // 3. Cari berdasarkan No. KK di kolom C (index 2)
+    if (targetNoKK) {
       for (let i = 1; i < rawRows.length; i++) {
         const cellKK = cleanTextCell(rawRows[i][2]);
-        if (cellKK === targetNoKK || (normTargetKK && normalizeKK(cellKK) === normTargetKK)) {
-          foundRowIndex = i + 1;
-          break;
+        if (
+          (cellKK === targetNoKK || (normTargetKK && normalizeKK(cellKK) === normTargetKK)) &&
+          !matchingRowIndices1Based.includes(i + 1)
+        ) {
+          matchingRowIndices1Based.push(i + 1);
         }
       }
     }
 
-    // 4. Jika masih belum ditemukan (misal NIK dan No. KK lama di Google Sheets keduanya berformat scientific / rusak),
-    // cocokkan berdasarkan kombinasi NamaPengurus dan Kelompok
-    const targetNama = (body.OriginalNamaPengurus || body.NamaPengurus || '').trim().toLowerCase();
-    const targetKelompok = (body.OriginalKelompok || body.Kelompok || '').trim().toLowerCase();
-    if (foundRowIndex === -1 && targetNama) {
+    // 4. Jika masih belum ditemukan, cocokkan berdasarkan kombinasi NamaPengurus dan Kelompok
+    if (matchingRowIndices1Based.length === 0 && targetNama) {
       for (let i = 1; i < rawRows.length; i++) {
         const cellNama = cleanTextCell(rawRows[i][3]).toLowerCase();
         const cellKelompok = cleanTextCell(rawRows[i][11]).toLowerCase();
         if (cellNama === targetNama && (!targetKelompok || cellKelompok === targetKelompok)) {
-          foundRowIndex = i + 1;
-          break;
+          matchingRowIndices1Based.push(i + 1);
         }
       }
     }
 
-    if (foundRowIndex <= 1) {
+    if (matchingRowIndices1Based.length === 0) {
       return NextResponse.json(
         { error: 'Data KPM tidak ditemukan di Google Sheets untuk diperbarui.' },
         { status: 404 }
       );
     }
 
-    // Ambil data baris yang ditemukan
+    // Baris utama yang akan diperbarui
+    foundRowIndex = matchingRowIndices1Based[0];
+
+    // Ambil data baris utama yang ditemukan
     const existingRow = rawRows[foundRowIndex - 1];
     const existingKeluarga = existingRow ? parseKeluargaRow(existingRow) : ({} as Partial<KpmKeluarga>);
 
-    const updatedKeluarga: KpmKeluarga = {
-      ...(existingKeluarga as KpmKeluarga),
-      ...body,
-      // Pastikan KpmId selalu terisi unik permanen
-      KpmId: existingKeluarga.KpmId || body.KpmId || (body.NIK ? `KPM-${body.NIK}` : generateKpmId()),
-      UpdatedAt: new Date().toISOString(),
-    };
-    updatedKeluarga.StatusData = isKpmDataLengkap(updatedKeluarga) ? 'Lengkap' : 'Belum Lengkap';
-
-    // Temukan apakah ada baris duplikat lain di Google Sheets yang memiliki NIK, NoKK, atau KpmId yang sama
-    // (Misalnya akibat impor ganda atau kesalahan sebelumnya)
-    const effectiveNik = cleanTextCell(updatedKeluarga.NIK);
-    const effectiveKK = cleanTextCell(updatedKeluarga.NoKK);
-    const effectiveKpmId = cleanTextCell(updatedKeluarga.KpmId);
+    const effectiveNik = cleanTextCell(body.NIK || existingKeluarga.NIK);
+    const effectiveKK = cleanTextCell(body.NoKK || existingKeluarga.NoKK);
     const normEffectiveKK = normalizeKK(effectiveKK);
 
     const stagesToMerge = new Set<string>();
+    const duplicateRowIndices0Based: number[] = [];
 
-    // Masukkan tahap dari updatedKeluarga saat ini
-    if (updatedKeluarga.TahapBansos) {
-      updatedKeluarga.TahapBansos.split(',').forEach((s) => {
+    // Masukkan tahap dari body / updatedKeluarga saat ini
+    const initialTahap = body.TahapBansos || existingKeluarga.TahapBansos;
+    if (initialTahap) {
+      initialTahap.split(',').forEach((s: string) => {
         const tr = s.trim();
         if (tr) stagesToMerge.add(tr);
       });
     }
 
+    const fallbackFields: Partial<KpmKeluarga> = {};
+
+    // Periksa semua baris lain di Google Sheets untuk menemukan duplikat NIK, No. KK, atau baris ganda
     for (let i = 1; i < rawRows.length; i++) {
-      // Lewati baris utama yang sedang diperbarui (foundRowIndex adalah 1-indexed, i adalah 0-indexed)
-      if (i === foundRowIndex - 1) continue;
+      if (i === foundRowIndex - 1) continue; // Lewati baris utama yang sedang diperbarui
 
       const row = rawRows[i];
       const cellNik = cleanTextCell(row[1]);
       const cellKK = cleanTextCell(row[2]);
+      const cellNama = cleanTextCell(row[3]).toLowerCase();
+      const cellKelompok = cleanTextCell(row[11]).toLowerCase();
 
       const isSameNik = Boolean(effectiveNik && validateNIK(effectiveNik) && cellNik === effectiveNik);
       const isSameKK = Boolean(effectiveKK && validateNoKK(effectiveKK) && (cellKK === effectiveKK || (normEffectiveKK && normalizeKK(cellKK) === normEffectiveKK)));
+      const isSameExplicitMatch = matchingRowIndices1Based.includes(i + 1);
+      const isSameNamaKelompok = Boolean(targetNama && cellNama === targetNama && (!targetKelompok || cellKelompok === targetKelompok));
 
-      if (isSameNik || isSameKK) {
-        // Kumpulkan riwayat tahap dari baris serupa agar tidak ada data tahap yang terlewat
-        const rowTahap = cleanTextCell(row[24]);
-        if (rowTahap) {
-          rowTahap.split(',').forEach((s) => {
+      if (isSameNik || isSameKK || isSameExplicitMatch || isSameNamaKelompok) {
+        duplicateRowIndices0Based.push(i);
+
+        const dupK = parseKeluargaRow(row);
+        // Gabungkan riwayat tahap bansos agar tidak ada data tahap yang terlewat
+        if (dupK.TahapBansos) {
+          dupK.TahapBansos.split(',').forEach((s) => {
             const tr = s.trim();
             if (tr) stagesToMerge.add(tr);
           });
         }
+        // Amankan data foto/bukti jika baris utama tidak memiliki foto
+        if (!fallbackFields.FotoRumah && dupK.FotoRumah) fallbackFields.FotoRumah = dupK.FotoRumah;
+        if (!fallbackFields.FotoKTP && dupK.FotoKTP) fallbackFields.FotoKTP = dupK.FotoKTP;
+        if (!fallbackFields.FotoKK && dupK.FotoKK) fallbackFields.FotoKK = dupK.FotoKK;
+        if (!fallbackFields.FotoBukuTabungan && dupK.FotoBukuTabungan) fallbackFields.FotoBukuTabungan = dupK.FotoBukuTabungan;
+        if (!fallbackFields.FotoKKS && dupK.FotoKKS) fallbackFields.FotoKKS = dupK.FotoKKS;
+        if (!fallbackFields.FotoBuktiCatatan && dupK.FotoBuktiCatatan) fallbackFields.FotoBuktiCatatan = dupK.FotoBuktiCatatan;
+        if (!fallbackFields.Pernyataan && dupK.Pernyataan) fallbackFields.Pernyataan = dupK.Pernyataan;
       }
     }
+
+    const updatedKeluarga: KpmKeluarga = {
+      ...fallbackFields,
+      ...(existingKeluarga as KpmKeluarga),
+      ...body,
+      // Pastikan KpmId selalu terisi unik permanen
+      KpmId: existingKeluarga.KpmId || body.KpmId || (effectiveNik ? `KPM-${effectiveNik}` : generateKpmId()),
+      UpdatedAt: new Date().toISOString(),
+    };
 
     // Jika ada tahap tambahan dari baris duplikat, gabungkan secara teratur
     if (stagesToMerge.size > 0) {
@@ -495,9 +540,20 @@ export async function PUT(request: Request) {
       updatedKeluarga.TahapBansos = stageList.join(', ');
     }
 
+    updatedKeluarga.StatusData = isKpmDataLengkap(updatedKeluarga) ? 'Lengkap' : 'Belum Lengkap';
+
     const updatedRow = keluargaToRow(updatedKeluarga);
     const range = `${KPM_SHEET_KELUARGA}!A${foundRowIndex}:AA${foundRowIndex}`;
     await updateSheetRow(accessToken, spreadsheetId, range, [updatedRow]);
+
+    // Hapus seluruh baris duplikat dari Google Sheets agar tidak pernah tersisa baris ganda
+    if (duplicateRowIndices0Based.length > 0) {
+      try {
+        await deleteSheetRowsBatch(accessToken, spreadsheetId, KPM_SHEET_KELUARGA, duplicateRowIndices0Based);
+      } catch (delErr) {
+        console.error('Error deleteSheetRowsBatch in PUT KPM:', delErr);
+      }
+    }
 
     // Sinkronisasi dua arah otomatis dengan KPM_SHEET_GRADUASI
     if (updatedKeluarga.NoKK) {
@@ -706,6 +762,127 @@ export async function PATCH(request: Request) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 
+    // ─── Fitur Bersihkan Seluruh Data KPM Duplikat Otomatis ───
+    if (action === 'deduplicate') {
+      const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`, 'UNFORMATTED_VALUE');
+      if (rawRows.length <= 1) {
+        return NextResponse.json({ success: true, message: 'Data KPM kosong', deletedCount: 0 });
+      }
+
+      // Kelompokkan baris berdasarkan kunci unik: NIK (16 digit) atau NoKK (16 digit)
+      const groupsByKey = new Map<string, number[]>(); // key -> row indices (0-based)
+
+      for (let i = 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        const nik = cleanTextCell(row[1]);
+        const kk = cleanTextCell(row[2]);
+        const normKK = normalizeKK(kk);
+
+        let key = '';
+        if (nik && validateNIK(nik)) {
+          key = `nik:${nik}`;
+        } else if (kk && validateNoKK(kk)) {
+          key = `kk:${normKK || kk}`;
+        }
+
+        if (key) {
+          if (!groupsByKey.has(key)) groupsByKey.set(key, []);
+          groupsByKey.get(key)!.push(i);
+        }
+      }
+
+      const duplicateRowIndices0Based: number[] = [];
+      const primaryUpdates: Array<{ range: string; values: string[][] }> = [];
+
+      for (const [, indices] of groupsByKey.entries()) {
+        if (indices.length <= 1) continue; // Tidak ada duplikat
+
+        // Pilih baris utama: yang berstatus Ketua Kelompok atau yang paling banyak terisi fotonya/datanya
+        let bestIndex = indices[0];
+        let bestScore = -1;
+
+        for (const idx of indices) {
+          const row = rawRows[idx];
+          const k = parseKeluargaRow(row);
+          let score = 0;
+          if (k.StatusKelompok === 'Ketua Kelompok') score += 10;
+          if (k.FotoRumah) score += 5;
+          if (k.FotoKTP) score += 3;
+          if (k.FotoKK) score += 3;
+          if (k.FotoBukuTabungan) score += 2;
+          if (k.FotoKKS) score += 2;
+          if (k.Alamat) score += 1;
+          if (k.NoHP) score += 1;
+          if (score > bestScore) {
+            bestScore = score;
+            bestIndex = idx;
+          }
+        }
+
+        // Kumpulkan tahap bansos dan field yang bisa digabung dari baris duplikat
+        const primaryRow = parseKeluargaRow(rawRows[bestIndex]);
+        const stages = new Set<string>();
+        if (primaryRow.TahapBansos) {
+          primaryRow.TahapBansos.split(',').forEach((s) => {
+            const tr = s.trim();
+            if (tr) stages.add(tr);
+          });
+        }
+
+        for (const idx of indices) {
+          if (idx === bestIndex) continue;
+          duplicateRowIndices0Based.push(idx);
+
+          const dupK = parseKeluargaRow(rawRows[idx]);
+          if (dupK.TahapBansos) {
+            dupK.TahapBansos.split(',').forEach((s) => {
+              const tr = s.trim();
+              if (tr) stages.add(tr);
+            });
+          }
+          if (!primaryRow.FotoRumah && dupK.FotoRumah) primaryRow.FotoRumah = dupK.FotoRumah;
+          if (!primaryRow.FotoKTP && dupK.FotoKTP) primaryRow.FotoKTP = dupK.FotoKTP;
+          if (!primaryRow.FotoKK && dupK.FotoKK) primaryRow.FotoKK = dupK.FotoKK;
+          if (!primaryRow.FotoBukuTabungan && dupK.FotoBukuTabungan) primaryRow.FotoBukuTabungan = dupK.FotoBukuTabungan;
+          if (!primaryRow.FotoKKS && dupK.FotoKKS) primaryRow.FotoKKS = dupK.FotoKKS;
+          if (!primaryRow.FotoBuktiCatatan && dupK.FotoBuktiCatatan) primaryRow.FotoBuktiCatatan = dupK.FotoBuktiCatatan;
+          if (!primaryRow.Pernyataan && dupK.Pernyataan) primaryRow.Pernyataan = dupK.Pernyataan;
+        }
+
+        if (stages.size > 0) {
+          primaryRow.TahapBansos = Array.from(stages).sort().join(', ');
+        }
+        primaryRow.StatusData = isKpmDataLengkap(primaryRow) ? 'Lengkap' : 'Belum Lengkap';
+        primaryRow.UpdatedAt = new Date().toISOString();
+
+        primaryUpdates.push({
+          range: `${KPM_SHEET_KELUARGA}!A${bestIndex + 1}:AA${bestIndex + 1}`,
+          values: [keluargaToRow(primaryRow)],
+        });
+      }
+
+      if (duplicateRowIndices0Based.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Tidak ditemukan data KPM yang terdaftar duplikat di Google Sheets.',
+          deletedCount: 0,
+        });
+      }
+
+      // 1. Perbarui baris-baris utama terlebih dahulu dengan data gabungan
+      if (primaryUpdates.length > 0) {
+        await batchUpdateSheetValues(accessToken, spreadsheetId, primaryUpdates);
+      }
+
+      // 2. Hapus baris-baris duplikat dari Google Sheets
+      await deleteSheetRowsBatch(accessToken, spreadsheetId, KPM_SHEET_KELUARGA, duplicateRowIndices0Based);
+
+      return NextResponse.json({
+        success: true,
+        message: `Berhasil membersihkan dan menghapus ${duplicateRowIndices0Based.length} baris data duplikat di Google Sheets.`,
+        deletedCount: duplicateRowIndices0Based.length,
+      });
+    }
 
     if (action === 'repair-scientific') {
       const [keluargaRaw, anggotaRaw] = await Promise.all([

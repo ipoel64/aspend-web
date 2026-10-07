@@ -395,17 +395,19 @@ export default function KpmFormModal({
       const isLengkap = isKpmDataLengkap(formData);
       const formattedPhone = formatIndonesianPhone(formData.NoHP);
 
-      const isEdit = !!editData;
-      const url = '/api/kpm';
+      const isEdit = Boolean(editData || formData.KpmId);
+      const url = isEdit ? '/api/kpm?action=edit' : '/api/kpm';
       const method = isEdit ? 'PUT' : 'POST';
 
       const payload = {
         ...formData,
+        isEdit: isEdit,
+        action: isEdit ? 'edit' : 'add',
         KpmId: editData?.KpmId || formData.KpmId || '',
-        OriginalNIK: editData?.NIK || '',
-        OriginalNoKK: editData?.NoKK || '',
-        OriginalNamaPengurus: editData?.NamaPengurus || '',
-        OriginalKelompok: editData?.Kelompok || '',
+        OriginalNIK: editData?.NIK || formData.NIK || '',
+        OriginalNoKK: editData?.NoKK || formData.NoKK || '',
+        OriginalNamaPengurus: editData?.NamaPengurus || formData.NamaPengurus || '',
+        OriginalKelompok: editData?.Kelompok || formData.Kelompok || '',
         NoKK: formData.NoKK?.trim(),
         NIK: formData.NIK?.trim(),
         NoHP: formattedPhone,

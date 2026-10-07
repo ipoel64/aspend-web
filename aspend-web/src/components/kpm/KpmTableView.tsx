@@ -426,6 +426,32 @@ export default function KpmTableView({
     }
   };
 
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
+
+  const handleDeduplicateKpm = async () => {
+    if (
+      !confirm(
+        `Sistem akan memeriksa seluruh ${dataList.length} data KPM, mempertahankan baris yang paling lengkap (termasuk status Ketua Kelompok), menggabungkan seluruh riwayat tahap bansos & dokumen, lalu menghapus baris duplikat dari Google Sheets. Lanjutkan?`
+      )
+    ) {
+      return;
+    }
+    setIsDeduplicating(true);
+    try {
+      const res = await fetch('/api/kpm?action=deduplicate', { method: 'PATCH' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Gagal membersihkan duplikat');
+      alert(json.message || 'Data duplikat berhasil dibersihkan!');
+      setShowOnlyDuplicates(false);
+      fetchData();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsDeduplicating(false);
+    }
+  };
+
   const handleOpenEdit = (kpm: KpmKeluarga) => {
     setSelectedForEdit(kpm);
     setIsFormModalOpen(true);
@@ -552,25 +578,43 @@ export default function KpmTableView({
 
         <div className="flex items-center gap-1.5 shrink-0">
           {duplicateInfo.totalAnyDuplicates > 0 && (
-            <button
-              onClick={() => {
-                setShowOnlyDuplicates(!showOnlyDuplicates);
-                setCurrentPage(1);
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
-                showOnlyDuplicates
-                  ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 shadow-rose-200'
-                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-              }`}
-              title="Filter tabel untuk hanya menampilkan data KPM yang memiliki NIK/KK ganda atau NIK Anggota ganda"
-            >
-              <span className="material-symbols-outlined text-[14px] text-rose-600">warning</span>
-              <span>
-                {showOnlyDuplicates
-                  ? 'Semua Data'
-                  : `${duplicateInfo.totalAnyDuplicates} Duplikat`}
-              </span>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setShowOnlyDuplicates(!showOnlyDuplicates);
+                  setCurrentPage(1);
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
+                  showOnlyDuplicates
+                    ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 shadow-rose-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                }`}
+                title="Filter tabel untuk hanya menampilkan data KPM yang memiliki NIK/KK ganda atau NIK Anggota ganda"
+              >
+                <span className="material-symbols-outlined text-[14px] text-rose-600">warning</span>
+                <span>
+                  {showOnlyDuplicates
+                    ? 'Semua Data'
+                    : `${duplicateInfo.totalAnyDuplicates} Duplikat`}
+                </span>
+              </button>
+
+              {duplicateInfo.totalKpmDup > 0 && (
+                <button
+                  onClick={handleDeduplicateKpm}
+                  disabled={isDeduplicating}
+                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
+                  title="Bersihkan seluruh data KPM duplikat di Google Sheets secara otomatis (menggabungkan riwayat bansos dan menghapus baris duplikat)"
+                >
+                  {isDeduplicating ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                  )}
+                  <span className="hidden sm:inline">Bersihkan Duplikat</span>
+                </button>
+              )}
+            </div>
           )}
           <button
             onClick={() => setIsAbsensiModalOpen(true)}
@@ -648,6 +692,42 @@ export default function KpmTableView({
               title="Sembunyikan pemberitahuan ini"
             >
               <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notice Banner jika ada Data KPM Duplikat */}
+      {duplicateInfo.totalKpmDup > 0 && (
+        <div className="bg-rose-50 border border-rose-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <span className="material-symbols-outlined text-rose-600 text-2xl shrink-0 mt-0.5 sm:mt-0">warning</span>
+            <div>
+              <p className="text-xs font-bold text-rose-950">
+                Terdeteksi Data KPM Duplikat ({duplicateInfo.totalKpmDup} Baris Teridentifikasi)
+              </p>
+              <p className="text-[11px] text-rose-800 mt-0.5">
+                Terdapat baris data keluarga dengan NIK atau No. KK ganda di database. Klik tombol di samping untuk otomatis menggabungkan riwayat bansos & dokumen, lalu menghapus baris ganda dari Google Sheets.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleDeduplicateKpm}
+              disabled={isDeduplicating}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isDeduplicating ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Membersihkan...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm">cleaning_services</span>
+                  <span>Bersihkan Duplikat Sekarang</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1399,8 +1479,13 @@ export default function KpmTableView({
       {/* Modals */}
       <KpmFormModal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setSelectedForEdit(null);
+        }}
         onSuccess={() => {
+          setIsFormModalOpen(false);
+          setSelectedForEdit(null);
           fetchData();
           if (onDataChange) onDataChange();
         }}
@@ -1737,6 +1822,35 @@ export default function KpmTableView({
                   </div>
                   <span className="material-symbols-outlined text-slate-400 text-base">chevron_right</span>
                 </button>
+
+                {(() => {
+                  const nik = (actionModalKpm.NIK || '').trim();
+                  const kk = (actionModalKpm.NoKK || '').trim();
+                  const isDup =
+                    (nik && (duplicateInfo.kpmNikCounts.get(nik) || 0) > 1) ||
+                    (kk && (duplicateInfo.kpmKKCounts.get(kk) || 0) > 1) ||
+                    actionModalKpm.IsDuplicateNik ||
+                    actionModalKpm.IsDuplicateKK;
+                  if (!isDup) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActionModalKpm(null);
+                        handleDeduplicateKpm();
+                      }}
+                      className="w-full p-2.5 rounded-xl border border-amber-300 hover:border-amber-400 bg-amber-50/70 hover:bg-amber-100/80 text-left transition-all cursor-pointer flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-2.5 text-amber-900">
+                        <span className="material-symbols-outlined text-amber-700 text-base group-hover:scale-110 transition-transform">
+                          cleaning_services
+                        </span>
+                        <span className="font-bold text-xs">Bersihkan Baris Duplikat KPM Ini</span>
+                      </div>
+                      <span className="text-[10px] text-amber-700 font-medium">Satukan ke 1 baris</span>
+                    </button>
+                  );
+                })()}
 
                 <button
                   type="button"
