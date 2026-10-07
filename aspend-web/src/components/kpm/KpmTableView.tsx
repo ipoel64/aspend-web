@@ -104,6 +104,11 @@ export default function KpmTableView({
   const [deletingKpm, setDeletingKpm] = useState<KpmKeluarga | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Clear all data modal states
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
+  const [clearAllConfirmText, setClearAllConfirmText] = useState('');
+
   // Fetch KPM data
   const fetchData = async () => {
     setIsLoading(true);
@@ -354,8 +359,27 @@ export default function KpmTableView({
     }
   };
 
-
-  // State jika banner notasi ilmiah sudah ditutup atau berhasil diperbaiki
+  const handleClearAllData = async () => {
+    if (clearAllConfirmText.trim().toUpperCase() !== 'HAPUS') return;
+    setIsClearingAll(true);
+    try {
+      const res = await fetch('/api/kpm?clearAll=true', { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Gagal menghapus seluruh data');
+      }
+      alert(json.message || 'Seluruh data KPM PKH berhasil dibersihkan!');
+      setIsClearAllModalOpen(false);
+      setClearAllConfirmText('');
+      setDataList([]);
+      if (onDataChange) onDataChange();
+      fetchData();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
   const [isScientificBannerDismissed, setIsScientificBannerDismissed] = useState(false);
 
   // Deteksi jumlah data yang benar-benar memiliki NIK atau No. KK berformat notasi ilmiah (e+, e-)
@@ -517,6 +541,17 @@ export default function KpmTableView({
             <span className="material-symbols-outlined text-[15px] text-emerald-600">file_download</span>
             <span>Ekspor</span>
           </a>
+          <button
+            onClick={() => {
+              setClearAllConfirmText('');
+              setIsClearAllModalOpen(true);
+            }}
+            className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+            title="Hapus bersih seluruh data KPM PKH dari Google Sheets"
+          >
+            <span className="material-symbols-outlined text-[15px] text-rose-600">delete_sweep</span>
+            <span>Hapus Semua</span>
+          </button>
         </div>
       </div>
 
@@ -1733,6 +1768,73 @@ export default function KpmTableView({
                   <>
                     <span className="material-symbols-outlined text-base">delete</span>
                     <span>Hapus Permanen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Confirmation Modal */}
+      {isClearAllModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 border border-rose-200">
+            <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-3xl">delete_sweep</span>
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="font-bold text-lg text-gray-900">Hapus Bersih Seluruh Data KPM PKH</h3>
+              <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3 text-left leading-relaxed">
+                <span className="font-bold flex items-center gap-1 mb-1 text-rose-800">
+                  <span className="material-symbols-outlined text-sm">warning</span> Peringatan Tindakan Permanen:
+                </span>
+                Tindakan ini akan mengosongkan <strong>seluruh data KPM PKH</strong> di Google Sheets (termasuk Data Keluarga, Anggota Keluarga, Aset KPM, Graduasi, Permasalahan, dan Portal). Format header baris pertama akan tetap dipertahankan sehingga Anda dapat langsung mengimpor data baru.
+              </div>
+              <p className="text-xs text-gray-600">
+                Untuk menghindari tindakan yang tidak disengaja, ketik kata <span className="font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded select-all tracking-wider">HAPUS</span> di bawah ini untuk konfirmasi:
+              </p>
+            </div>
+
+            <div className="pt-1">
+              <input
+                type="text"
+                value={clearAllConfirmText}
+                onChange={(e) => setClearAllConfirmText(e.target.value)}
+                placeholder="Ketik HAPUS di sini..."
+                disabled={isClearingAll}
+                className="w-full text-center tracking-widest font-bold text-sm px-4 py-2.5 border-2 border-rose-300 rounded-xl focus:outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-200 uppercase transition-all"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsClearAllModalOpen(false);
+                  setClearAllConfirmText('');
+                }}
+                disabled={isClearingAll}
+                className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAllData}
+                disabled={isClearingAll || clearAllConfirmText.trim().toUpperCase() !== 'HAPUS'}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                {isClearingAll ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Mengosongkan Sheet...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-base">delete_sweep</span>
+                    <span>Ya, Hapus Bersih Seluruh Data</span>
                   </>
                 )}
               </button>

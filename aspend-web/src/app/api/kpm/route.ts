@@ -9,12 +9,15 @@ import {
   deleteSheetRowsBatch,
   findRowByKey,
   batchUpdateSheetValues,
+  getSheetsClient,
 } from '@/lib/google-sheets';
 import {
   KPM_SHEET_KELUARGA,
   KPM_SHEET_ANGGOTA,
   KPM_SHEET_ASET,
   KPM_SHEET_GRADUASI,
+  KPM_SHEET_PERMASALAHAN,
+  KPM_SHEET_PORTAL,
   KPM_KELUARGA_HEADERS,
   generateKpmId,
   generateGraduasiId,
@@ -556,6 +559,78 @@ export async function DELETE(request: Request) {
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const { searchParams } = new URL(request.url);
+    const isClearAll = searchParams.get('clearAll') === 'true' || searchParams.get('action') === 'clear-all';
+
+    // ─── Fitur Hapus Seluruh Data KPM (Bersih) ───
+    if (isClearAll) {
+      const sheets = await getSheetsClient(accessToken);
+      const meta = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheetList = meta.data.sheets || [];
+
+      const targetKpmSheets = [
+        KPM_SHEET_KELUARGA,
+        KPM_SHEET_ANGGOTA,
+        KPM_SHEET_ASET,
+        KPM_SHEET_GRADUASI,
+        KPM_SHEET_PERMASALAHAN,
+        KPM_SHEET_PORTAL,
+      ];
+
+      const rangesToClear: string[] = [];
+      const deleteRequests: any[] = [];
+
+      for (const sheetObj of sheetList) {
+        const title = sheetObj.properties?.title || '';
+        const isTarget = targetKpmSheets.some((s) => s.toLowerCase() === title.toLowerCase());
+        if (isTarget) {
+          rangesToClear.push(`${title}!A2:ZZ`);
+          const sheetId = sheetObj.properties?.sheetId;
+          const rowCount = sheetObj.properties?.gridProperties?.rowCount || 0;
+          if (sheetId !== undefined && sheetId !== null && rowCount > 1) {
+            deleteRequests.push({
+              deleteDimension: {
+                range: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  startIndex: 1,
+                  endIndex: rowCount,
+                },
+              },
+            });
+          }
+        }
+      }
+
+      // 1. Kosongkan nilai sel (sangat cepat & menjamin data bersih)
+      if (rangesToClear.length > 0) {
+        try {
+          await sheets.spreadsheets.values.batchClear({
+            spreadsheetId,
+            requestBody: { ranges: rangesToClear },
+          });
+        } catch (err) {
+          console.warn('batchClear warning in clear-all:', err);
+        }
+      }
+
+      // 2. Hapus baris sisa agar sheet kembali ramping ke baris header saja
+      if (deleteRequests.length > 0) {
+        try {
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests: deleteRequests },
+          });
+        } catch (err) {
+          console.warn('deleteDimension warning in clear-all:', err);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Seluruh data KPM PKH berhasil dihapus dan dibersihkan dari Google Sheets.',
+      });
+    }
+
     const kpmId = (searchParams.get('kpmId') || '').trim();
     const nik = (searchParams.get('nik') || '').trim();
     const noKK = (searchParams.get('noKK') || '').trim();
