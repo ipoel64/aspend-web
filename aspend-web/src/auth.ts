@@ -80,6 +80,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       // @ts-expect-error - session.accessToken doesn't exist on default Session type
       session.accessToken = token.accessToken;
+      // @ts-expect-error - session.refreshToken doesn't exist on default Session type
+      session.refreshToken = token.refreshToken;
       if (session.user && token.picture) {
         session.user.image = token.picture as string;
       }

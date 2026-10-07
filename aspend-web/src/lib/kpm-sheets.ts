@@ -40,9 +40,10 @@ export async function ensureSheetExists(
   try {
     const sheets = await getSheetsClient(accessToken);
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
-    const exists = meta.data.sheets?.some((s) => s.properties?.title === sheetName);
+    const targetSheet = meta.data.sheets?.find((s) => s.properties?.title === sheetName);
+    const neededCols = Math.max(headers ? headers.length : 0, 30);
 
-    if (!exists) {
+    if (!targetSheet) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
@@ -53,6 +54,7 @@ export async function ensureSheetExists(
                   title: sheetName,
                   gridProperties: {
                     frozenRowCount: 1,
+                    columnCount: neededCols,
                   },
                 },
               },
@@ -63,6 +65,33 @@ export async function ensureSheetExists(
 
       if (headers && headers.length > 0) {
         await appendSheetData(accessToken, spreadsheetId, `${sheetName}!A1`, [headers]);
+      }
+    } else {
+      // Pastikan jumlah kolom mencukupi minimal 30 kolom (agar kolom AA selalu valid)
+      const currentCols = targetSheet.properties?.gridProperties?.columnCount || 26;
+      if (currentCols < neededCols && targetSheet.properties?.sheetId !== undefined) {
+        try {
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              requests: [
+                {
+                  updateSheetProperties: {
+                    properties: {
+                      sheetId: targetSheet.properties.sheetId,
+                      gridProperties: {
+                        columnCount: neededCols,
+                      },
+                    },
+                    fields: 'gridProperties.columnCount',
+                  },
+                },
+              ],
+            },
+          });
+        } catch (colErr) {
+          console.warn(`Gagal memperluas kolom sheet ${sheetName}:`, colErr);
+        }
       }
     }
   } catch (error) {

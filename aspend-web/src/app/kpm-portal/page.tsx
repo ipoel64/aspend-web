@@ -144,13 +144,14 @@ function KpmPortalContent() {
     try {
       const payload = {
         token,
-        nik: nikInput,
+        nik: kpmData?.NIK || nikInput,
         password: passwordInput,
         dataKeluarga: {
           Alamat: alamat,
           Lingkungan: lingkungan,
           NoHP: noHP,
           Pernyataan: pernyataan,
+          NoKK: kpmData?.NoKK || '',
         },
         dataAset: {
           StatusRumah: statusRumah,

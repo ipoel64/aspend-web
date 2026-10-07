@@ -228,11 +228,23 @@ export async function deleteSheetRowsBatch(
  * Mencari index baris berdasarkan kunci tertentu (seperti findRowByKey di DataService.gs)
  */
 export async function findRowByKey(accessToken: string, spreadsheetId: string, sheetName: string, searchKey: string, columnIndex: number = 0) {
-  const data = await getSheetData(accessToken, spreadsheetId, `${sheetName}!A:Z`);
-  for (let i = 0; i < data.length; i++) {
-    if (data[i][columnIndex] && data[i][columnIndex].toString().toLowerCase() === searchKey.toLowerCase()) {
-      return i + 1; // 1-indexed (baris 1, 2, dst)
+  try {
+    const data = await getSheetData(accessToken, spreadsheetId, `${sheetName}!A:AA`);
+    const cleanSearch = String(searchKey || '').replace(/^'+/, '').trim().toLowerCase();
+    if (!cleanSearch) return -1;
+
+    for (let i = 0; i < data.length; i++) {
+      const cellVal = data[i][columnIndex];
+      if (cellVal !== undefined && cellVal !== null) {
+        const cleanCell = String(cellVal).replace(/^'+/, '').trim().toLowerCase();
+        if (cleanCell === cleanSearch) {
+          return i + 1; // 1-indexed (baris 1, 2, dst)
+        }
+      }
     }
+    return -1;
+  } catch (err) {
+    console.warn(`findRowByKey warning for ${sheetName}:`, err);
+    return -1;
   }
-  return -1;
 }

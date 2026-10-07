@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KpmKeluarga } from '@/lib/kpm-constants';
 
 interface KpmShareLinkModalProps {
@@ -15,11 +15,28 @@ export default function KpmShareLinkModal({
   keluarga,
 }: KpmShareLinkModalProps) {
   const [copied, setCopied] = useState(false);
+  const [token, setToken] = useState<string>('');
+
+  useEffect(() => {
+    if (isOpen && keluarga?.NIK) {
+      setToken('');
+      fetch(`/api/kpm/portal?action=generate-link&nik=${encodeURIComponent(keluarga.NIK)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.token) {
+            setToken(data.token);
+          }
+        })
+        .catch((err) => console.error('Failed to generate portal token:', err));
+    }
+  }, [isOpen, keluarga?.NIK]);
 
   if (!isOpen || !keluarga) return null;
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const portalUrl = `${origin}/kpm-portal?nik=${keluarga.NIK}`;
+  const portalUrl = token
+    ? `${origin}/kpm-portal?nik=${keluarga.NIK}&token=${token}`
+    : `${origin}/kpm-portal?nik=${keluarga.NIK}`;
   const password = keluarga.Password || '123456';
 
   const waMessage = encodeURIComponent(
@@ -28,7 +45,7 @@ export default function KpmShareLinkModal({
       `🌐 *Link Formulir:* ${portalUrl}\n` +
       `🔑 *NIK:* ${keluarga.NIK}\n` +
       `🔒 *Password Masuk:* ${password}\n\n` +
-      `Silakan buka tautan di atas dan lengkapi data keluarga, anggota keluarga, kondisi rumah/aset, serta unggah foto dokumen pendukung.\n\n` +
+      `Silakan buka tautan di atas dan lengkapi data keluarga, anggota keluarga, kondisi rumah/aset, serta surat pernyataan komitmen.\n\n` +
       `Terima kasih.\n_Pendamping Sosial PKH_`
   );
 
