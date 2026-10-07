@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { KpmFullData } from '@/lib/kpm-sheets';
-import { formatIndonesianPhone, KpmKeluarga } from '@/lib/kpm-constants';
+import { KpmKeluarga } from '@/lib/kpm-constants';
+import { generateKpmFullProfilePdf, formatTanggalIndonesia } from '@/lib/kpm-profil-pdf';
 
 interface KpmFullProfileModalProps {
   isOpen: boolean;
@@ -34,41 +35,20 @@ export default function KpmFullProfileModal({
   const [profileData, setProfileData] = useState<KpmFullData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'pokok' | 'anggota' | 'aset' | 'graduasi' | 'masalah'>('pokok');
-
-  // Copy to clipboard
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = (text: string, key: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (!text) return;
     const cleanText = text.replace(/^'+/, '').trim();
-    const fallback = () => {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = cleanText;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch (err) {
-        console.error('Fallback copy failed', err);
-      }
-    };
-
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(cleanText).catch(() => fallback());
-    } else {
-      fallback();
+      navigator.clipboard.writeText(cleanText).catch(() => {});
     }
-
     setCopiedKey(key);
     setTimeout(() => {
       setCopiedKey((prev) => (prev === key ? null : prev));
-    }, 1800);
+    }, 1500);
   };
 
   useEffect(() => {
@@ -104,7 +84,6 @@ export default function KpmFullProfileModal({
   const graduasi = profileData?.graduasi;
   const masalahList = profileData?.permasalahan || [];
 
-  // Parse catatan temuan
   const temuanList: string[] = useMemo(() => {
     try {
       return JSON.parse(keluarga?.CatatanTemuan || '[]');
@@ -115,824 +94,708 @@ export default function KpmFullProfileModal({
 
   if (!isOpen) return null;
 
-  // Selected representative photo for avatar
-  const mainPhoto =
-    keluarga?.FotoKTP ||
-    keluarga?.FotoRumah ||
-    aset?.FotoRumahLuar ||
-    aset?.FotoRumahDalam ||
-    '';
-
-  const housePhoto =
-    keluarga?.FotoRumah ||
-    aset?.FotoRumahLuar ||
-    aset?.FotoRumahDalam ||
-    '';
-
   const isGraduasi =
     keluarga?.StatusKepesertaan === 'Graduasi' ||
     keluarga?.StatusKepesertaan === 'Tidak Aktif' ||
     temuanList.includes('Sudah Graduasi');
 
-  const todayFormatted = new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date()).toUpperCase();
+  const handleDownloadPdf = () => {
+    if (!profileData && !keluarga) return;
+    setIsGeneratingPdf(true);
+    try {
+      const fullData: KpmFullData = profileData || {
+        keluarga: keluarga || null,
+        anggota: anggotaList,
+        aset: aset || null,
+        graduasi: graduasi || null,
+        permasalahan: masalahList,
+      };
+
+      const doc = generateKpmFullProfilePdf(fullData, 'Pendamping Sosial PKH');
+      const safeName = (keluarga?.NamaPengurus || 'KPM').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeNik = (keluarga?.NIK || '').replace(/[^0-9]/g, '');
+      doc.save(`Profil_KPM_${safeName}_${safeNik}.pdf`);
+    } catch (err) {
+      console.error('Gagal membuat PDF profil KPM:', err);
+      alert('Terjadi kesalahan saat membuat file PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5 print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[95vh] flex flex-col shadow-2xl overflow-hidden print:max-h-none print:shadow-none print:rounded-none">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      {/* Lightbox / Preview Photo */}
+      {previewPhoto && (
+        <div
+          className="fixed inset-0 z-60 bg-black/85 flex items-center justify-center p-4 backdrop-blur-xs cursor-pointer"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh] bg-white rounded-3xl overflow-hidden p-2 shadow-2xl">
+            <img
+              src={`/api/image-proxy?id=${previewPhoto}`}
+              alt="Pratinjau Foto"
+              className="max-h-[82vh] w-auto mx-auto object-contain rounded-2xl"
+            />
+            <button
+              onClick={() => setPreviewPhoto(null)}
+              className="absolute top-4 right-4 bg-black/60 text-white rounded-full p-2 hover:bg-black transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[94vh] flex flex-col shadow-2xl overflow-hidden font-['Inter',sans-serif]">
         
         {/* ============================================================== */}
-        {/* 1. WEB MODAL INTERACTIVE VIEW (Hidden in Print)                */}
-        {/*    Styled in modern "Sekolah Rakyat" cards layout              */}
+        {/* TOP HEADER: Title, Quick Info, Download PDF & Close Buttons    */}
         {/* ============================================================== */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 print:hidden">
-          
-          {/* Breadcrumb & Navigation */}
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span>Peserta Dampingan</span>
-              <span>/</span>
-              <span className="font-bold text-slate-800">
-                Detail Profil KPM - {keluarga?.NamaPengurus || 'Memuat...'}
-              </span>
+        <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950 text-white flex items-center justify-between border-b border-slate-700/60 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-cyan-600/30 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shadow-sm shrink-0">
+              <span className="material-symbols-outlined text-2xl">badge</span>
             </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-lg font-bold font-['Outfit'] text-white">
+                  {keluarga?.NamaPengurus || 'Memuat Data KPM...'}
+                </h2>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    isGraduasi
+                      ? 'bg-slate-700 text-slate-300 border-slate-500'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
+                  }`}
+                >
+                  {isGraduasi ? 'Tidak Aktif (Graduasi)' : 'KPM PKH Aktif'}
+                </span>
+                {keluarga?.StatusKelompok && (
+                  <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 rounded-md text-[10px] font-medium">
+                    {keluarga.StatusKelompok}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-300 font-mono mt-0.5">
+                NIK: <strong>{keluarga?.NIK || '—'}</strong> • No. KK: <strong>{keluarga?.NoKK || '—'}</strong>
+                {keluarga?.Kelompok ? ` • Kelompok: ${keluarga.Kelompok}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Tombol Download PDF Profil KPM */}
             <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf || !keluarga}
+              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Download dokumen resmi Profil Lengkap KPM dalam format PDF"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Menyiapkan PDF...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-base">picture_as_pdf</span>
+                  <span>Download PDF Profil KPM</span>
+                </>
+              )}
+            </button>
+
+            {/* Tombol Tutup Modal */}
+            <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
-              title="Tutup Modal"
+              className="p-2 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
+              title="Tutup Jendela"
             >
               <span className="material-symbols-outlined text-xl">close</span>
             </button>
           </div>
+        </div>
 
+        {/* ============================================================== */}
+        {/* MODAL BODY: 1 UNIFIED SCROLLABLE PAGE (ALL DATA IN 1 PAGE)     */}
+        {/* ============================================================== */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-xs text-slate-700 bg-[#F8FAFC]">
           {isLoading || !keluarga ? (
-            <div className="py-24 flex flex-col items-center justify-center gap-3 text-gray-500">
-              <div className="w-9 h-9 border-3 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="font-bold text-xs">Memuat data lengkap KPM Sekolah Rakyat...</p>
+            <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500">
+              <div className="w-10 h-10 border-3 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="font-bold text-xs">Memuat seluruh informasi lengkap KPM PKH...</p>
             </div>
           ) : (
             <>
-              {/* HERO CARD (Mirip Tampilan Situs Sekolah Rakyat - Screenshot 1) */}
-              <div className="bg-gradient-to-br from-slate-50 via-sky-50/40 to-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 shadow-xs relative overflow-hidden">
-                {/* Top subtitle & Status Badges */}
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={onClose}
-                      className="w-8 h-8 rounded-full bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-600 cursor-pointer shadow-xs transition-colors shrink-0"
-                      title="Kembali"
-                    >
-                      <span className="material-symbols-outlined text-base">arrow_back</span>
-                    </button>
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                        DETAIL PROFIL KELUARGA PENERIMA MANFAAT (KPM) PKH
-                      </span>
-                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-['Outfit'] tracking-tight">
-                        {keluarga.NamaPengurus}
-                      </h2>
-                    </div>
+              {/* ======================================================== */}
+              {/* SEKSI 1: DATA POKOK KELUARGA & WILAYAH                   */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-cyan-700 text-lg">home</span>
+                    <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                      1. Data Pokok Keluarga & Wilayah Tempat Tinggal
+                    </h3>
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                    <span
-                      className={`px-3 py-1 rounded-full text-[11px] font-black border flex items-center gap-1 ${
-                        keluarga.StatusData === 'Lengkap'
-                          ? 'bg-amber-50 text-amber-900 border-amber-300'
-                          : 'bg-slate-100 text-slate-700 border-slate-300'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-sm text-amber-600">verified</span>
-                      <span>DATA LENGKAP</span>
-                    </span>
-                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[11px] font-mono font-bold border border-slate-200 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm text-slate-400">calendar_today</span>
-                      <span>{todayFormatted}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Main Body: Photo Card + 4 Key Value Cards + Action Buttons */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-                  
-                  {/* Left: Large Portrait Photo (Sekolah Rakyat Style) */}
-                  <div className="lg:col-span-3 flex flex-col">
-                    <div
-                      onClick={() => mainPhoto && setPreviewPhoto(mainPhoto)}
-                      className="w-full h-56 sm:h-64 rounded-2xl overflow-hidden bg-slate-200 border-2 border-white shadow-md relative group cursor-pointer"
-                      title="Klik untuk memperbesar foto"
-                    >
-                      {mainPhoto ? (
-                        <img
-                          src={`/api/image-proxy?id=${mainPhoto}`}
-                          alt={keluarga.NamaPengurus}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2 bg-gradient-to-b from-slate-100 to-slate-200">
-                          <span className="material-symbols-outlined text-5xl">person</span>
-                          <span className="text-[11px] font-bold">Belum Ada Foto</span>
-                        </div>
-                      )}
-
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5 text-white flex items-center justify-between text-[11px]">
-                        <span className="font-semibold truncate">
-                          {keluarga.FotoKTP ? 'Foto Pengurus / KTP' : 'Foto Rumah'}
-                        </span>
-                        <span className="material-symbols-outlined text-sm">zoom_in</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Middle: 4 Key Value Cards (Grid 2x2) */}
-                  <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    
-                    {/* Card 1: NIK */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                        <span className="material-symbols-outlined text-xl">badge</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          NIK Pengurus
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono font-bold text-slate-900 text-sm truncate">
-                            {keluarga.NIK}
-                          </span>
-                          {keluarga.NIK && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleCopy(keluarga.NIK, 'sr-nik', e)}
-                              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-cyan-700 cursor-pointer"
-                              title="Salin NIK"
-                            >
-                              <span className="material-symbols-outlined text-xs">
-                                {copiedKey === 'sr-nik' ? 'check' : 'content_copy'}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card 2: No. KK */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                        <span className="material-symbols-outlined text-xl">family_restroom</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          No. Kartu Keluarga
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono font-bold text-slate-900 text-sm truncate">
-                            {keluarga.NoKK}
-                          </span>
-                          {keluarga.NoKK && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleCopy(keluarga.NoKK, 'sr-kk', e)}
-                              className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-cyan-700 cursor-pointer"
-                              title="Salin No. KK"
-                            >
-                              <span className="material-symbols-outlined text-xs">
-                                {copiedKey === 'sr-kk' ? 'check' : 'content_copy'}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {anggotaList.length} Jiwa Terdaftar
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card 3: Status Kepesertaan / Desil */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                        <span className="material-symbols-outlined text-xl">account_balance_wallet</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Status Kepesertaan
-                        </span>
-                        <p className="font-bold text-slate-900 text-sm mt-0.5 flex items-center gap-1.5">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              isGraduasi ? 'bg-slate-400' : 'bg-emerald-500'
-                            }`}
-                          />
-                          <span>{isGraduasi ? 'Tidak Aktif (Graduasi)' : 'Peserta Aktif PKH'}</span>
-                        </p>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          Peran: <strong>{keluarga.StatusKelompok || 'Anggota'}</strong>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card 4: Tahap Penyaluran & Kelompok */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
-                        <span className="material-symbols-outlined text-xl">event_repeat</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Tahap Penyaluran Bansos
-                        </span>
-                        <p className="font-bold text-cyan-800 text-sm mt-0.5 truncate">
-                          {keluarga.TahapBansos || 'Tahap 1 (2026)'}
-                        </p>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          Kelompok: <strong>{keluarga.Kelompok || '—'}</strong>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Vertical Action Buttons (Sekolah Rakyat Style) */}
-                  <div className="lg:col-span-3 flex flex-col justify-center gap-2">
+                  {onEditKeluarga && (
                     <button
                       type="button"
-                      onClick={(e) => handleCopy(window.location.href, 'link-profil', e)}
-                      className="w-full py-2.5 px-3 bg-white border border-slate-200 hover:border-cyan-500 hover:text-cyan-800 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
+                      onClick={onEditKeluarga}
+                      className="px-3 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-base text-cyan-600">share</span>
-                      <span>{copiedKey === 'link-profil' ? 'Tautan Disalin!' : 'Salin Link'}</span>
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                      <span>Edit Data Pokok</span>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="w-full py-2.5 px-3 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 hover:border-purple-400 text-purple-900 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
-                      title="Cetak format resmi Sekolah Rakyat Kemensos"
-                    >
-                      <span className="material-symbols-outlined text-base text-purple-600">picture_as_pdf</span>
-                      <span>Profil Calon Siswa / PDF</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="w-full py-2.5 px-3 bg-rose-50/80 border border-rose-200 hover:bg-rose-100 text-rose-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-base text-rose-600">undo</span>
-                      <span>Kembali</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sub-Tabs for Detailed Sections */}
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-                {[
-                  { id: 'pokok', label: 'Data Pokok Keluarga', icon: 'person' },
-                  { id: 'anggota', label: `Anggota Keluarga (${anggotaList.length})`, icon: 'groups' },
-                  { id: 'aset', label: 'Aset & Foto Rumah', icon: 'home' },
-                  { id: 'graduasi', label: 'Graduasi & PPSE', icon: 'school' },
-                  { id: 'masalah', label: `Catatan & Temuan (${masalahList.length + temuanList.length})`, icon: 'report_problem' },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTab(t.id as any)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                      activeTab === t.id
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">{t.icon}</span>
-                    <span>{t.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab 1: Data Pokok */}
-              {activeTab === 'pokok' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                    <h5 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1.5">
-                      <span className="material-symbols-outlined text-base text-cyan-600">location_on</span>
-                      Data Wilayah & Tempat Tinggal
-                    </h5>
-                    <div className="grid grid-cols-2 gap-y-1.5 pt-1 text-slate-600">
-                      <span className="font-medium">Alamat:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Alamat || '—'}</span>
-                      <span className="font-medium">Lingkungan/Dusun:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Lingkungan || '—'}</span>
-                      <span className="font-medium">Kelurahan/Desa:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Kelurahan || '—'}</span>
-                      <span className="font-medium">Kecamatan:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Kecamatan || '—'}</span>
-                      <span className="font-medium">Kabupaten/Kota:</span>
-                      <span className="font-bold text-slate-900">{keluarga.KabKota || '—'}</span>
-                      <span className="font-medium">Provinsi:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Provinsi || '—'}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                    <h5 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1.5">
-                      <span className="material-symbols-outlined text-base text-cyan-600">contact_phone</span>
-                      Kontak & Kepesertaan Kelompok
-                    </h5>
-                    <div className="grid grid-cols-2 gap-y-1.5 pt-1 text-slate-600">
-                      <span className="font-medium">No. Telepon / WA:</span>
-                      <span className="font-mono font-bold text-slate-900">{keluarga.NoHP || '—'}</span>
-                      <span className="font-medium">Nama Kelompok:</span>
-                      <span className="font-bold text-slate-900">{keluarga.Kelompok || '—'}</span>
-                      <span className="font-medium">Status Kelompok:</span>
-                      <span className="font-bold text-slate-900">{keluarga.StatusKelompok || 'Anggota'}</span>
-                      <span className="font-medium">Status Kepesertaan:</span>
-                      <span className="font-bold text-slate-900">{keluarga.StatusKepesertaan || 'Aktif'}</span>
-                      <span className="font-medium">Tahap Bansos:</span>
-                      <span className="font-bold text-cyan-800">{keluarga.TahapBansos || 'Tahap 1 (2026)'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Anggota Keluarga */}
-              {activeTab === 'anggota' && (
-                <div className="space-y-3">
-                  {anggotaList.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 bg-slate-50 rounded-2xl border">
-                      <span className="material-symbols-outlined text-4xl">group_off</span>
-                      <p className="mt-1 text-xs font-bold text-slate-600">Belum ada data anggota keluarga</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {anggotaList.map((ang, i) => (
-                        <div
-                          key={ang.AnggotaId || i}
-                          className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-1.5 shadow-2xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900 text-xs truncate">
-                              {ang.Nama}
-                            </span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[10px] font-bold">
-                              {ang.HubunganKeluarga}
-                            </span>
-                          </div>
-                          <p className="text-[11px] font-mono text-slate-500">NIK: {ang.NIK}</p>
-                          <div className="text-[11px] text-slate-600 space-y-0.5 pt-1 border-t border-slate-100">
-                            <p>Komponen: <strong>{ang.Komponen || '—'}</strong></p>
-                            <p>JK / Tgl Lahir: {ang.JenisKelamin || '—'} • {ang.TanggalLahir || '—'}</p>
-                            {ang.Sekolah && <p>Sekolah: {ang.Sekolah} ({ang.Kelas})</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Tab 3: Aset & Foto Rumah */}
-              {activeTab === 'aset' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-slate-50 p-4 rounded-2xl border text-center">
-                      <span className="text-[11px] text-slate-400 uppercase font-bold">Status Kepemilikan</span>
-                      <p className="text-sm font-bold text-slate-900 mt-1">{aset?.StatusRumah || 'Milik Sendiri'}</p>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border text-center">
-                      <span className="text-[11px] text-slate-400 uppercase font-bold">Kegiatan Usaha</span>
-                      <p className="text-sm font-bold text-slate-900 mt-1">{aset?.Usaha || 'Tidak Memiliki Usaha'}</p>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border text-center">
-                      <span className="text-[11px] text-slate-400 uppercase font-bold">Tahun Terima Bansos</span>
-                      <p className="text-sm font-bold text-slate-900 mt-1">{aset?.TahunMenerimaBansos || '2020'}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Pengurus</span>
+                    <p className="font-bold text-slate-900 text-sm">{keluarga.NamaPengurus}</p>
+                    <span className="text-[10px] text-slate-500 block">Peran: {keluarga.StatusKelompok || 'Anggota'}</span>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">NIK Pengurus</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NIK}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopy(keluarga.NIK, 'nik', e)}
+                        className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                        title="Salin NIK"
+                      >
+                        <span className="material-symbols-outlined text-xs">
+                          {copiedKey === 'nik' ? 'check' : 'content_copy'}
+                        </span>
+                      </button>
                     </div>
                   </div>
 
-                  {/* Galeri Foto Rumah */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="border border-slate-200 rounded-2xl p-3 bg-white space-y-2">
-                      <span className="font-bold text-xs text-slate-800 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm text-cyan-600">home</span>
-                        Foto Rumah Tampak Luar
-                      </span>
-                      <div
-                        onClick={() => housePhoto && setPreviewPhoto(housePhoto)}
-                        className="w-full h-44 rounded-xl overflow-hidden bg-slate-100 border cursor-pointer relative group flex items-center justify-center"
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">No. Kartu Keluarga</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-900 text-sm">{keluarga.NoKK}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopy(keluarga.NoKK, 'nokk', e)}
+                        className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                        title="Salin No KK"
                       >
-                        {housePhoto ? (
-                          <img
-                            src={`/api/image-proxy?id=${housePhoto}`}
-                            alt="Rumah Tampak Luar"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <span className="text-xs text-slate-400">Belum ada foto rumah luar</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="border border-slate-200 rounded-2xl p-3 bg-white space-y-2">
-                      <span className="font-bold text-xs text-slate-800 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm text-cyan-600">chair</span>
-                        Foto Rumah Tampak Dalam
-                      </span>
-                      <div
-                        onClick={() => aset?.FotoRumahDalam && setPreviewPhoto(aset.FotoRumahDalam)}
-                        className="w-full h-44 rounded-xl overflow-hidden bg-slate-100 border cursor-pointer relative group flex items-center justify-center"
-                      >
-                        {aset?.FotoRumahDalam ? (
-                          <img
-                            src={`/api/image-proxy?id=${aset.FotoRumahDalam}`}
-                            alt="Rumah Tampak Dalam"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <span className="text-xs text-slate-400">Belum ada foto rumah dalam</span>
-                        )}
-                      </div>
+                        <span className="material-symbols-outlined text-xs">
+                          {copiedKey === 'nokk' ? 'check' : 'content_copy'}
+                        </span>
+                      </button>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Tab 4: Graduasi & PPSE */}
-              {activeTab === 'graduasi' && (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-                  <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <span className="material-symbols-outlined text-teal-600">school</span>
-                    Catatan Status Graduasi & PPSE
-                  </h5>
-                  <div className="grid grid-cols-2 gap-y-2 text-xs">
-                    <span className="text-slate-500 font-medium">Status Graduasi:</span>
-                    <span className="font-bold text-slate-900">{graduasi?.StatusGraduasi || (isGraduasi ? 'Sudah Graduasi' : 'Belum Graduasi')}</span>
-                    <span className="text-slate-500 font-medium">Status PPSE:</span>
-                    <span className="font-bold text-slate-900">{graduasi?.StatusPPSE || 'Belum PPSE'}</span>
-                    <span className="text-slate-500 font-medium">Alasan Graduasi:</span>
-                    <span className="font-bold text-slate-900">{graduasi?.AlasanGraduasi || '—'}</span>
-                    <span className="text-slate-500 font-medium">Penghasilan / Bulan:</span>
-                    <span className="font-bold text-slate-900">{graduasi?.PenghasilanPerBulan || '—'}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 5: Catatan Permasalahan & Temuan */}
-              {activeTab === 'masalah' && (
-                <div className="space-y-3">
-                  {/* Foto Bukti Dukung (User Item 10) */}
-                  {keluarga.FotoBuktiCatatan && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
-                      <div
-                        onClick={() => setPreviewPhoto(keluarga.FotoBuktiCatatan!)}
-                        className="w-16 h-16 rounded-xl overflow-hidden bg-amber-200 shrink-0 cursor-pointer border border-amber-300"
-                        title="Klik perbesar foto bukti"
-                      >
-                        <img
-                          src={`/api/image-proxy?id=${keluarga.FotoBuktiCatatan}`}
-                          alt="Bukti Temuan"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <span className="font-bold text-amber-950 text-xs block">Foto Bukti Temuan / Dukung Terlampir</span>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nomor HP / WhatsApp</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-900">{keluarga.NoHP || '—'}</span>
+                      {keluarga.NoHP && (
                         <button
                           type="button"
-                          onClick={() => setPreviewPhoto(keluarga.FotoBuktiCatatan!)}
-                          className="text-[11px] font-bold text-cyan-800 hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                          onClick={(e) => handleCopy(keluarga.NoHP, 'nohp', e)}
+                          className="text-slate-400 hover:text-cyan-700 cursor-pointer"
+                          title="Salin No HP"
                         >
-                          <span className="material-symbols-outlined text-xs">zoom_in</span>
-                          Lihat Foto Bukti
+                          <span className="material-symbols-outlined text-xs">
+                            {copiedKey === 'nohp' ? 'check' : 'content_copy'}
+                          </span>
                         </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Nama Kelompok PKH</span>
+                    <p className="font-bold text-cyan-900">{keluarga.Kelompok || '—'}</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tahap Bansos</span>
+                    <p className="font-bold text-slate-900">{keluarga.TahapBansos || 'Tahap 1 (2026)'}</p>
+                  </div>
+                </div>
+
+                {/* Detail Alamat Wilayah */}
+                <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-100 space-y-1.5">
+                  <div className="flex items-center gap-1 font-semibold text-slate-700">
+                    <span className="material-symbols-outlined text-base text-cyan-600">location_on</span>
+                    <span>Alamat Lengkap Tempat Tinggal:</span>
+                  </div>
+                  <p className="font-medium text-slate-900 pl-5 leading-relaxed">
+                    {keluarga.Alamat || '—'}
+                    {keluarga.Lingkungan ? ` • Dusun/Lingkungan: ${keluarga.Lingkungan}` : ''}
+                    {keluarga.Kelurahan ? ` • Kel/Desa: ${keluarga.Kelurahan}` : ''}
+                    {keluarga.Kecamatan ? ` • Kec: ${keluarga.Kecamatan}` : ''}
+                    {keluarga.KabKota ? ` • Kab/Kota: ${keluarga.KabKota}` : ''}
+                    {keluarga.Provinsi ? ` • Prov: ${keluarga.Provinsi}` : ''}
+                  </p>
+                </div>
+
+                {/* Pernyataan Resmi KPM (jika ada) */}
+                {keluarga.Pernyataan && (
+                  <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <span className="material-symbols-outlined text-base text-amber-700">verified</span>
+                      <span>Surat Pernyataan Komitmen Resmi KPM:</span>
+                    </div>
+                    <p className="italic text-amber-950 pl-5 text-[11px] leading-relaxed">
+                      "{keluarga.Pernyataan}"
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* ======================================================== */}
+              {/* SEKSI 2: BERKAS FOTO & DOKUMEN KPM                       */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-cyan-700 text-lg">photo_library</span>
+                    <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                      2. Berkas Foto Dokumen & Kondisi Fisik Rumah
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400">Klik foto untuk memperbesar pratinjau</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Foto KTP Pengurus', id: keluarga.FotoKTP },
+                    { label: 'Foto Kartu Keluarga', id: keluarga.FotoKK },
+                    { label: 'Foto Buku Tabungan', id: keluarga.FotoBukuTabungan },
+                    { label: 'Foto Kartu KKS', id: keluarga.FotoKKS },
+                    { label: 'Foto Rumah KPM', id: keluarga.FotoRumah || aset?.FotoRumahLuar },
+                  ].map(({ label, id }) => (
+                    <div
+                      key={label}
+                      className="border border-slate-200 rounded-xl p-2 bg-slate-50 flex flex-col items-center justify-between text-center relative group"
+                    >
+                      <span className="text-[10px] font-bold text-slate-600 mb-1.5 truncate w-full">{label}</span>
+                      <div
+                        onClick={() => id && setPreviewPhoto(id)}
+                        className={`w-full h-24 rounded-lg overflow-hidden border flex items-center justify-center relative ${
+                          id ? 'cursor-pointer hover:border-cyan-500 bg-white' : 'bg-slate-100 border-dashed text-slate-400'
+                        }`}
+                      >
+                        {id ? (
+                          <>
+                            <img
+                              src={`/api/image-proxy?id=${id}`}
+                              alt={label}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                              <span className="material-symbols-outlined text-lg">zoom_in</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="material-symbols-outlined text-2xl text-slate-300">image_not_supported</span>
+                            <span className="text-[9px] text-slate-400">Belum ada foto</span>
+                          </div>
+                        )}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ======================================================== */}
+              {/* SEKSI 3: DAFTAR ANGGOTA KELUARGA                         */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-cyan-700 text-lg">groups</span>
+                    <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                      3. Daftar Anggota Keluarga ({anggotaList.length} Jiwa Terdaftar)
+                    </h3>
+                  </div>
+                  {onManageAnggota && (
+                    <button
+                      type="button"
+                      onClick={onManageAnggota}
+                      className="px-3 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">person_add</span>
+                      <span>Kelola Anggota</span>
+                    </button>
+                  )}
+                </div>
+
+                {anggotaList.length > 0 ? (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                          <th className="py-2.5 px-3 w-10 text-center">No</th>
+                          <th className="py-2.5 px-3">Nama Anggota</th>
+                          <th className="py-2.5 px-3">NIK</th>
+                          <th className="py-2.5 px-3 w-12 text-center">JK</th>
+                          <th className="py-2.5 px-3">Hubungan</th>
+                          <th className="py-2.5 px-3">Komponen PKH</th>
+                          <th className="py-2.5 px-3">Fasilitas (Sekolah / Posyandu)</th>
+                          <th className="py-2.5 px-3">Pekerjaan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {anggotaList.map((m, idx) => (
+                          <tr key={m.AnggotaId || idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">{m.Nama}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-600">
+                              <span
+                                onClick={(e) => handleCopy(m.NIK, `ang-${idx}`, e)}
+                                className="cursor-pointer hover:text-cyan-700"
+                                title="Klik untuk salin NIK"
+                              >
+                                {m.NIK}
+                                {copiedKey === `ang-${idx}` && (
+                                  <span className="text-[10px] text-emerald-600 font-sans ml-1">✓</span>
+                                )}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  m.JenisKelamin?.startsWith('L')
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-pink-100 text-pink-800'
+                                }`}
+                              >
+                                {m.JenisKelamin?.startsWith('L') ? 'L' : 'P'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-700">{m.HubunganKeluarga}</td>
+                            <td className="py-2.5 px-3">
+                              {m.Komponen ? (
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold text-[10px] inline-block">
+                                  {m.Komponen}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600">
+                              {m.Sekolah ? (
+                                <span>🎒 {m.Sekolah} {m.Kelas ? `(Kls ${m.Kelas})` : ''}</span>
+                              ) : m.Posyandu ? (
+                                <span>🏥 {m.Posyandu}</span>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600">{m.Pekerjaan || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed">
+                    <span className="material-symbols-outlined text-3xl">group_off</span>
+                    <p className="mt-1 font-semibold text-xs text-slate-600">Belum ada anggota keluarga terdaftar</p>
+                  </div>
+                )}
+              </div>
+
+              {/* ======================================================== */}
+              {/* SEKSI 4: KONDISI RUMAH, USAHA & ASET                     */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-cyan-700 text-lg">roofing</span>
+                    <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                      4. Kondisi Tempat Tinggal, Usaha & Aset Keluarga
+                    </h3>
+                  </div>
+                  {onManageAset && (
+                    <button
+                      type="button"
+                      onClick={onManageAset}
+                      className="px-3 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                      <span>Edit Aset</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status Kepemilikan Rumah</span>
+                    <p className="font-bold text-slate-900">{aset?.StatusRumah || 'Milik Sendiri'}</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kepemilikan Usaha</span>
+                    <p className="font-bold text-slate-900">{aset?.Usaha || 'Tidak Memiliki Usaha'}</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Jenis Usaha</span>
+                    <p className="font-bold text-cyan-900">{aset?.JenisUsaha || '—'}</p>
+                  </div>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tahun Terima Bansos</span>
+                    <p className="font-bold text-slate-900">{aset?.TahunMenerimaBansos || '—'}</p>
+                  </div>
+                </div>
+
+                {/* Foto Rumah Tampak Luar & Dalam */}
+                {(aset?.FotoRumahLuar || aset?.FotoRumahDalam || aset?.FotoUsaha) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    {aset?.FotoRumahLuar && (
+                      <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 text-center">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Foto Rumah Tampak Luar</span>
+                        <img
+                          src={`/api/image-proxy?id=${aset.FotoRumahLuar}`}
+                          alt="Rumah Luar"
+                          onClick={() => setPreviewPhoto(aset.FotoRumahLuar)}
+                          className="w-full h-28 object-cover rounded-lg cursor-pointer hover:opacity-95"
+                        />
+                      </div>
+                    )}
+                    {aset?.FotoRumahDalam && (
+                      <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 text-center">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Foto Rumah Tampak Dalam</span>
+                        <img
+                          src={`/api/image-proxy?id=${aset.FotoRumahDalam}`}
+                          alt="Rumah Dalam"
+                          onClick={() => setPreviewPhoto(aset.FotoRumahDalam)}
+                          className="w-full h-28 object-cover rounded-lg cursor-pointer hover:opacity-95"
+                        />
+                      </div>
+                    )}
+                    {aset?.FotoUsaha && (
+                      <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 text-center">
+                        <span className="text-[10px] font-bold text-slate-600 block mb-1">Foto Tempat Usaha</span>
+                        <img
+                          src={`/api/image-proxy?id=${aset.FotoUsaha}`}
+                          alt="Usaha"
+                          onClick={() => setPreviewPhoto(aset.FotoUsaha)}
+                          className="w-full h-28 object-cover rounded-lg cursor-pointer hover:opacity-95"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Titik Koordinat GPS & Keterangan */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Titik Koordinat Lokasi (GPS)</span>
+                    <p className="font-mono font-bold text-slate-800 text-xs mt-0.5">
+                      Lat: {aset?.Latitude || '—'} • Long: {aset?.Longitude || '—'}
+                    </p>
+                  </div>
+                  {aset?.Latitude && aset?.Longitude && (
+                    <a
+                      href={`https://www.google.com/maps?q=${aset.Latitude},${aset.Longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors self-start sm:self-auto"
+                    >
+                      <span className="material-symbols-outlined text-sm">map</span>
+                      <span>Buka di Google Maps</span>
+                    </a>
+                  )}
+                </div>
+
+                {aset?.Keterangan && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700">
+                    <span className="font-bold text-slate-800">Keterangan Kondisi Tempat Tinggal: </span>
+                    <span>{aset.Keterangan}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ======================================================== */}
+              {/* SEKSI 5: DATA GRADUASI & KEMANDIRIAN (PPSE)              */}
+              {/* ======================================================== */}
+              {(graduasi || isGraduasi || keluarga?.StatusGraduasi) && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-teal-700 text-lg">school</span>
+                      <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                        5. Status Graduasi & Pemberdayaan Sosial Ekonomi (PPSE)
+                      </h3>
+                    </div>
+                    {onManageGraduasi && (
+                      <button
+                        type="button"
+                        onClick={onManageGraduasi}
+                        className="px-3 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                        <span>Edit Graduasi</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-3 bg-teal-50/50 rounded-xl border border-teal-100 space-y-1">
+                      <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider block">Status Graduasi</span>
+                      <p className="font-bold text-teal-950">{graduasi?.StatusGraduasi || keluarga?.StatusGraduasi || 'Graduasi'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tanggal Graduasi</span>
+                      <p className="font-bold text-slate-900">{formatTanggalIndonesia(graduasi?.TanggalGraduasi)}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status PPSE</span>
+                      <p className="font-bold text-slate-900">{graduasi?.StatusPPSE || 'Belum PPSE'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Penghasilan / Bulan</span>
+                      <p className="font-bold text-slate-900">{graduasi?.PenghasilanPerBulan || '—'}</p>
+                    </div>
+                  </div>
+
+                  {graduasi?.AlasanGraduasi && (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700">
+                      <span className="font-bold text-slate-800">Alasan Graduasi: </span>
+                      <span>{graduasi.AlasanGraduasi}</span>
                     </div>
                   )}
 
-                  {/* List of problems */}
-                  {masalahList.length === 0 && temuanList.length === 0 ? (
-                    <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border">
-                      <span className="material-symbols-outlined text-3xl">check_circle</span>
-                      <p className="mt-1 text-xs font-bold text-slate-600">Tidak ada permasalahan tercatat</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {temuanList.map((t, idx) => (
-                        <div key={idx} className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 font-bold flex items-center gap-2">
-                          <span className="material-symbols-outlined text-base text-rose-600">warning</span>
-                          <span>Catatan Temuan Lapangan: {t}</span>
-                        </div>
-                      ))}
-                      {masalahList.map((m) => (
-                        <div key={m.MasalahId} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-900">{m.JenisMasalah}</span>
-                            <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold">{m.Status}</span>
-                          </div>
-                          <p className="text-slate-600">{m.Deskripsi}</p>
-                          {m.TindakLanjut && <p className="text-cyan-800 font-medium">Tindak Lanjut: {m.TindakLanjut}</p>}
-                        </div>
-                      ))}
+                  {graduasi?.Catatan && (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700">
+                      <span className="font-bold text-slate-800">Catatan Tambahan: </span>
+                      <span>{graduasi.Catatan}</span>
                     </div>
                   )}
                 </div>
               )}
+
+              {/* ======================================================== */}
+              {/* SEKSI 6: CATATAN TEMUAN & PERMASALAHAN LAPANGAN          */}
+              {/* ======================================================== */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-700 text-lg">report_problem</span>
+                    <h3 className="font-bold text-sm text-slate-900 font-['Outfit']">
+                      6. Catatan Temuan & Permasalahan Lapangan
+                    </h3>
+                  </div>
+                  {onManagePermasalahan && (
+                    <button
+                      type="button"
+                      onClick={onManagePermasalahan}
+                      className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">add_alert</span>
+                      <span>Kelola Catatan</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Temuan Checklist */}
+                {temuanList.length > 0 ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-600">Catatan Temuan KPM:</span>
+                    {temuanList.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="px-3 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-bold text-[11px] inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-sm text-amber-700">warning</span>
+                        <span>{t}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 italic text-[11px]">Tidak ada catatan temuan khusus pada profil KPM ini.</p>
+                )}
+
+                {/* Foto Bukti Catatan (jika ada) */}
+                {keluarga.FotoBuktiCatatan && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3">
+                    <img
+                      src={`/api/image-proxy?id=${keluarga.FotoBuktiCatatan}`}
+                      alt="Foto Bukti"
+                      onClick={() => setPreviewPhoto(keluarga.FotoBuktiCatatan!)}
+                      className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-90 border border-amber-300 shrink-0"
+                    />
+                    <div>
+                      <span className="font-bold text-amber-950 block text-xs">Foto Bukti Dukung Temuan Lapangan</span>
+                      <p className="text-[10px] text-amber-800">Klik gambar untuk melihat bukti dalam ukuran penuh</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabel Kasus / Permasalahan Spesifik */}
+                {masalahList.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <span className="font-bold text-slate-800 text-xs block">Daftar Laporan Kasus / Permasalahan:</span>
+                    <div className="space-y-2">
+                      {masalahList.map((m) => (
+                        <div
+                          key={m.MasalahId}
+                          className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 text-xs">{m.JenisMasalah}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold text-[10px]">
+                                {m.Prioritas || 'Sedang'}
+                              </span>
+                              <span className="px-2 py-0.5 bg-slate-200 text-slate-800 rounded font-bold text-[10px]">
+                                {m.Status}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-slate-700 leading-relaxed">{m.Deskripsi}</p>
+                          {m.TindakLanjut && (
+                            <p className="text-[11px] text-cyan-800 font-semibold pt-1 border-t border-slate-200">
+                              Tindak Lanjut: {m.TindakLanjut}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
 
         {/* ============================================================== */}
-        {/* 2. DEDICATED PRINT / PDF EXPORT LAYOUT                         */}
-        {/*    Styled EXACTLY as in Screenshot 2 (media_1790129549859.jpg) */}
+        {/* FOOTER: Quick Dismiss & Bottom PDF Trigger                     */}
         {/* ============================================================== */}
-        {keluarga && (
-          <div className="hidden print:block font-sans text-black bg-white p-8 max-w-[210mm] mx-auto text-[10pt] leading-tight">
-            
-            {/* Top Header Logos & Titles */}
-            <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-3">
-              <div className="flex items-center gap-3">
-                {/* Garuda / Kemensos Logo representation */}
-                <div className="w-12 h-12 flex items-center justify-center font-bold border border-slate-300 rounded-lg text-xs bg-slate-50">
-                  <span className="material-symbols-outlined text-3xl text-emerald-800">security</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-[11pt] tracking-wider uppercase">
-                    PROFIL KELUARGA PENERIMA MANFAAT (KPM)
-                  </h4>
-                  <h3 className="font-black text-[12pt] tracking-wide uppercase">
-                    KEMENTERIAN SOSIAL REPUBLIK INDONESIA
-                  </h3>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="font-black text-rose-600 tracking-wider text-[11pt]">#KEMENSOS</span>
-                <span className="font-black text-slate-900 tracking-wider text-[11pt]"> SELALU ADA</span>
-              </div>
-            </div>
-
-            {/* Gold Banner */}
-            <div className="bg-[#D4A017] text-white px-3 py-1 font-bold text-[9pt] flex items-center justify-between mb-3 rounded-xs">
-              <span>Program Keluarga Harapan : {keluarga.Kecamatan || 'Kecamatan'}, {keluarga.Kelurahan || 'Kelurahan'}</span>
-              <span>TA. 2026/2027</span>
-            </div>
-
-            {/* 3-Column Top Section: Photo KPM | Center Table | Photo Rumah Tampak Luar */}
-            <div className="grid grid-cols-12 gap-3 mb-3">
-              
-              {/* Left Photo (Foto Calon Siswa / Pengurus) */}
-              <div className="col-span-3 flex flex-col border border-black">
-                <div className="flex-1 bg-slate-100 flex items-center justify-center overflow-hidden min-h-[170px]">
-                  {mainPhoto ? (
-                    <img
-                      src={`/api/image-proxy?id=${mainPhoto}`}
-                      alt="Foto Pengurus"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[9pt] text-slate-500">Foto Pengurus</span>
-                  )}
-                </div>
-                <div className="bg-[#D4A017] text-white text-center py-0.5 text-[8pt] font-bold">
-                  Foto Pengurus KPM
-                </div>
-              </div>
-
-              {/* Center Table: Biodata Detail */}
-              <div className="col-span-6 border border-black p-2 text-[8.5pt]">
-                <table className="w-full">
-                  <tbody>
-                    <tr>
-                      <td className="w-32 font-bold py-0.5">Nama</td>
-                      <td className="w-2">:</td>
-                      <td className="font-bold uppercase">{keluarga.NamaPengurus}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">NIK</td>
-                      <td>:</td>
-                      <td className="font-mono">{keluarga.NIK}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">No. KK</td>
-                      <td>:</td>
-                      <td className="font-mono">{keluarga.NoKK}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Tempat, Tanggal Lahir</td>
-                      <td>:</td>
-                      <td>{anggotaList[0]?.TanggalLahir || '—'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Jenis Kelamin</td>
-                      <td>:</td>
-                      <td>Perempuan</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Kelompok PKH</td>
-                      <td>:</td>
-                      <td>{keluarga.Kelompok || '—'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Status Kelompok</td>
-                      <td>:</td>
-                      <td>{keluarga.StatusKelompok || 'Anggota'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Bansos PKH</td>
-                      <td>:</td>
-                      <td className="font-bold">{keluarga.TahapBansos || 'Tahap 1 (2026)'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Status Kepesertaan</td>
-                      <td>:</td>
-                      <td className="font-bold">{isGraduasi ? 'TIDAK AKTIF (GRADUASI)' : 'AKTIF'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Right Photo: Foto Rumah Tampak Luar */}
-              <div className="col-span-3 flex flex-col border border-black">
-                <div className="flex-1 bg-slate-100 flex items-center justify-center overflow-hidden min-h-[170px]">
-                  {housePhoto ? (
-                    <img
-                      src={`/api/image-proxy?id=${housePhoto}`}
-                      alt="Rumah Tampak Luar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[9pt] text-slate-500">Foto Rumah Luar</span>
-                  )}
-                </div>
-                <div className="bg-[#D4A017] text-white text-center py-0.5 text-[8pt] font-bold">
-                  Foto Rumah Tampak Luar
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Section: 2 Columns of Tables + Bottom Right Photo */}
-            <div className="grid grid-cols-12 gap-3 mb-3">
-              
-              {/* Sub-table Left: Petugas & Wilayah */}
-              <div className="col-span-5 border border-black p-2 text-[8pt]">
-                <table className="w-full">
-                  <tbody>
-                    <tr>
-                      <td className="w-24 font-bold py-0.5">Nama Petugas</td>
-                      <td className="w-2">:</td>
-                      <td className="font-bold">SYAIFUL KHOLIFAH</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">No Hp Petugas</td>
-                      <td>:</td>
-                      <td>+6285370632461</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Provinsi</td>
-                      <td>:</td>
-                      <td>{keluarga.Provinsi || 'SUMATERA UTARA'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Kab/Kota</td>
-                      <td>:</td>
-                      <td>{keluarga.KabKota || 'KOTA BINJAI'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Kecamatan</td>
-                      <td>:</td>
-                      <td>{keluarga.Kecamatan || 'BINJAI KOTA'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Desa/Kel</td>
-                      <td>:</td>
-                      <td>{keluarga.Kelurahan || 'KARTINI'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Alamat</td>
-                      <td>:</td>
-                      <td>{keluarga.Alamat || '—'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Status Rumah</td>
-                      <td>:</td>
-                      <td>{aset?.StatusRumah || 'Milik Sendiri'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Sub-table Middle: Ekonomi & Tanggungan */}
-              <div className="col-span-4 border border-black p-2 text-[8pt]">
-                <table className="w-full">
-                  <tbody>
-                    <tr>
-                      <td className="w-28 font-bold py-0.5">Tanggungan</td>
-                      <td className="w-2">:</td>
-                      <td>{anggotaList.length} Jiwa</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Penerangan</td>
-                      <td>:</td>
-                      <td>Listrik PLN dengan meteran</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Daya Listrik</td>
-                      <td>:</td>
-                      <td>450 / 900 watt</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Penghasilan/Bln</td>
-                      <td>:</td>
-                      <td>&lt; 1 juta per bulan</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Pengeluaran/Bln</td>
-                      <td>:</td>
-                      <td>800.000 - 1.000.000</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Kegiatan Usaha</td>
-                      <td>:</td>
-                      <td>{aset?.Usaha || 'Tidak Memiliki Usaha'}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold py-0.5">Jenis Usaha</td>
-                      <td>:</td>
-                      <td>{aset?.JenisUsaha || '—'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Bottom Right Photo: Foto Orang Tua / Rumah Dalam */}
-              <div className="col-span-3 flex flex-col border border-black">
-                <div className="flex-1 bg-slate-100 flex items-center justify-center overflow-hidden min-h-[140px]">
-                  {aset?.FotoRumahDalam ? (
-                    <img
-                      src={`/api/image-proxy?id=${aset.FotoRumahDalam}`}
-                      alt="Rumah Dalam"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[8pt] text-slate-500">Foto Rumah Dalam</span>
-                  )}
-                </div>
-                <div className="bg-[#D4A017] text-white text-center py-0.5 text-[8pt] font-bold">
-                  Foto Rumah Tampak Dalam
-                </div>
-              </div>
-            </div>
-
-            {/* Catatan Petugas / Catatan Temuan Banner */}
-            <div className="border border-black p-2.5 mb-3 text-[8.5pt]">
-              <span className="font-bold">Catatan Petugas Pendamping : </span>
-              <span>
-                {temuanList.length > 0
-                  ? `Catatan temuan: ${temuanList.join(', ')}. `
-                  : 'Kondisi ekonomi keluarga tergolong prasejahtera dan memenuhi syarat kepesertaan PKH. '}
-                {keluarga.Pernyataan ? `Pernyataan resmi terlampir pada dokumen verifikasi fisik.` : ''}
-              </span>
-            </div>
-
-            {/* Gold Bottom Footer Banner */}
-            <div className="bg-[#D4A017] text-white text-center py-1 text-[8pt] italic font-semibold rounded-xs">
-              Formulir ini merupakan bagian dari program bantuan sosial Program Keluarga Harapan (PKH) oleh Kementerian Sosial Republik Indonesia.
-            </div>
-          </div>
-        )}
-
-      </div>
-
-      {/* Modal Zoom Preview Foto */}
-      {previewPhoto && (
-        <div
-          onClick={() => setPreviewPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
-          >
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-              <span className="text-xs font-bold flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-base text-cyan-400">image</span>
-                Pratinjau Foto Dokumen
-              </span>
-              <button
-                onClick={() => setPreviewPhoto(null)}
-                className="p-1 hover:bg-white/20 rounded-lg cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-base">close</span>
-              </button>
-            </div>
-            <div className="p-4 bg-slate-950 flex items-center justify-center max-h-[75vh]">
-              <img
-                src={`/api/image-proxy?id=${previewPhoto}`}
-                alt="Pratinjau"
-                className="max-h-[70vh] w-auto object-contain rounded-lg"
-              />
-            </div>
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 shrink-0">
+          <span>Sistem Informasi Pendampingan Sosial ASPEND Web PKH</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf || !keluarga}
+              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+              <span>Download PDF Profil KPM</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-slate-300 rounded-xl font-semibold hover:bg-slate-100 transition-colors cursor-pointer text-slate-700"
+            >
+              Tutup
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -38,6 +38,8 @@ export default function KpmTableView({
   const [selectedTahapFilter, setSelectedTahapFilter] = useState('');
   const [selectedKepesertaanFilter, setSelectedKepesertaanFilter] = useState('');
   const [showOnlyDuplicates, setShowOnlyDuplicates] = useState(false);
+  const [showOnlyCatatan, setShowOnlyCatatan] = useState(false);
+  const [popupCatatanKpm, setPopupCatatanKpm] = useState<KpmKeluarga | null>(null);
 
   // Salin ke Clipboard
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -276,7 +278,12 @@ export default function KpmTableView({
         matchDuplicate = isDupNik || isDupKK || Boolean(item.IsDuplicateNik) || Boolean(item.IsDuplicateKK) || Boolean(item.HasDuplicateAnggotaNik);
       }
 
-      return matchSearch && matchKelompok && matchStatusKelompok && matchStatus && matchTahap && matchKepesertaan && matchDuplicate;
+      let matchCatatan = true;
+      if (showOnlyCatatan) {
+        matchCatatan = Boolean(item.CatatanTemuan && item.CatatanTemuan !== '[]' && item.CatatanTemuan.trim() !== '');
+      }
+
+      return matchSearch && matchKelompok && matchStatusKelompok && matchStatus && matchTahap && matchKepesertaan && matchDuplicate && matchCatatan;
     });
 
     // Urutkan:
@@ -303,7 +310,7 @@ export default function KpmTableView({
       // Jika status sama, urutkan berdasarkan Nama Pengurus
       return (a.NamaPengurus || '').localeCompare(b.NamaPengurus || '', undefined, { sensitivity: 'base' });
     });
-  }, [dataList, searchQuery, selectedKelompok, selectedStatusKelompok, selectedStatus, selectedTahapFilter, selectedKepesertaanFilter, showOnlyDuplicates, duplicateInfo]);
+  }, [dataList, searchQuery, selectedKelompok, selectedStatusKelompok, selectedStatus, selectedTahapFilter, selectedKepesertaanFilter, showOnlyDuplicates, showOnlyCatatan, duplicateInfo]);
 
   // Ringkasan jumlah KPM per kelompok (untuk header kelompok: Total, Aktif, Tidak Aktif)
   const kelompokSummaryMap = useMemo(() => {
@@ -441,7 +448,8 @@ export default function KpmTableView({
     selectedStatus ||
     selectedTahapFilter ||
     selectedKepesertaanFilter ||
-    showOnlyDuplicates
+    showOnlyDuplicates ||
+    showOnlyCatatan
   );
 
   return (
@@ -455,33 +463,89 @@ export default function KpmTableView({
             Data KPM PKH
           </h2>
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-2 py-0.5 bg-cyan-50 text-cyan-900 border border-cyan-300 rounded-full text-[11px] font-black flex items-center gap-1 shadow-2xs whitespace-nowrap">
-              <span className="material-symbols-outlined text-[13px] text-cyan-700">groups</span>
-              Total: {statsOverview.total}
-            </span>
-            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Aktif: {statsOverview.aktif}
-            </span>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap ${
-                statsOverview.tidakAktif > 0
-                  ? 'bg-purple-100 text-purple-900 border border-purple-300'
-                  : 'bg-slate-100 text-slate-700 border border-slate-300'
+            {/* Filter Total: klik untuk reset filter */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedKepesertaanFilter('');
+                setShowOnlyCatatan(false);
+                setShowOnlyDuplicates(false);
+                setCurrentPage(1);
+              }}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+                !selectedKepesertaanFilter && !showOnlyCatatan && !showOnlyDuplicates
+                  ? 'bg-cyan-600 text-white border border-cyan-700 ring-2 ring-cyan-200'
+                  : 'bg-cyan-50 text-cyan-900 border border-cyan-300 hover:bg-cyan-100'
               }`}
+              title="Klik untuk menampilkan seluruh KPM (Reset filter status & catatan)"
+            >
+              <span className="material-symbols-outlined text-[13px]">groups</span>
+              Total: {statsOverview.total}
+            </button>
+
+            {/* Filter KPM Aktif */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedKepesertaanFilter(selectedKepesertaanFilter === 'Aktif' ? '' : 'Aktif');
+                setShowOnlyCatatan(false);
+                setCurrentPage(1);
+              }}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+                selectedKepesertaanFilter === 'Aktif'
+                  ? 'bg-emerald-600 text-white border border-emerald-700 ring-2 ring-emerald-200'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+              }`}
+              title="Klik untuk memfilter data KPM Aktif saja"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${selectedKepesertaanFilter === 'Aktif' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+              Aktif: {statsOverview.aktif}
+            </button>
+
+            {/* Filter KPM Non-Aktif / Graduasi */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedKepesertaanFilter(selectedKepesertaanFilter === 'Tidak Aktif' ? '' : 'Tidak Aktif');
+                setShowOnlyCatatan(false);
+                setCurrentPage(1);
+              }}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+                selectedKepesertaanFilter === 'Tidak Aktif'
+                  ? 'bg-purple-600 text-white border border-purple-700 ring-2 ring-purple-200'
+                  : statsOverview.tidakAktif > 0
+                  ? 'bg-purple-100 text-purple-900 border border-purple-300 hover:bg-purple-200'
+                  : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
+              }`}
+              title="Klik untuk memfilter data KPM Non-Aktif / Graduasi saja"
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  statsOverview.tidakAktif > 0 ? 'bg-purple-600' : 'bg-slate-400'
+                  selectedKepesertaanFilter === 'Tidak Aktif' ? 'bg-white' : statsOverview.tidakAktif > 0 ? 'bg-purple-600' : 'bg-slate-400'
                 }`}
               ></span>
               Non-Aktif: {statsOverview.tidakAktif}
-            </span>
+            </button>
+
+            {/* Filter KPM yang Memiliki Catatan Temuan */}
             {statsOverview.catatan > 0 && (
-              <span className="px-2 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap">
-                <span className="material-symbols-outlined text-[13px] text-amber-600">report</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOnlyCatatan(!showOnlyCatatan);
+                  setSelectedKepesertaanFilter('');
+                  setCurrentPage(1);
+                }}
+                className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+                  showOnlyCatatan
+                    ? 'bg-amber-600 text-white border border-amber-700 ring-2 ring-amber-200'
+                    : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
+                }`}
+                title="Klik untuk memfilter data KPM yang memiliki catatan temuan"
+              >
+                <span className={`material-symbols-outlined text-[13px] ${showOnlyCatatan ? 'text-white' : 'text-amber-600'}`}>report</span>
                 Catatan: {statsOverview.catatan}
-              </span>
+              </button>
             )}
           </div>
         </div>
@@ -546,11 +610,10 @@ export default function KpmTableView({
               setClearAllConfirmText('');
               setIsClearAllModalOpen(true);
             }}
-            className="px-2.5 py-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
-            title="Hapus bersih seluruh data KPM PKH dari Google Sheets"
+            className="p-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-xl transition-all flex items-center justify-center shadow-xs cursor-pointer shrink-0"
+            title="Hapus Bersih Seluruh Data KPM PKH"
           >
-            <span className="material-symbols-outlined text-[15px] text-rose-600">delete_sweep</span>
-            <span>Hapus Semua</span>
+            <span className="material-symbols-outlined text-[17px] text-rose-600">delete</span>
           </button>
         </div>
       </div>
@@ -874,15 +937,34 @@ export default function KpmTableView({
                               );
                             })()}
                             <div className="min-w-0">
-                              <p
-                                onClick={() => handleOpenFullProfile(kpm)}
-                                className={`font-bold hover:underline cursor-pointer text-xs leading-snug truncate max-w-[135px] ${
-                                  isGraduasiOrInactive ? 'text-slate-500 hover:text-slate-700' : 'text-gray-900 hover:text-cyan-700'
-                                }`}
-                                title={kpm.NamaPengurus}
-                              >
-                                {kpm.NamaPengurus}
-                              </p>
+                              <div className="flex items-center gap-1">
+                                <p
+                                  onClick={() => handleOpenFullProfile(kpm)}
+                                  className={`font-bold hover:underline cursor-pointer text-xs leading-snug truncate max-w-[125px] ${
+                                    isGraduasiOrInactive ? 'text-slate-500 hover:text-slate-700' : 'text-gray-900 hover:text-cyan-700'
+                                  }`}
+                                  title={kpm.NamaPengurus}
+                                >
+                                  {kpm.NamaPengurus}
+                                </p>
+                                {(() => {
+                                  const hasCatatan = Boolean(kpm.CatatanTemuan && kpm.CatatanTemuan !== '[]' && kpm.CatatanTemuan.trim() !== '');
+                                  if (!hasCatatan) return null;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPopupCatatanKpm(kpm);
+                                      }}
+                                      className="p-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors cursor-pointer shrink-0"
+                                      title="KPM memiliki catatan/temuan lapangan (Klik untuk melihat)"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px] text-amber-600 block">report</span>
+                                    </button>
+                                  );
+                                })()}
+                              </div>
                               {isGraduasi ? (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold mt-0.5 bg-slate-200 text-slate-600 border border-slate-300">
                                   <span className="material-symbols-outlined text-[12px] text-slate-500">school</span>
@@ -1837,6 +1919,114 @@ export default function KpmTableView({
                     <span>Ya, Hapus Bersih Seluruh Data</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Popup Catatan Temuan KPM */}
+      {popupCatatanKpm && (
+        <div
+          className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPopupCatatanKpm(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-amber-200 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-2xl">report</span>
+                <div>
+                  <h4 className="font-bold text-sm font-['Outfit']">Catatan Temuan KPM</h4>
+                  <p className="text-[11px] text-amber-100">{popupCatatanKpm.NamaPengurus} (KK: {popupCatatanKpm.NoKK || '—'})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPopupCatatanKpm(null)}
+                className="p-1 hover:bg-white/20 rounded-xl text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-gray-700 max-h-[70vh] overflow-y-auto">
+              <div>
+                <p className="font-bold text-gray-800 mb-1.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-amber-600">checklist</span>
+                  Daftar Catatan & Temuan Lapangan:
+                </p>
+                {(() => {
+                  let list: string[] = [];
+                  try {
+                    list = JSON.parse(popupCatatanKpm.CatatanTemuan || '[]');
+                  } catch {
+                    if (popupCatatanKpm.CatatanTemuan) list = [popupCatatanKpm.CatatanTemuan];
+                  }
+                  if (!Array.isArray(list) || list.length === 0) {
+                    return <p className="text-gray-400 italic">Tidak ada catatan temuan.</p>;
+                  }
+                  return (
+                    <div className="space-y-1.5">
+                      {list.map((item, i) => (
+                        <div
+                          key={i}
+                          className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-950 font-medium"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Foto Bukti Catatan (jika ada) */}
+              {popupCatatanKpm.FotoBuktiCatatan && (
+                <div className="space-y-1.5">
+                  <p className="font-bold text-gray-800 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm text-amber-600">image</span>
+                    Foto Bukti Catatan:
+                  </p>
+                  <div className="rounded-xl overflow-hidden border border-gray-200 bg-slate-100 max-h-48">
+                    <img
+                      src={`/api/image-proxy?id=${popupCatatanKpm.FotoBuktiCatatan}`}
+                      alt="Foto Bukti Catatan"
+                      className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() =>
+                        setPreviewPhoto({
+                          url: `/api/image-proxy?id=${popupCatatanKpm.FotoBuktiCatatan}`,
+                          title: `Foto Bukti Catatan: ${popupCatatanKpm.NamaPengurus}`,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = popupCatatanKpm;
+                  setPopupCatatanKpm(null);
+                  handleOpenFullProfile(target);
+                }}
+                className="text-xs font-bold text-cyan-700 hover:text-cyan-900 flex items-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">visibility</span>
+                <span>Lihat Profil Lengkap</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPopupCatatanKpm(null)}
+                className="px-4 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Tutup
               </button>
             </div>
           </div>

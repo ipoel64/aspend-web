@@ -846,27 +846,39 @@ export default function KpmFormModal({
                 <span className="material-symbols-outlined text-cyan-600 text-lg">verified</span>
                 5. Pernyataan Resmi KPM
               </h4>
-              <span className="text-[11px] text-gray-500">
-                Pilih opsi di bawah sesuai dengan surat pernyataan fisik dari KPM
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                <span className="material-symbols-outlined text-xs">lock</span>
+                Hanya Dapat Diisi Mandiri oleh KPM
               </span>
             </div>
-            <div className="space-y-2">
+
+            <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+              <span className="material-symbols-outlined text-base text-amber-700 shrink-0 mt-0.5">lock</span>
+              <div>
+                <p className="font-semibold">Bagian ini dinonaktifkan untuk Petugas / Pendamping.</p>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  Surat pernyataan komitmen/pengunduran diri resmi hanya dapat dipilih dan disetujui langsung oleh KPM yang bersangkutan melalui formulir pengisian mandiri (Portal KPM PKH).
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 opacity-65 cursor-not-allowed">
               <label
-                className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs cursor-pointer transition-colors ${
+                className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs cursor-not-allowed transition-colors ${
                   !formData.Pernyataan
                     ? 'bg-amber-50 border-amber-400 text-amber-950 font-medium shadow-xs'
-                    : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'
+                    : 'bg-gray-50 border-gray-200 text-gray-500'
                 }`}
               >
                 <input
                   type="radio"
                   name="pernyataan"
+                  disabled={true}
                   checked={!formData.Pernyataan}
-                  onChange={() => setFormData({ ...formData, Pernyataan: '' })}
-                  className="accent-amber-600 mt-0.5"
+                  className="accent-amber-600 mt-0.5 cursor-not-allowed"
                 />
                 <div>
-                  <span className="font-semibold text-gray-900">Belum Ada Pernyataan Resmi</span>
+                  <span className="font-semibold text-gray-800">Belum Ada Pernyataan Resmi</span>
                   <p className="text-[11px] text-gray-500 mt-0.5">
                     KPM ini belum membuat atau belum menandatangani surat pernyataan resmi apapun.
                   </p>
@@ -876,18 +888,18 @@ export default function KpmFormModal({
               {PERNYATAAN_OPTIONS.map((stmt, idx) => (
                 <label
                   key={idx}
-                  className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs cursor-pointer transition-colors ${
+                  className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs cursor-not-allowed transition-colors ${
                     formData.Pernyataan === stmt
                       ? 'bg-cyan-50 border-cyan-500 text-cyan-950 font-medium shadow-xs'
-                      : 'bg-white border-gray-200 hover:bg-gray-50'
+                      : 'bg-gray-50 border-gray-200 text-gray-500'
                   }`}
                 >
                   <input
                     type="radio"
                     name="pernyataan"
+                    disabled={true}
                     checked={formData.Pernyataan === stmt}
-                    onChange={() => setFormData({ ...formData, Pernyataan: stmt })}
-                    className="accent-cyan-600 mt-0.5"
+                    className="accent-cyan-600 mt-0.5 cursor-not-allowed"
                   />
                   <span className="leading-relaxed">{stmt}</span>
                 </label>
