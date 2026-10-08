@@ -190,7 +190,7 @@ export async function POST(request: Request) {
       await ensureSheetExists(accessToken, spreadsheetId, KPM_SHEET_KELUARGA, KPM_KELUARGA_HEADERS);
 
       // Ambil NoKK yang sudah ada di sheet (Kolom C, index 2)
-      const rawExisting = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`).catch(() => []);
+      const rawExisting = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch(() => []);
 
       // Map NoKK & NIK -> { rowIndex, data } dengan nomor baris aktual (i + 2)
       const existingMapByKK = new Map<string, { rowIndex: number; data: KpmKeluarga }>();
@@ -401,7 +401,7 @@ export async function POST(request: Request) {
               UpdatedAt: new Date().toISOString(),
             };
             rangesToUpdate.push({
-              range: `${KPM_SHEET_KELUARGA}!A${item.existingRowIndex}:AA${item.existingRowIndex}`,
+              range: `${KPM_SHEET_KELUARGA}!A${item.existingRowIndex}:AB${item.existingRowIndex}`,
               values: [keluargaToRow(updatedKpm)],
             });
             updatedCount++;
@@ -424,7 +424,7 @@ export async function POST(request: Request) {
       }
 
       if (newRowsToAppend.length > 0) {
-        await appendSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`, newRowsToAppend);
+        await appendSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`, newRowsToAppend);
       }
 
       return NextResponse.json({

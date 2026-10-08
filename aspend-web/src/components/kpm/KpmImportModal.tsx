@@ -7,7 +7,7 @@ interface KpmImportModalProps {
   onClose: () => void;
   onSuccess: () => void;
   onNavigateHome?: () => void;
-  onOpenImportPhoto?: () => void;
+  onOpenImportPhoto?: (category?: 'dokumen' | 'rumah') => void;
 }
 
 type ImportTarget = 'keluarga' | 'anggota' | 'aset';
@@ -287,28 +287,38 @@ export default function KpmImportModal({
             {/* Content Body */}
             <div className="p-6 space-y-4 text-xs text-gray-700 max-h-[80vh] overflow-y-auto">
           
-          {/* Banner Khusus Impor / Migrasi Foto Rumah KPM */}
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          {/* Banner Khusus Impor / Migrasi Berkas Dokumen & Foto Rumah KPM */}
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <span className="material-symbols-outlined text-lg">add_photo_alternate</span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <span className="material-symbols-outlined text-xl">perm_media</span>
               </div>
               <div>
-                <div className="font-bold text-emerald-950 text-xs">Punya Foto Rumah KPM di Google Drive Lama?</div>
+                <div className="font-bold text-emerald-950 text-xs">Punya Foto Berkas (KTP/KK/Selfie) atau Rumah KPM di Google Drive / ZIP?</div>
                 <div className="text-[11px] text-emerald-800 leading-tight">
-                  Gunakan fitur migrasi foto otomatis untuk menyalin & menghubungkan foto dari Google Drive / ZIP ke profil KPM.
+                  Salin &amp; hubungkan foto dokumen (KTP, KK, Butab, KKS, Selfie) dan foto rumah langsung ke profil KPM berdasarkan No. KK.
                 </div>
               </div>
             </div>
             {onOpenImportPhoto && (
-              <button
-                type="button"
-                onClick={onOpenImportPhoto}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shrink-0 transition-all shadow-xs cursor-pointer flex items-center gap-1"
-              >
-                <span>Impor Foto</span>
-                <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </button>
+              <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => onOpenImportPhoto('dokumen')}
+                  className="flex-1 md:flex-initial px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">badge</span>
+                  <span>Impor Berkas &amp; Selfie</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenImportPhoto('rumah')}
+                  className="flex-1 md:flex-initial px-3 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-xs">cottage</span>
+                  <span>Impor Foto Rumah</span>
+                </button>
+              </div>
             )}
           </div>
 

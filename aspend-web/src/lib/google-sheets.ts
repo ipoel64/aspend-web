@@ -229,7 +229,7 @@ export async function deleteSheetRowsBatch(
  */
 export async function findRowByKey(accessToken: string, spreadsheetId: string, sheetName: string, searchKey: string, columnIndex: number = 0) {
   try {
-    const data = await getSheetData(accessToken, spreadsheetId, `${sheetName}!A:AA`);
+    const data = await getSheetData(accessToken, spreadsheetId, `${sheetName}!A:AZ`);
     const cleanSearch = String(searchKey || '').replace(/^'+/, '').trim().toLowerCase();
     if (!cleanSearch) return -1;
 

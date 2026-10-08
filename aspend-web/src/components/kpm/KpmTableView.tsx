@@ -94,6 +94,7 @@ export default function KpmTableView({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImportPhotoModalOpen, setIsImportPhotoModalOpen] = useState(false);
+  const [importPhotoCategory, setImportPhotoCategory] = useState<'dokumen' | 'rumah'>('dokumen');
   const [isAbsensiModalOpen, setIsAbsensiModalOpen] = useState(false);
 
   const [activeKeluarga, setActiveKeluarga] = useState<KpmKeluarga | null>(null);
@@ -1686,8 +1687,9 @@ export default function KpmTableView({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onNavigateHome={onNavigateHome}
-        onOpenImportPhoto={() => {
+        onOpenImportPhoto={(cat) => {
           setIsImportModalOpen(false);
+          setImportPhotoCategory(cat || 'dokumen');
           setIsImportPhotoModalOpen(true);
         }}
         onSuccess={() => {
@@ -1698,6 +1700,7 @@ export default function KpmTableView({
 
       <KpmImportPhotoModal
         isOpen={isImportPhotoModalOpen}
+        initialCategory={importPhotoCategory}
         onClose={() => setIsImportPhotoModalOpen(false)}
         onSuccess={() => {
           fetchData();

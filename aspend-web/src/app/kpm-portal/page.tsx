@@ -47,6 +47,7 @@ function KpmPortalContent() {
   const [kelurahan, setKelurahan] = useState('');
 
   // Berkas Foto Keluarga
+  const [fotoSelfie, setFotoSelfie] = useState('');
   const [fotoKTP, setFotoKTP] = useState('');
   const [fotoKK, setFotoKK] = useState('');
   const [fotoBukuTabungan, setFotoBukuTabungan] = useState('');
@@ -127,6 +128,7 @@ function KpmPortalContent() {
       setKabKota(keluarga.KabKota || '');
       setKecamatan(keluarga.Kecamatan || '');
       setKelurahan(keluarga.Kelurahan || '');
+      setFotoSelfie(keluarga.FotoSelfie || '');
       setFotoKTP(keluarga.FotoKTP || '');
       setFotoKK(keluarga.FotoKK || '');
       setFotoBukuTabungan(keluarga.FotoBukuTabungan || '');
@@ -196,6 +198,9 @@ function KpmPortalContent() {
       if (data.files && data.files.length > 0) {
         const fileId = data.files[0].id;
         switch (fieldKey) {
+          case 'FotoSelfie':
+            setFotoSelfie(fileId);
+            break;
           case 'FotoKTP':
             setFotoKTP(fileId);
             break;
@@ -335,6 +340,7 @@ function KpmPortalContent() {
           KabKota: kabKota,
           Kecamatan: kecamatan,
           Kelurahan: kelurahan,
+          FotoSelfie: fotoSelfie,
           FotoKTP: fotoKTP,
           FotoKK: fotoKK,
           FotoBukuTabungan: fotoBukuTabungan,
@@ -726,6 +732,7 @@ function KpmPortalContent() {
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {[
+                        { label: 'Foto Selfie KPM', fieldKey: 'FotoSelfie', val: fotoSelfie, setVal: setFotoSelfie },
                         { label: 'Foto KTP Pengurus', fieldKey: 'FotoKTP', val: fotoKTP, setVal: setFotoKTP },
                         { label: 'Foto Kartu Keluarga', fieldKey: 'FotoKK', val: fotoKK, setVal: setFotoKK },
                         { label: 'Foto Buku Tabungan', fieldKey: 'FotoBukuTabungan', val: fotoBukuTabungan, setVal: setFotoBukuTabungan },

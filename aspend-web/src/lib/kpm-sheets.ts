@@ -41,7 +41,7 @@ export async function ensureSheetExists(
     const sheets = await getSheetsClient(accessToken);
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const targetSheet = meta.data.sheets?.find((s) => s.properties?.title === sheetName);
-    const neededCols = Math.max(headers ? headers.length : 0, 30);
+    const neededCols = Math.max(headers ? headers.length : 0, 32);
 
     if (!targetSheet) {
       await sheets.spreadsheets.batchUpdate({
@@ -67,7 +67,7 @@ export async function ensureSheetExists(
         await appendSheetData(accessToken, spreadsheetId, `${sheetName}!A1`, [headers]);
       }
     } else {
-      // Pastikan jumlah kolom mencukupi minimal 30 kolom (agar kolom AA selalu valid)
+      // Pastikan jumlah kolom mencukupi minimal 32 kolom (agar kolom AB selalu valid)
       const currentCols = targetSheet.properties?.gridProperties?.columnCount || 26;
       if (currentCols < neededCols && targetSheet.properties?.sheetId !== undefined) {
         try {
@@ -91,6 +91,24 @@ export async function ensureSheetExists(
           });
         } catch (colErr) {
           console.warn(`Gagal memperluas kolom sheet ${sheetName}:`, colErr);
+        }
+      }
+
+      // Sinkronkan header jika ada kolom baru (seperti FotoSelfie) yang belum ada di baris 1
+      if (headers && headers.length > 0) {
+        try {
+          const headerRows = await getSheetData(accessToken, spreadsheetId, `${sheetName}!A1:AZ1`).catch(() => []);
+          const existingHeaders = headerRows[0] || [];
+          if (existingHeaders.length < headers.length) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId,
+              range: `${sheetName}!A1`,
+              valueInputOption: 'USER_ENTERED',
+              requestBody: { values: [headers] },
+            });
+          }
+        } catch {
+          // ignore
         }
       }
     }
@@ -139,7 +157,7 @@ export async function getKpmFullProfile(
   };
 
   try {
-    const rawKeluarga = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`);
+    const rawKeluarga = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`);
     const keluargaList = rawKeluarga.filter((r) => r.length > 0).map(parseKeluargaRow);
 
     const idClean = (identifier.kpmId || '').trim();

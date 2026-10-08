@@ -62,7 +62,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
 
     let [keluargaRows, rawAnggota, rawAset] = await Promise.all([
-      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`).catch(() => []),
+      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch(() => []),
       getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A2:N`).catch(() => []),
       getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ASET}!A2:M`).catch(() => []),
     ]);
@@ -398,7 +398,7 @@ export async function POST(request: Request) {
     };
 
     const rowData = keluargaToRow(newKeluarga);
-    await appendSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`, [rowData]);
+    await appendSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`, [rowData]);
 
     return NextResponse.json(newKeluarga, { status: 201 });
   } catch (error) {
@@ -417,7 +417,7 @@ export async function PUT(request: Request) {
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const body = await request.json();
-    const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`);
+    const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`);
     if (!rawRows || rawRows.length <= 1) {
       return NextResponse.json({ error: 'Data sheet KPM kosong' }, { status: 404 });
     }
@@ -563,7 +563,7 @@ export async function PUT(request: Request) {
     updatedKeluarga.StatusData = isKpmDataLengkap(updatedKeluarga) ? 'Lengkap' : 'Belum Lengkap';
 
     const updatedRow = keluargaToRow(updatedKeluarga);
-    const range = `${KPM_SHEET_KELUARGA}!A${foundRowIndex}:AA${foundRowIndex}`;
+    const range = `${KPM_SHEET_KELUARGA}!A${foundRowIndex}:AB${foundRowIndex}`;
     await updateSheetRow(accessToken, spreadsheetId, range, [updatedRow]);
 
     // Hapus seluruh baris duplikat dari Google Sheets agar tidak pernah tersisa baris ganda
@@ -715,7 +715,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'kpmId, nik, atau noKK diperlukan untuk menghapus' }, { status: 400 });
     }
 
-    const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`);
+    const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`);
     if (!rawRows || rawRows.length <= 1) {
       return NextResponse.json({ error: 'Data sheet KPM kosong' }, { status: 404 });
     }
@@ -784,7 +784,7 @@ export async function PATCH(request: Request) {
 
     // ─── Fitur Bersihkan Seluruh Data KPM Duplikat Otomatis ───
     if (action === 'deduplicate') {
-      const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`, 'UNFORMATTED_VALUE');
+      const rawRows = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`, 'UNFORMATTED_VALUE');
       if (rawRows.length <= 1) {
         return NextResponse.json({ success: true, message: 'Data KPM kosong', deletedCount: 0 });
       }
@@ -827,6 +827,7 @@ export async function PATCH(request: Request) {
           let score = 0;
           if (k.StatusKelompok === 'Ketua Kelompok') score += 10;
           if (k.FotoRumah) score += 5;
+          if (k.FotoSelfie) score += 4;
           if (k.FotoKTP) score += 3;
           if (k.FotoKK) score += 3;
           if (k.FotoBukuTabungan) score += 2;
@@ -861,6 +862,7 @@ export async function PATCH(request: Request) {
             });
           }
           if (!primaryRow.FotoRumah && dupK.FotoRumah) primaryRow.FotoRumah = dupK.FotoRumah;
+          if (!primaryRow.FotoSelfie && dupK.FotoSelfie) primaryRow.FotoSelfie = dupK.FotoSelfie;
           if (!primaryRow.FotoKTP && dupK.FotoKTP) primaryRow.FotoKTP = dupK.FotoKTP;
           if (!primaryRow.FotoKK && dupK.FotoKK) primaryRow.FotoKK = dupK.FotoKK;
           if (!primaryRow.FotoBukuTabungan && dupK.FotoBukuTabungan) primaryRow.FotoBukuTabungan = dupK.FotoBukuTabungan;
@@ -876,7 +878,7 @@ export async function PATCH(request: Request) {
         primaryRow.UpdatedAt = new Date().toISOString();
 
         primaryUpdates.push({
-          range: `${KPM_SHEET_KELUARGA}!A${bestIndex + 1}:AA${bestIndex + 1}`,
+          range: `${KPM_SHEET_KELUARGA}!A${bestIndex + 1}:AB${bestIndex + 1}`,
           values: [keluargaToRow(primaryRow)],
         });
       }
@@ -1012,7 +1014,7 @@ export async function PATCH(request: Request) {
 
     if (action === 'repair-scientific') {
       const [keluargaRaw, anggotaRaw] = await Promise.all([
-        getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`, 'UNFORMATTED_VALUE'),
+        getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`, 'UNFORMATTED_VALUE'),
         getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A:N`, 'UNFORMATTED_VALUE'),
       ]);
 

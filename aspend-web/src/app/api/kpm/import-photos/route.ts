@@ -86,6 +86,16 @@ function mapUsaha(val: string): string {
   return val.trim();
 }
 
+function detectDocType(str: string): 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie' | null {
+  const s = str.toLowerCase();
+  if (s.includes('selfie') || s.includes('f_selfie')) return 'selfie';
+  if (s.includes('ktp') || s.includes('f_ktp')) return 'ktp';
+  if (s.includes('butab') || s.includes('buku_tab') || s.includes('bukutab') || s.includes('tabungan') || s.includes('f_butab')) return 'butab';
+  if (s.includes('kks') || s.includes('f_kks')) return 'kks';
+  if (s.includes('kk') || s.includes('f_kk')) return 'kk';
+  return null;
+}
+
 interface ParsedOldRow {
   rowNum: number;
   noKK: string;
@@ -102,7 +112,6 @@ function parseOldSheetData(rows: any[][]): ParsedOldRow[] {
 
   const headers = rows[0].map((h: any) => String(h || '').trim().toUpperCase());
 
-  // Find column indices
   let colNKK = headers.findIndex((h) => h === 'NKK' || h === 'NO. KK' || h === 'NO KK' || h.includes('KARTU KELUARGA'));
   let colPengurus = headers.findIndex((h) => h === 'PENGURUS' || h.includes('NAMA'));
   let colStatus = headers.findIndex((h) => h.includes('TATUS') || h.includes('RUMAH'));
@@ -111,8 +120,6 @@ function parseOldSheetData(rows: any[][]): ParsedOldRow[] {
   let colRLuar = headers.findIndex((h) => h.includes('R_LUAR') || h.includes('LUAR'));
   let colRDalam = headers.findIndex((h) => h.includes('R_DALAM') || h.includes('DALAM'));
 
-  // Fallback defaults based on user's screenshot if headers didn't match perfectly:
-  // Col C (2): K, Col D (3): NKK, Col E (4): PENGURUS, Col F (5): TATUS_, Col G (6): USAHA, Col H (7): JENIS, Col I (8): R_LUAR, Col J (9): R_DALAM
   if (colNKK === -1 && rows[0].length >= 4) colNKK = 3;
   if (colPengurus === -1 && rows[0].length >= 5) colPengurus = 4;
   if (colStatus === -1 && rows[0].length >= 6) colStatus = 5;
@@ -153,6 +160,72 @@ function parseOldSheetData(rows: any[][]): ParsedOldRow[] {
   return result;
 }
 
+interface ParsedOldDocRow {
+  rowNum: number;
+  noKK: string;
+  pengurus: string;
+  selfieFilename: string;
+  ktpFilename: string;
+  kkFilename: string;
+  butabFilename: string;
+  kksFilename: string;
+}
+
+function parseOldDocSheetData(rows: any[][]): ParsedOldDocRow[] {
+  if (!rows || rows.length < 2) return [];
+
+  const headers = rows[0].map((h: any) => String(h || '').trim().toUpperCase());
+
+  let colNKK = headers.findIndex((h) => h === 'NKK' || h === 'NO. KK' || h === 'NO KK' || h === 'NOMOR KK' || h === 'NO_KK' || h.includes('KARTU KELUARGA'));
+  let colPengurus = headers.findIndex((h) => h === 'PENGURUS' || h === 'NAMA PENGURUS' || h.includes('PENGURUS') || h.includes('NAMA'));
+  let colSelfie = headers.findIndex((h) => h === 'F_SELFIE' || h === 'SELFIE' || h.includes('SELFIE'));
+  let colKtp = headers.findIndex((h) => h === 'F_KTP' || h === 'KTP' || h.includes('KTP'));
+  let colKk = headers.findIndex((h) => h === 'F_KK' || h === 'KK' || h.includes('KK'));
+  let colButab = headers.findIndex((h) => h === 'F_BUTAB' || h === 'BUTAB' || h.includes('BUTAB') || h.includes('TABUNGAN'));
+  let colKks = headers.findIndex((h) => h === 'F_KKS' || h === 'KKS' || h.includes('KKS'));
+
+  // Fallback defaults based on screenshot media_1791484655256.png:
+  // Col M (12): NKK, Col N (13): PENGURUS, Col R (17): F_SELFIE, Col S (18): F_KTP, Col T (19): F_KK, Col U (20): F_BUTAB, Col V (21): F_KKS
+  if (colNKK === -1 && rows[0].length >= 13) colNKK = 12;
+  if (colPengurus === -1 && rows[0].length >= 14) colPengurus = 13;
+  if (colSelfie === -1 && rows[0].length >= 18) colSelfie = 17;
+  if (colKtp === -1 && rows[0].length >= 19) colKtp = 18;
+  if (colKk === -1 && rows[0].length >= 20) colKk = 19;
+  if (colButab === -1 && rows[0].length >= 21) colButab = 20;
+  if (colKks === -1 && rows[0].length >= 22) colKks = 21;
+
+  const result: ParsedOldDocRow[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.length === 0) continue;
+
+    const rawNoKK = colNKK !== -1 ? r[colNKK] : '';
+    const noKK = cleanDigits(rawNoKK);
+    if (!noKK) continue;
+
+    const pengurus = colPengurus !== -1 ? String(r[colPengurus] || '').trim() : '';
+    const selfieFilename = colSelfie !== -1 ? cleanPhotoFilename(String(r[colSelfie] || '')) : '';
+    const ktpFilename = colKtp !== -1 ? cleanPhotoFilename(String(r[colKtp] || '')) : '';
+    const kkFilename = colKk !== -1 ? cleanPhotoFilename(String(r[colKk] || '')) : '';
+    const butabFilename = colButab !== -1 ? cleanPhotoFilename(String(r[colButab] || '')) : '';
+    const kksFilename = colKks !== -1 ? cleanPhotoFilename(String(r[colKks] || '')) : '';
+
+    result.push({
+      rowNum: i + 1,
+      noKK,
+      pengurus,
+      selfieFilename,
+      ktpFilename,
+      kkFilename,
+      butabFilename,
+      kksFilename,
+    });
+  }
+
+  return result;
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -169,6 +242,7 @@ export async function POST(request: Request) {
 
     const contentType = request.headers.get('content-type') || '';
     let action = 'preview';
+    let category = 'dokumen'; // 'dokumen' | 'rumah'
     let oldSpreadsheetId = '';
     let oldDriveFolderId = '';
     let mode = 'overwrite'; // 'skip' | 'overwrite'
@@ -181,6 +255,7 @@ export async function POST(request: Request) {
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
       action = (formData.get('action') as string) || 'preview';
+      category = (formData.get('category') as string) || 'dokumen';
       oldSpreadsheetId = extractSpreadsheetId((formData.get('oldSpreadsheetId') as string) || '');
       oldDriveFolderId = extractDriveFolderId((formData.get('oldDriveFolderId') as string) || '');
       mode = (formData.get('mode') as string) || 'overwrite';
@@ -227,6 +302,7 @@ export async function POST(request: Request) {
     } else {
       const body = await request.json();
       action = body.action || 'preview';
+      category = body.category || 'dokumen';
       oldSpreadsheetId = extractSpreadsheetId(body.oldSpreadsheetId || '');
       oldDriveFolderId = extractDriveFolderId(body.oldDriveFolderId || '');
       mode = body.mode || 'overwrite';
@@ -238,8 +314,8 @@ export async function POST(request: Request) {
     await ensureSheetExists(accessToken, aspendSpreadsheetId, KPM_SHEET_KELUARGA, KPM_KELUARGA_HEADERS);
     await ensureSheetExists(accessToken, aspendSpreadsheetId, KPM_SHEET_ASET, KPM_ASET_HEADERS);
 
-    // Read current ASPEND Keluarga & Aset
-    const rawKeluarga = await getSheetData(accessToken, aspendSpreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`).catch(() => []);
+    // Read current ASPEND Keluarga & Aset (up to column AB for FotoSelfie)
+    const rawKeluarga = await getSheetData(accessToken, aspendSpreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch(() => []);
     const aspendKeluargaMap = new Map<string, { rowIndex: number; data: KpmKeluarga }>();
     const aspendKeluargaByNameMap = new Map<string, { rowIndex: number; data: KpmKeluarga }>();
     rawKeluarga.forEach((r, i) => {
@@ -278,12 +354,25 @@ export async function POST(request: Request) {
       if (fileBuffer) {
         const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
         let ws: XLSX.WorkSheet | null = null;
-        for (const sName of workbook.SheetNames) {
-          if (sName.toLowerCase().includes('rumah') || sName.toLowerCase().includes('aset')) {
-            ws = workbook.Sheets[sName];
-            break;
+
+        if (category === 'dokumen') {
+          for (const sName of workbook.SheetNames) {
+            const low = sName.toLowerCase();
+            if (low.includes('user') || low.includes('kpm') || low.includes('data')) {
+              ws = workbook.Sheets[sName];
+              break;
+            }
+          }
+        } else {
+          for (const sName of workbook.SheetNames) {
+            const low = sName.toLowerCase();
+            if (low.includes('rumah') || low.includes('aset')) {
+              ws = workbook.Sheets[sName];
+              break;
+            }
           }
         }
+
         if (!ws) {
           ws = workbook.Sheets[workbook.SheetNames[0]];
         }
@@ -298,36 +387,38 @@ export async function POST(request: Request) {
           const sheetList = meta.data.sheets || [];
           let targetSheetName = sheetList[0]?.properties?.title || 'Sheet1';
 
-          for (const s of sheetList) {
-            const title = s.properties?.title || '';
-            if (title.toLowerCase().includes('rumah') || title.toLowerCase().includes('aset')) {
-              targetSheetName = title;
-              break;
+          if (category === 'dokumen') {
+            for (const s of sheetList) {
+              const title = s.properties?.title || '';
+              const low = title.toLowerCase();
+              if (low.includes('user') || low.includes('kpm') || low.includes('data')) {
+                targetSheetName = title;
+                break;
+              }
+            }
+          } else {
+            for (const s of sheetList) {
+              const title = s.properties?.title || '';
+              const low = title.toLowerCase();
+              if (low.includes('rumah') || low.includes('aset')) {
+                targetSheetName = title;
+                break;
+              }
             }
           }
 
-          rawOldRows = await getSheetData(accessToken, oldSpreadsheetId, `${targetSheetName}!A1:Z5000`);
+          rawOldRows = await getSheetData(accessToken, oldSpreadsheetId, `${targetSheetName}!A1:AZ5000`);
         } catch (err: any) {
           return NextResponse.json({
             error: `Gagal membaca Google Sheet lama: ${err.message || 'Pastikan Sheet telah dibagikan atau dapat diakses.'}`,
           }, { status: 400 });
         }
-      } else {
-        return NextResponse.json({
-          error: 'Harap unggah file Excel tabel "RUMAH" atau masukkan ID/Link Google Sheet database lama.',
-        }, { status: 400 });
       }
 
-      const parsedRows = parseOldSheetData(rawOldRows);
-      if (parsedRows.length === 0) {
-        return NextResponse.json({
-          error: 'Tidak ditemukan baris data KPM yang valid pada sheet/file yang diberikan. Pastikan terdapat kolom NKK, R_LUAR, atau R_DALAM.',
-        }, { status: 400 });
-      }
-
-      // If Drive Folder ID is provided, scan the Drive folder
-      let driveFilesMap = new Map<string, { id: string; name: string }>();
-      let drivePrefixMap = new Map<string, { id: string; name: string }>();
+      // Scan Google Drive folder if provided
+      const driveFilesMap = new Map<string, { id: string; name: string }>();
+      const drivePrefixMap = new Map<string, { id: string; name: string }>();
+      const driveDocKeyMap = new Map<string, { id: string; name: string }>();
       let driveFolderScanned = false;
       let driveScanError = '';
 
@@ -336,18 +427,23 @@ export async function POST(request: Request) {
           const files = await listFilesInFolder(accessToken, oldDriveFolderId);
           driveFolderScanned = true;
           files.forEach((f) => {
-            const lowerName = f.name.toLowerCase();
-            driveFilesMap.set(lowerName, f);
+            const clean = cleanPhotoFilename(f.name).toLowerCase();
+            driveFilesMap.set(clean, f);
 
-            // Create prefix key e.g. "13e1e626.r_luar"
-            const parts = lowerName.split('.');
+            const parts = clean.split(/[\._]/);
             if (parts.length >= 2) {
-              const prefix = `${parts[0]}.${parts[1]}`;
-              drivePrefixMap.set(prefix, f);
+              drivePrefixMap.set(`${parts[0]}.${parts[1]}`, f);
+            }
+
+            const cDigits = cleanDigits(parts[0]);
+            const dType = detectDocType(clean);
+            if (cDigits && dType) {
+              driveDocKeyMap.set(`${cDigits}:${dType}`, f);
             }
           });
+
           if (files.length === 0) {
-            driveScanError = 'Folder Google Drive terhubung namun terbaca 0 file. Hal ini biasanya terjadi karena folder dibuat oleh akun Google yang berbeda atau pembatasan izin privasi Google Drive API. Disarankan menggunakan Tab 2 (Unggah File ZIP Foto) untuk proses instan.';
+            driveScanError = 'Folder Google Drive terhubung namun terbaca 0 file. Hal ini biasanya terjadi karena pembatasan izin privasi Google Drive API lintas akun. Disarankan menggunakan Tab 2 (Unggah File ZIP Foto) untuk proses instan.';
           }
         } catch (err: any) {
           driveScanError = err.message || 'Gagal memindai folder Google Drive.';
@@ -355,21 +451,197 @@ export async function POST(request: Request) {
         }
       }
 
-      // If zipFilenames provided from client-side scan
+      // Scan ZIP filenames if provided from client
       let zipScanned = false;
       if (zipFilenames && zipFilenames.length > 0) {
         zipScanned = true;
         zipFilenames.forEach((rawName) => {
           const clean = cleanPhotoFilename(rawName).toLowerCase();
-          driveFilesMap.set(clean, { id: rawName, name: clean });
-          const parts = clean.split('.');
+          const fObj = { id: rawName, name: clean };
+          driveFilesMap.set(clean, fObj);
+
+          const parts = clean.split(/[\._]/);
           if (parts.length >= 2) {
-            drivePrefixMap.set(`${parts[0]}.${parts[1]}`, { id: rawName, name: clean });
+            drivePrefixMap.set(`${parts[0]}.${parts[1]}`, fObj);
+          }
+
+          const cDigits = cleanDigits(parts[0]);
+          const dType = detectDocType(clean);
+          if (cDigits && dType) {
+            driveDocKeyMap.set(`${cDigits}:${dType}`, fObj);
           }
         });
       }
 
-      // Analyze matching
+      // Helper to find document file
+      const findDocFile = (noKK: string, filename: string, type: 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie') => {
+        if (!driveFolderScanned && !zipScanned) return null;
+        if (filename) {
+          const clean = cleanPhotoFilename(filename).toLowerCase();
+          let f = driveFilesMap.get(clean);
+          if (f) return f;
+
+          const parts = clean.split(/[\._]/);
+          if (parts.length >= 2) {
+            f = drivePrefixMap.get(`${parts[0]}.${parts[1]}`);
+            if (f) return f;
+          }
+        }
+
+        const cDigits = cleanDigits(noKK);
+        if (cDigits) {
+          const f = driveDocKeyMap.get(`${cDigits}:${type}`);
+          if (f) return f;
+        }
+
+        return null;
+      };
+
+      // ─── CATEGORY DOKUMEN (Berkas KPM: KTP, KK, Butab, KKS, Selfie) ───
+      if (category === 'dokumen') {
+        let parsedDocRows = parseOldDocSheetData(rawOldRows);
+
+        // If no sheet provided or sheet returned 0, but files exist in Drive/ZIP, parse directly from filenames!
+        if (parsedDocRows.length === 0 && (driveFolderScanned || zipScanned)) {
+          const kkGroup = new Map<string, { selfie?: string; ktp?: string; kk?: string; butab?: string; kks?: string }>();
+          const allFileKeys = Array.from(driveFilesMap.keys());
+
+          for (const fname of allFileKeys) {
+            const parts = fname.split(/[\._]/);
+            const noKK = cleanDigits(parts[0]);
+            if (noKK && (noKK.length === 15 || noKK.length === 16)) {
+              const dType = detectDocType(fname);
+              if (dType) {
+                const entry = kkGroup.get(noKK) || {};
+                if (dType === 'selfie') entry.selfie = fname;
+                if (dType === 'ktp') entry.ktp = fname;
+                if (dType === 'kk') entry.kk = fname;
+                if (dType === 'butab') entry.butab = fname;
+                if (dType === 'kks') entry.kks = fname;
+                kkGroup.set(noKK, entry);
+              }
+            }
+          }
+
+          let rNum = 1;
+          for (const [noKK, docs] of kkGroup.entries()) {
+            const kpm = aspendKeluargaMap.get(noKK);
+            parsedDocRows.push({
+              rowNum: rNum++,
+              noKK,
+              pengurus: kpm?.data.NamaPengurus || '',
+              selfieFilename: docs.selfie || '',
+              ktpFilename: docs.ktp || '',
+              kkFilename: docs.kk || '',
+              butabFilename: docs.butab || '',
+              kksFilename: docs.kks || '',
+            });
+          }
+        }
+
+        if (parsedDocRows.length === 0) {
+          return NextResponse.json({
+            error: 'Tidak ditemukan data KPM atau berkas foto dokumen pada input yang diberikan. Pastikan file Excel berisi kolom NKK / nama file foto di Drive/ZIP memiliki format No. KK (contoh: 1234567890123456.F_KTP.jpg).',
+          }, { status: 400 });
+        }
+
+        let matchedKpmCount = 0;
+        let unmatchedKpmCount = 0;
+        let selfieMatchCount = 0;
+        let ktpMatchCount = 0;
+        let kkMatchCount = 0;
+        let butabMatchCount = 0;
+        let kksMatchCount = 0;
+
+        const previewList = parsedDocRows.map((row) => {
+          let aspendKpm = aspendKeluargaMap.get(row.noKK);
+          if (!aspendKpm && row.pengurus) {
+            const normPengurus = row.pengurus.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            aspendKpm = aspendKeluargaByNameMap.get(normPengurus);
+          }
+          const isKpmExists = !!aspendKpm;
+          const effectiveNoKK = aspendKpm ? aspendKpm.data.NoKK : row.noKK;
+
+          if (isKpmExists) matchedKpmCount++;
+          else unmatchedKpmCount++;
+
+          const selfieFile = findDocFile(effectiveNoKK, row.selfieFilename, 'selfie');
+          if (selfieFile) selfieMatchCount++;
+
+          const ktpFile = findDocFile(effectiveNoKK, row.ktpFilename, 'ktp');
+          if (ktpFile) ktpMatchCount++;
+
+          const kkFile = findDocFile(effectiveNoKK, row.kkFilename, 'kk');
+          if (kkFile) kkMatchCount++;
+
+          const butabFile = findDocFile(effectiveNoKK, row.butabFilename, 'butab');
+          if (butabFile) butabMatchCount++;
+
+          const kksFile = findDocFile(effectiveNoKK, row.kksFilename, 'kks');
+          if (kksFile) kksMatchCount++;
+
+          const currentKpm = aspendKpm?.data;
+
+          return {
+            rowNum: row.rowNum,
+            noKK: effectiveNoKK,
+            namaPengurus: currentKpm?.NamaPengurus || row.pengurus || '—',
+            isKpmExists,
+            selfieFilename: row.selfieFilename,
+            selfieDriveFileId: selfieFile?.id || '',
+            selfieFound: !!selfieFile,
+            ktpFilename: row.ktpFilename,
+            ktpDriveFileId: ktpFile?.id || '',
+            ktpFound: !!ktpFile,
+            kkFilename: row.kkFilename,
+            kkDriveFileId: kkFile?.id || '',
+            kkFound: !!kkFile,
+            butabFilename: row.butabFilename,
+            butabDriveFileId: butabFile?.id || '',
+            butabFound: !!butabFile,
+            kksFilename: row.kksFilename,
+            kksDriveFileId: kksFile?.id || '',
+            kksFound: !!kksFile,
+            existingSelfie: currentKpm?.FotoSelfie || '',
+            existingKtp: currentKpm?.FotoKTP || '',
+            existingKk: currentKpm?.FotoKK || '',
+            existingButab: currentKpm?.FotoBukuTabungan || '',
+            existingKks: currentKpm?.FotoKKS || '',
+          };
+        });
+
+        const totalDocMatchCount = selfieMatchCount + ktpMatchCount + kkMatchCount + butabMatchCount + kksMatchCount;
+
+        return NextResponse.json({
+          success: true,
+          action: 'preview',
+          category: 'dokumen',
+          totalOldRows: parsedDocRows.length,
+          matchedKpmCount,
+          unmatchedKpmCount,
+          driveFolderScanned,
+          driveFilesCount: driveFilesMap.size,
+          driveScanError,
+          selfieMatchCount,
+          ktpMatchCount,
+          kkMatchCount,
+          butabMatchCount,
+          kksMatchCount,
+          totalDocMatchCount,
+          canDirectDriveCopy: driveFolderScanned && totalDocMatchCount > 0,
+          previewItems: previewList.slice(0, 30),
+          allMatchedItems: previewList.filter((p) => p.isKpmExists),
+        });
+      }
+
+      // ─── CATEGORY RUMAH (Foto Rumah: R_LUAR, R_DALAM) ───
+      const parsedRows = parseOldSheetData(rawOldRows);
+      if (parsedRows.length === 0) {
+        return NextResponse.json({
+          error: 'Tidak ditemukan baris data KPM yang valid pada sheet/file yang diberikan. Pastikan terdapat kolom NKK, R_LUAR, atau R_DALAM.',
+        }, { status: 400 });
+      }
+
       let matchedKpmCount = 0;
       let unmatchedKpmCount = 0;
       let rLuarMatchCount = 0;
@@ -389,13 +661,12 @@ export async function POST(request: Request) {
 
         const aspendAset = aspendAsetMap.get(effectiveNoKK) || aspendAsetMap.get(row.noKK);
 
-        // Match R_LUAR file in Drive folder or ZIP if scanned
         let rLuarFoundFile: { id: string; name: string } | null = null;
         if (row.rLuarFilename && (driveFolderScanned || zipScanned)) {
           const lower = row.rLuarFilename.toLowerCase();
           rLuarFoundFile = driveFilesMap.get(lower) || null;
           if (!rLuarFoundFile) {
-            const parts = lower.split('.');
+            const parts = lower.split(/[\._]/);
             if (parts.length >= 2) {
               rLuarFoundFile = drivePrefixMap.get(`${parts[0]}.${parts[1]}`) || null;
             }
@@ -403,13 +674,12 @@ export async function POST(request: Request) {
         }
         if (rLuarFoundFile) rLuarMatchCount++;
 
-        // Match R_DALAM file in Drive folder or ZIP if scanned
         let rDalamFoundFile: { id: string; name: string } | null = null;
         if (row.rDalamFilename && (driveFolderScanned || zipScanned)) {
           const lower = row.rDalamFilename.toLowerCase();
           rDalamFoundFile = driveFilesMap.get(lower) || null;
           if (!rDalamFoundFile) {
-            const parts = lower.split('.');
+            const parts = lower.split(/[\._]/);
             if (parts.length >= 2) {
               rDalamFoundFile = drivePrefixMap.get(`${parts[0]}.${parts[1]}`) || null;
             }
@@ -440,6 +710,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         action: 'preview',
+        category: 'rumah',
         totalOldRows: parsedRows.length,
         matchedKpmCount,
         unmatchedKpmCount,
@@ -462,25 +733,138 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Tidak ada data KPM yang dipilih untuk diimpor fotonya.' }, { status: 400 });
       }
 
-      // Target folder in current user's Google Drive
       const targetFolderId = await getOrCreateFolder(accessToken, 'RHK-agent_FotoKPM');
 
       let copiedCount = 0;
       let asetUpdatedCount = 0;
       let asetCreatedCount = 0;
+      let keluargaUpdatedCount = 0;
       const errors: string[] = [];
 
       const asetRangesToUpdate: Array<{ range: string; values: string[][] }> = [];
       const asetRowsToAppend: string[][] = [];
       const keluargaRangesToUpdate: Array<{ range: string; values: string[][] }> = [];
 
-      // Process each item
+      // ─── COMMIT-DRIVE FOR DOKUMEN (Berkas KPM & Selfie) ───
+      if (category === 'dokumen') {
+        for (const item of itemsToProcess) {
+          try {
+            let newSelfieId = '';
+            let newKtpId = '';
+            let newKkId = '';
+            let newButabId = '';
+            let newKksId = '';
+
+            if (item.selfieDriveFileId) {
+              const ext = item.selfieFilename ? item.selfieFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `SELFIE_${item.noKK}_${Date.now()}.${ext}`;
+              const copied = await copyFileInDrive(accessToken, item.selfieDriveFileId, newName, targetFolderId || undefined);
+              if (copied?.id) {
+                newSelfieId = copied.id;
+                copiedCount++;
+              }
+            }
+
+            if (item.ktpDriveFileId) {
+              const ext = item.ktpFilename ? item.ktpFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KTP_${item.noKK}_${Date.now()}.${ext}`;
+              const copied = await copyFileInDrive(accessToken, item.ktpDriveFileId, newName, targetFolderId || undefined);
+              if (copied?.id) {
+                newKtpId = copied.id;
+                copiedCount++;
+              }
+            }
+
+            if (item.kkDriveFileId) {
+              const ext = item.kkFilename ? item.kkFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KK_${item.noKK}_${Date.now()}.${ext}`;
+              const copied = await copyFileInDrive(accessToken, item.kkDriveFileId, newName, targetFolderId || undefined);
+              if (copied?.id) {
+                newKkId = copied.id;
+                copiedCount++;
+              }
+            }
+
+            if (item.butabDriveFileId) {
+              const ext = item.butabFilename ? item.butabFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `BUTAB_${item.noKK}_${Date.now()}.${ext}`;
+              const copied = await copyFileInDrive(accessToken, item.butabDriveFileId, newName, targetFolderId || undefined);
+              if (copied?.id) {
+                newButabId = copied.id;
+                copiedCount++;
+              }
+            }
+
+            if (item.kksDriveFileId) {
+              const ext = item.kksFilename ? item.kksFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KKS_${item.noKK}_${Date.now()}.${ext}`;
+              const copied = await copyFileInDrive(accessToken, item.kksDriveFileId, newName, targetFolderId || undefined);
+              if (copied?.id) {
+                newKksId = copied.id;
+                copiedCount++;
+              }
+            }
+
+            if (!newSelfieId && !newKtpId && !newKkId && !newButabId && !newKksId) {
+              continue;
+            }
+
+            // Update KPM_Keluarga
+            const existingKeluargaEntry = aspendKeluargaMap.get(item.noKK);
+            if (existingKeluargaEntry) {
+              const oldKpm = existingKeluargaEntry.data;
+              const updatedKpm: KpmKeluarga = { ...oldKpm };
+
+              if (newSelfieId && (mode === 'overwrite' || !oldKpm.FotoSelfie)) {
+                updatedKpm.FotoSelfie = newSelfieId;
+              }
+              if (newKtpId && (mode === 'overwrite' || !oldKpm.FotoKTP)) {
+                updatedKpm.FotoKTP = newKtpId;
+              }
+              if (newKkId && (mode === 'overwrite' || !oldKpm.FotoKK)) {
+                updatedKpm.FotoKK = newKkId;
+              }
+              if (newButabId && (mode === 'overwrite' || !oldKpm.FotoBukuTabungan)) {
+                updatedKpm.FotoBukuTabungan = newButabId;
+              }
+              if (newKksId && (mode === 'overwrite' || !oldKpm.FotoKKS)) {
+                updatedKpm.FotoKKS = newKksId;
+              }
+
+              updatedKpm.UpdatedAt = new Date().toISOString();
+
+              keluargaRangesToUpdate.push({
+                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AB${existingKeluargaEntry.rowIndex}`,
+                values: [keluargaToRow(updatedKpm)],
+              });
+              keluargaUpdatedCount++;
+            }
+          } catch (itemErr: any) {
+            errors.push(`Gagal memproses berkas KK ${item.noKK}: ${itemErr.message}`);
+          }
+        }
+
+        if (keluargaRangesToUpdate.length > 0) {
+          for (let i = 0; i < keluargaRangesToUpdate.length; i += 100) {
+            await batchUpdateSheetValues(accessToken, aspendSpreadsheetId, keluargaRangesToUpdate.slice(i, i + 100));
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Berhasil menyalin ${copiedCount} berkas/foto dokumen ke Google Drive ASPEND. Data profil KPM diperbarui: ${keluargaUpdatedCount} keluarga.`,
+          copiedCount,
+          keluargaUpdatedCount,
+          errors,
+        });
+      }
+
+      // ─── COMMIT-DRIVE FOR RUMAH ───
       for (const item of itemsToProcess) {
         try {
           let newLuarId = '';
           let newDalamId = '';
 
-          // 1. Copy R_LUAR if exists
           if (item.rLuarDriveFileId) {
             const ext = item.rLuarFilename ? item.rLuarFilename.split('.').pop() || 'jpg' : 'jpg';
             const newName = `RUMAH_LUAR_${item.noKK}_${Date.now()}.${ext}`;
@@ -491,7 +875,6 @@ export async function POST(request: Request) {
             }
           }
 
-          // 2. Copy R_DALAM if exists
           if (item.rDalamDriveFileId) {
             const ext = item.rDalamFilename ? item.rDalamFilename.split('.').pop() || 'jpg' : 'jpg';
             const newName = `RUMAH_DALAM_${item.noKK}_${Date.now()}.${ext}`;
@@ -506,7 +889,6 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // 3. Update or Insert into KPM_Aset
           const existingAsetEntry = aspendAsetMap.get(item.noKK);
 
           if (existingAsetEntry) {
@@ -545,7 +927,6 @@ export async function POST(request: Request) {
             asetCreatedCount++;
           }
 
-          // 4. Update FotoRumah in KPM_Keluarga if currently empty
           const existingKeluargaEntry = aspendKeluargaMap.get(item.noKK);
           if (existingKeluargaEntry) {
             const kpm = existingKeluargaEntry.data;
@@ -556,7 +937,7 @@ export async function POST(request: Request) {
                 UpdatedAt: new Date().toISOString(),
               };
               keluargaRangesToUpdate.push({
-                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AA${existingKeluargaEntry.rowIndex}`,
+                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AB${existingKeluargaEntry.rowIndex}`,
                 values: [keluargaToRow(updatedKpm)],
               });
             }
@@ -566,7 +947,6 @@ export async function POST(request: Request) {
         }
       }
 
-      // Execute Google Sheets updates in batches of 100
       if (asetRangesToUpdate.length > 0) {
         for (let i = 0; i < asetRangesToUpdate.length; i += 100) {
           await batchUpdateSheetValues(accessToken, aspendSpreadsheetId, asetRangesToUpdate.slice(i, i + 100));
@@ -603,8 +983,9 @@ export async function POST(request: Request) {
 
       const targetFolderId = await getOrCreateFolder(accessToken, 'RHK-agent_FotoKPM');
 
-      // Build file map from ZIP or uploadedFiles
       const imageBuffersMap = new Map<string, Buffer>();
+      const imagePrefixMap = new Map<string, Buffer>();
+      const imageDocKeyMap = new Map<string, Buffer>();
 
       if (zipBuffer) {
         const zip = await JSZip.loadAsync(zipBuffer);
@@ -614,10 +995,15 @@ export async function POST(request: Request) {
             const cleanName = cleanPhotoFilename(filename).toLowerCase();
             imageBuffersMap.set(cleanName, buf);
 
-            // Also map prefix
-            const parts = cleanName.split('.');
+            const parts = cleanName.split(/[\._]/);
             if (parts.length >= 2) {
-              imageBuffersMap.set(`${parts[0]}.${parts[1]}`, buf);
+              imagePrefixMap.set(`${parts[0]}.${parts[1]}`, buf);
+            }
+
+            const cDigits = cleanDigits(parts[0]);
+            const dType = detectDocType(cleanName);
+            if (cDigits && dType) {
+              imageDocKeyMap.set(`${cDigits}:${dType}`, buf);
             }
           }
         }
@@ -627,9 +1013,16 @@ export async function POST(request: Request) {
         uploadedFiles.forEach((f) => {
           const cleanName = cleanPhotoFilename(f.name).toLowerCase();
           imageBuffersMap.set(cleanName, f.buffer);
-          const parts = cleanName.split('.');
+
+          const parts = cleanName.split(/[\._]/);
           if (parts.length >= 2) {
-            imageBuffersMap.set(`${parts[0]}.${parts[1]}`, f.buffer);
+            imagePrefixMap.set(`${parts[0]}.${parts[1]}`, f.buffer);
+          }
+
+          const cDigits = cleanDigits(parts[0]);
+          const dType = detectDocType(cleanName);
+          if (cDigits && dType) {
+            imageDocKeyMap.set(`${cDigits}:${dType}`, f.buffer);
           }
         });
       }
@@ -638,27 +1031,168 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Tidak ada file foto yang berhasil diekstrak atau diunggah.' }, { status: 400 });
       }
 
+      const findImageBuffer = (noKK: string, filename: string, type: 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie') => {
+        if (filename) {
+          const clean = cleanPhotoFilename(filename).toLowerCase();
+          let buf = imageBuffersMap.get(clean);
+          if (buf) return buf;
+
+          const parts = clean.split(/[\._]/);
+          if (parts.length >= 2) {
+            buf = imagePrefixMap.get(`${parts[0]}.${parts[1]}`);
+            if (buf) return buf;
+          }
+        }
+
+        const cDigits = cleanDigits(noKK);
+        if (cDigits) {
+          const buf = imageDocKeyMap.get(`${cDigits}:${type}`);
+          if (buf) return buf;
+        }
+
+        return null;
+      };
+
       let uploadedCount = 0;
       let asetUpdatedCount = 0;
       let asetCreatedCount = 0;
+      let keluargaUpdatedCount = 0;
       const errors: string[] = [];
 
       const asetRangesToUpdate: Array<{ range: string; values: string[][] }> = [];
       const asetRowsToAppend: string[][] = [];
       const keluargaRangesToUpdate: Array<{ range: string; values: string[][] }> = [];
 
+      // ─── COMMIT-UPLOAD FOR DOKUMEN ───
+      if (category === 'dokumen') {
+        for (const item of itemsToProcess) {
+          try {
+            let newSelfieId = '';
+            let newKtpId = '';
+            let newKkId = '';
+            let newButabId = '';
+            let newKksId = '';
+
+            const selfieBuf = findImageBuffer(item.noKK, item.selfieFilename, 'selfie');
+            if (selfieBuf) {
+              const ext = item.selfieFilename ? item.selfieFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `SELFIE_${item.noKK}_${Date.now()}.${ext}`;
+              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', selfieBuf, targetFolderId || undefined);
+              if (upResult?.id) {
+                newSelfieId = upResult.id;
+                uploadedCount++;
+              }
+            }
+
+            const ktpBuf = findImageBuffer(item.noKK, item.ktpFilename, 'ktp');
+            if (ktpBuf) {
+              const ext = item.ktpFilename ? item.ktpFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KTP_${item.noKK}_${Date.now()}.${ext}`;
+              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', ktpBuf, targetFolderId || undefined);
+              if (upResult?.id) {
+                newKtpId = upResult.id;
+                uploadedCount++;
+              }
+            }
+
+            const kkBuf = findImageBuffer(item.noKK, item.kkFilename, 'kk');
+            if (kkBuf) {
+              const ext = item.kkFilename ? item.kkFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KK_${item.noKK}_${Date.now()}.${ext}`;
+              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', kkBuf, targetFolderId || undefined);
+              if (upResult?.id) {
+                newKkId = upResult.id;
+                uploadedCount++;
+              }
+            }
+
+            const butabBuf = findImageBuffer(item.noKK, item.butabFilename, 'butab');
+            if (butabBuf) {
+              const ext = item.butabFilename ? item.butabFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `BUTAB_${item.noKK}_${Date.now()}.${ext}`;
+              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', butabBuf, targetFolderId || undefined);
+              if (upResult?.id) {
+                newButabId = upResult.id;
+                uploadedCount++;
+              }
+            }
+
+            const kksBuf = findImageBuffer(item.noKK, item.kksFilename, 'kks');
+            if (kksBuf) {
+              const ext = item.kksFilename ? item.kksFilename.split('.').pop() || 'jpg' : 'jpg';
+              const newName = `KKS_${item.noKK}_${Date.now()}.${ext}`;
+              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', kksBuf, targetFolderId || undefined);
+              if (upResult?.id) {
+                newKksId = upResult.id;
+                uploadedCount++;
+              }
+            }
+
+            if (!newSelfieId && !newKtpId && !newKkId && !newButabId && !newKksId) {
+              continue;
+            }
+
+            const existingKeluargaEntry = aspendKeluargaMap.get(item.noKK);
+            if (existingKeluargaEntry) {
+              const oldKpm = existingKeluargaEntry.data;
+              const updatedKpm: KpmKeluarga = { ...oldKpm };
+
+              if (newSelfieId && (mode === 'overwrite' || !oldKpm.FotoSelfie)) {
+                updatedKpm.FotoSelfie = newSelfieId;
+              }
+              if (newKtpId && (mode === 'overwrite' || !oldKpm.FotoKTP)) {
+                updatedKpm.FotoKTP = newKtpId;
+              }
+              if (newKkId && (mode === 'overwrite' || !oldKpm.FotoKK)) {
+                updatedKpm.FotoKK = newKkId;
+              }
+              if (newButabId && (mode === 'overwrite' || !oldKpm.FotoBukuTabungan)) {
+                updatedKpm.FotoBukuTabungan = newButabId;
+              }
+              if (newKksId && (mode === 'overwrite' || !oldKpm.FotoKKS)) {
+                updatedKpm.FotoKKS = newKksId;
+              }
+
+              updatedKpm.UpdatedAt = new Date().toISOString();
+
+              keluargaRangesToUpdate.push({
+                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AB${existingKeluargaEntry.rowIndex}`,
+                values: [keluargaToRow(updatedKpm)],
+              });
+              keluargaUpdatedCount++;
+            }
+          } catch (itemErr: any) {
+            errors.push(`Gagal memproses berkas KK ${item.noKK}: ${itemErr.message}`);
+          }
+        }
+
+        if (keluargaRangesToUpdate.length > 0) {
+          for (let i = 0; i < keluargaRangesToUpdate.length; i += 100) {
+            await batchUpdateSheetValues(accessToken, aspendSpreadsheetId, keluargaRangesToUpdate.slice(i, i + 100));
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Berhasil mengunggah ${uploadedCount} berkas/foto dokumen ke Google Drive ASPEND. Data profil KPM diperbarui: ${keluargaUpdatedCount} keluarga.`,
+          uploadedCount,
+          keluargaUpdatedCount,
+          errors,
+        });
+      }
+
+      // ─── COMMIT-UPLOAD FOR RUMAH ───
       for (const item of itemsToProcess) {
         try {
           let newLuarId = '';
           let newDalamId = '';
 
-          // Look for R_LUAR buffer
           if (item.rLuarFilename) {
             const clean = item.rLuarFilename.toLowerCase();
             let buf = imageBuffersMap.get(clean);
             if (!buf) {
-              const parts = clean.split('.');
-              if (parts.length >= 2) buf = imageBuffersMap.get(`${parts[0]}.${parts[1]}`);
+              const parts = clean.split(/[\._]/);
+              if (parts.length >= 2) buf = imagePrefixMap.get(`${parts[0]}.${parts[1]}`);
             }
 
             if (buf) {
@@ -672,13 +1206,12 @@ export async function POST(request: Request) {
             }
           }
 
-          // Look for R_DALAM buffer
           if (item.rDalamFilename) {
             const clean = item.rDalamFilename.toLowerCase();
             let buf = imageBuffersMap.get(clean);
             if (!buf) {
-              const parts = clean.split('.');
-              if (parts.length >= 2) buf = imageBuffersMap.get(`${parts[0]}.${parts[1]}`);
+              const parts = clean.split(/[\._]/);
+              if (parts.length >= 2) buf = imagePrefixMap.get(`${parts[0]}.${parts[1]}`);
             }
 
             if (buf) {
@@ -696,7 +1229,6 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // Upsert KPM_Aset
           const existingAsetEntry = aspendAsetMap.get(item.noKK);
 
           if (existingAsetEntry) {
@@ -735,7 +1267,6 @@ export async function POST(request: Request) {
             asetCreatedCount++;
           }
 
-          // Update KPM_Keluarga.FotoRumah
           const existingKeluargaEntry = aspendKeluargaMap.get(item.noKK);
           if (existingKeluargaEntry) {
             const kpm = existingKeluargaEntry.data;
@@ -746,7 +1277,7 @@ export async function POST(request: Request) {
                 UpdatedAt: new Date().toISOString(),
               };
               keluargaRangesToUpdate.push({
-                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AA${existingKeluargaEntry.rowIndex}`,
+                range: `${KPM_SHEET_KELUARGA}!A${existingKeluargaEntry.rowIndex}:AB${existingKeluargaEntry.rowIndex}`,
                 values: [keluargaToRow(updatedKpm)],
               });
             }
@@ -756,7 +1287,6 @@ export async function POST(request: Request) {
         }
       }
 
-      // Execute batch updates
       if (asetRangesToUpdate.length > 0) {
         for (let i = 0; i < asetRangesToUpdate.length; i += 100) {
           await batchUpdateSheetValues(accessToken, aspendSpreadsheetId, asetRangesToUpdate.slice(i, i + 100));

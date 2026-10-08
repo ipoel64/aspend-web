@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     // Ambil data seluruh 5 sheet sekaligus dalam 1 panggilan API tunggal (batchGet)
     // Mengeliminasi rate limit quota dan mempercepat waktu muat menjadi sub-detik
     const ranges = [
-      `${KPM_SHEET_KELUARGA}!A2:AA`,
+      `${KPM_SHEET_KELUARGA}!A2:AB`,
       `${KPM_SHEET_ANGGOTA}!A2:N`,
       `${KPM_SHEET_ASET}!A2:M`,
       `${KPM_SHEET_GRADUASI}!A2:L`,

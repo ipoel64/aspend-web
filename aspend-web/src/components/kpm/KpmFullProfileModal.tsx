@@ -509,8 +509,9 @@ export default function KpmFullProfileModal({
                   <span className="text-[11px] text-slate-400">Klik foto untuk memperbesar pratinjau</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                   {[
+                    { label: 'Foto Selfie KPM', id: keluarga.FotoSelfie },
                     { label: 'Foto KTP Pengurus', id: keluarga.FotoKTP },
                     { label: 'Foto Kartu Keluarga', id: keluarga.FotoKK },
                     { label: 'Foto Buku Tabungan', id: keluarga.FotoBukuTabungan },

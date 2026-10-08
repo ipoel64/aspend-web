@@ -208,7 +208,7 @@ export async function GET(request: Request) {
     }
 
     const [rawKeluarga, rawAnggota, rawAset] = await Promise.all([
-      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`).catch(() => []),
+      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch(() => []),
       getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A2:N`).catch(() => []),
       getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ASET}!A2:M`).catch(() => []),
     ]);

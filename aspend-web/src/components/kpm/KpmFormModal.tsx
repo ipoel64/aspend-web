@@ -48,6 +48,8 @@ export default function KpmFormModal({
     FotoKK: '',
     FotoBukuTabungan: '',
     FotoKKS: '',
+    FotoRumah: '',
+    FotoSelfie: '',
     CatatanTemuan: '[]',
     Pernyataan: '',
     Password: '123456',
@@ -748,8 +750,9 @@ export default function KpmFormModal({
               <span className="material-symbols-outlined text-cyan-600 text-lg">photo_camera</span>
               3. Foto Dokumen KPM
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
               {[
+                { label: 'Foto Selfie KPM', field: 'FotoSelfie' as keyof KpmKeluarga },
                 { label: 'Foto KTP', field: 'FotoKTP' as keyof KpmKeluarga },
                 { label: 'Foto KK', field: 'FotoKK' as keyof KpmKeluarga },
                 { label: 'Foto Buku Tabungan', field: 'FotoBukuTabungan' as keyof KpmKeluarga },

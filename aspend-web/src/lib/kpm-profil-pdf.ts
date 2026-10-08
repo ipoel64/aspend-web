@@ -101,6 +101,7 @@ export async function generateKpmFullProfilePdf(data: KpmFullData, pendampingNam
   // Ambil seluruh foto dokumen & fisik rumah KPM secara paralel
   const fotoRumahLuarId = keluarga?.FotoRumah || aset?.FotoRumahLuar || keluarga?.FotoRumahLuar;
   const fotoRumahDalamId = aset?.FotoRumahDalam || keluarga?.FotoRumahDalam;
+  const fotoSelfieId = keluarga?.FotoSelfie;
   const fotoKtpId = keluarga?.FotoKTP;
   const fotoKkId = keluarga?.FotoKK;
   const fotoTabunganId = keluarga?.FotoBukuTabungan;
@@ -111,6 +112,7 @@ export async function generateKpmFullProfilePdf(data: KpmFullData, pendampingNam
   const [
     imgRumahLuar,
     imgRumahDalam,
+    imgSelfie,
     imgKtp,
     imgKk,
     imgTabungan,
@@ -120,6 +122,7 @@ export async function generateKpmFullProfilePdf(data: KpmFullData, pendampingNam
   ] = await Promise.all([
     fetchImageAsBase64(fotoRumahLuarId),
     fetchImageAsBase64(fotoRumahDalamId),
+    fetchImageAsBase64(fotoSelfieId),
     fetchImageAsBase64(fotoKtpId),
     fetchImageAsBase64(fotoKkId),
     fetchImageAsBase64(fotoTabunganId),
@@ -448,6 +451,7 @@ export async function generateKpmFullProfilePdf(data: KpmFullData, pendampingNam
   }
 
   const photosToRender: PhotoDocItem[] = [];
+  if (imgSelfie) photosToRender.push({ label: 'Foto Selfie KPM', kategori: 'Dokumen Identitas', base64: imgSelfie });
   if (imgRumahLuar) photosToRender.push({ label: 'Foto Fisik Rumah (Tampak Luar)', kategori: 'Kondisi Rumah', base64: imgRumahLuar });
   if (imgRumahDalam) photosToRender.push({ label: 'Foto Fisik Rumah (Tampak Dalam)', kategori: 'Kondisi Rumah', base64: imgRumahDalam });
   if (imgKtp) photosToRender.push({ label: 'Foto KTP Pengurus KPM', kategori: 'Dokumen Identitas', base64: imgKtp });

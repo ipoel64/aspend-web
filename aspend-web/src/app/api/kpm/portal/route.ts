@@ -160,7 +160,7 @@ export async function GET(request: Request) {
       await ensureAllKpmSheets(activeToken, spreadsheetId);
 
       // Cari KPM berdasarkan NIK (dengan pembersihan apostrof dan normalisasi)
-      const rawKeluarga = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AA`);
+      const rawKeluarga = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`);
       const keluargaList = rawKeluarga.filter((r) => r.length > 0).map(parseKeluargaRow);
 
       const cleanTargetNik = cleanTextCell(nik);
@@ -265,7 +265,7 @@ export async function POST(request: Request) {
     await ensureAllKpmSheets(activeToken, spreadsheetId);
 
     // 1. Temukan baris target KPM di KPM_Keluarga
-    const rawRows = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AA`);
+    const rawRows = await getSheetData(activeToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A:AB`);
     if (!rawRows || rawRows.length <= 1) {
       return NextResponse.json({ error: 'Data KPM tidak ditemukan di database' }, { status: 404 });
     }
@@ -346,7 +346,7 @@ export async function POST(request: Request) {
       await updateSheetRow(
         activeToken,
         spreadsheetId,
-        `${KPM_SHEET_KELUARGA}!A${foundRowIndex}:AA${foundRowIndex}`,
+        `${KPM_SHEET_KELUARGA}!A${foundRowIndex}:AB${foundRowIndex}`,
         [keluargaToRow(updatedKeluarga)]
       );
 

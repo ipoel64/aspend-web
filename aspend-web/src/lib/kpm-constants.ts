@@ -27,6 +27,7 @@ export interface KpmKeluarga {
   TahapBansos?: string;
   FotoBuktiCatatan?: string;
   FotoRumah?: string;
+  FotoSelfie?: string;
   FotoRumahLuar?: string;
   FotoRumahDalam?: string;
   StatusGraduasi?: string;
@@ -153,6 +154,7 @@ export const KPM_KELUARGA_HEADERS = [
   'TahapBansos',
   'FotoBuktiCatatan',
   'FotoRumah',
+  'FotoSelfie',
 ];
 export const KPM_ANGGOTA_HEADERS = ['AnggotaId', 'NoKK', 'NIK', 'Nama', 'JenisKelamin', 'TanggalLahir', 'Komponen', 'HubunganKeluarga', 'Posyandu', 'Sekolah', 'Kelas', 'Pekerjaan', 'Keterangan', 'CreatedAt'];
 export const KPM_ASET_HEADERS = ['AsetId', 'NoKK', 'StatusRumah', 'Usaha', 'JenisUsaha', 'FotoUsaha', 'FotoRumahLuar', 'FotoRumahDalam', 'Latitude', 'Longitude', 'TahunMenerimaBansos', 'Keterangan', 'CreatedAt'];
@@ -346,6 +348,7 @@ export function parseKeluargaRow(row: string[]): KpmKeluarga {
     TahapBansos: cleanTextCell(row[24]) || 'Tahap 1 (2026)',
     FotoBuktiCatatan: cleanTextCell(row[25]) || '',
     FotoRumah: cleanTextCell(row[26]) || '',
+    FotoSelfie: cleanTextCell(row[27]) || '',
   };
 }
 
@@ -448,6 +451,7 @@ export function keluargaToRow(data: KpmKeluarga): string[] {
     data.TahapBansos || 'Tahap 1 (2026)',
     data.FotoBuktiCatatan || '',
     data.FotoRumah || '',
+    data.FotoSelfie || '',
   ];
 }
 
