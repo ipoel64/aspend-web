@@ -1085,20 +1085,22 @@ export default function KpmTableView({
 
                         <td className="px-2.5 py-2.5">
                           <div className="flex items-center gap-3">
-                            {/* Thumbnail Foto Rumah / KTP (Ukuran Lebih Besar & Bisa di-Preview Saat Diklik) */}
+                            {/* Thumbnail Foto Selfie / Rumah / KTP (Foto Selfie Diutamakan, Fallback ke Foto Rumah) */}
                             {(() => {
-                              const housePhotoId = kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam || kpm.FotoKTP;
-                              const hasPhoto = Boolean(housePhotoId);
-                              const photoLabel = kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam
-                                ? `Foto Rumah: ${kpm.NamaPengurus}`
-                                : `Foto KTP: ${kpm.NamaPengurus}`;
+                              const thumbPhotoId = kpm.FotoSelfie || kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam || kpm.FotoKTP;
+                              const hasPhoto = Boolean(thumbPhotoId);
+                              const photoLabel = kpm.FotoSelfie
+                                ? `Foto Selfie: ${kpm.NamaPengurus}`
+                                : (kpm.FotoRumah || kpm.FotoRumahLuar || kpm.FotoRumahDalam)
+                                  ? `Foto Rumah: ${kpm.NamaPengurus}`
+                                  : `Foto KTP: ${kpm.NamaPengurus}`;
                               return (
                                 <div
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (hasPhoto) {
                                       setPreviewPhoto({
-                                        url: `/api/image-proxy?id=${housePhotoId}`,
+                                        url: `/api/image-proxy?id=${thumbPhotoId}`,
                                         title: photoLabel,
                                         subtitle: `NIK: ${kpm.NIK || '—'} • KK: ${kpm.NoKK || '—'} • ${kpm.Kelompok ? `Kelompok ${kpm.Kelompok}` : ''}`,
                                       });
@@ -1114,7 +1116,7 @@ export default function KpmTableView({
                                   {hasPhoto ? (
                                     <>
                                       <img
-                                        src={`/api/image-proxy?id=${housePhotoId}`}
+                                        src={`/api/image-proxy?id=${thumbPhotoId}`}
                                         alt={kpm.NamaPengurus}
                                         className="w-full h-full object-cover transition-transform duration-200 group-hover/thumb:scale-110"
                                       />
@@ -1720,9 +1722,9 @@ export default function KpmTableView({
               <div className="flex items-center gap-3 pr-8">
                 {/* Avatar / Foto */}
                 <div className="w-13 h-13 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/30 shrink-0 flex items-center justify-center font-bold text-lg text-white shadow-inner">
-                  {actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP ? (
+                  {actionModalKpm.FotoSelfie || actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP ? (
                     <img
-                      src={`/api/image-proxy?id=${actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP}`}
+                      src={`/api/image-proxy?id=${actionModalKpm.FotoSelfie || actionModalKpm.FotoRumah || actionModalKpm.FotoRumahLuar || actionModalKpm.FotoRumahDalam || actionModalKpm.FotoKTP}`}
                       alt={actionModalKpm.NamaPengurus}
                       className="w-full h-full object-cover"
                     />
