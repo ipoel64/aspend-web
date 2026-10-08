@@ -86,13 +86,15 @@ function mapUsaha(val: string): string {
   return val.trim();
 }
 
-function detectDocType(str: string): 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie' | null {
+function detectDocType(str: string): 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie' | 'r_luar' | 'r_dalam' | null {
   const s = str.toLowerCase();
   if (s.includes('selfie') || s.includes('f_selfie')) return 'selfie';
   if (s.includes('ktp') || s.includes('f_ktp')) return 'ktp';
   if (s.includes('butab') || s.includes('buku_tab') || s.includes('bukutab') || s.includes('tabungan') || s.includes('f_butab')) return 'butab';
   if (s.includes('kks') || s.includes('f_kks')) return 'kks';
   if (s.includes('kk') || s.includes('f_kk')) return 'kk';
+  if (s.includes('r_luar') || s.includes('luar') || s.includes('rluar')) return 'r_luar';
+  if (s.includes('r_dalam') || s.includes('dalam') || s.includes('rdalam')) return 'r_dalam';
   return null;
 }
 
@@ -439,6 +441,11 @@ export async function POST(request: Request) {
             const dType = detectDocType(clean);
             if (cDigits && dType) {
               driveDocKeyMap.set(`${cDigits}:${dType}`, f);
+              if (cDigits.length === 15) {
+                driveDocKeyMap.set(`0${cDigits}:${dType}`, f);
+              } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+                driveDocKeyMap.set(`${cDigits.slice(1)}:${dType}`, f);
+              }
             }
           });
 
@@ -469,6 +476,11 @@ export async function POST(request: Request) {
           const dType = detectDocType(clean);
           if (cDigits && dType) {
             driveDocKeyMap.set(`${cDigits}:${dType}`, fObj);
+            if (cDigits.length === 15) {
+              driveDocKeyMap.set(`0${cDigits}:${dType}`, fObj);
+            } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+              driveDocKeyMap.set(`${cDigits.slice(1)}:${dType}`, fObj);
+            }
           }
         });
       }
@@ -490,8 +502,15 @@ export async function POST(request: Request) {
 
         const cDigits = cleanDigits(noKK);
         if (cDigits) {
-          const f = driveDocKeyMap.get(`${cDigits}:${type}`);
+          let f = driveDocKeyMap.get(`${cDigits}:${type}`);
           if (f) return f;
+          if (cDigits.length === 15) {
+            f = driveDocKeyMap.get(`0${cDigits}:${type}`);
+            if (f) return f;
+          } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+            f = driveDocKeyMap.get(`${cDigits.slice(1)}:${type}`);
+            if (f) return f;
+          }
         }
 
         return null;
@@ -587,19 +606,19 @@ export async function POST(request: Request) {
             noKK: effectiveNoKK,
             namaPengurus: currentKpm?.NamaPengurus || row.pengurus || '—',
             isKpmExists,
-            selfieFilename: row.selfieFilename,
+            selfieFilename: row.selfieFilename || (selfieFile ? cleanPhotoFilename(selfieFile.id) : ''),
             selfieDriveFileId: selfieFile?.id || '',
             selfieFound: !!selfieFile,
-            ktpFilename: row.ktpFilename,
+            ktpFilename: row.ktpFilename || (ktpFile ? cleanPhotoFilename(ktpFile.id) : ''),
             ktpDriveFileId: ktpFile?.id || '',
             ktpFound: !!ktpFile,
-            kkFilename: row.kkFilename,
+            kkFilename: row.kkFilename || (kkFile ? cleanPhotoFilename(kkFile.id) : ''),
             kkDriveFileId: kkFile?.id || '',
             kkFound: !!kkFile,
-            butabFilename: row.butabFilename,
+            butabFilename: row.butabFilename || (butabFile ? cleanPhotoFilename(butabFile.id) : ''),
             butabDriveFileId: butabFile?.id || '',
             butabFound: !!butabFile,
-            kksFilename: row.kksFilename,
+            kksFilename: row.kksFilename || (kksFile ? cleanPhotoFilename(kksFile.id) : ''),
             kksDriveFileId: kksFile?.id || '',
             kksFound: !!kksFile,
             existingSelfie: currentKpm?.FotoSelfie || '',
@@ -611,6 +630,9 @@ export async function POST(request: Request) {
         });
 
         const totalDocMatchCount = selfieMatchCount + ktpMatchCount + kkMatchCount + butabMatchCount + kksMatchCount;
+        const matchedWithPhotosCount = previewList.filter(
+          (p) => p.isKpmExists && (p.selfieFound || p.ktpFound || p.kkFound || p.butabFound || p.kksFound)
+        ).length;
 
         return NextResponse.json({
           success: true,
@@ -618,6 +640,7 @@ export async function POST(request: Request) {
           category: 'dokumen',
           totalOldRows: parsedDocRows.length,
           matchedKpmCount,
+          matchedWithPhotosCount,
           unmatchedKpmCount,
           driveFolderScanned,
           driveFilesCount: driveFilesMap.size,
@@ -698,14 +721,18 @@ export async function POST(request: Request) {
           statusRumah: row.statusRumah,
           usaha: row.usaha,
           jenisUsaha: row.jenisUsaha,
-          rLuarFilename: row.rLuarFilename,
+          rLuarFilename: row.rLuarFilename || (rLuarFoundFile ? cleanPhotoFilename(rLuarFoundFile.id) : ''),
           rLuarDriveFileId: rLuarFoundFile?.id || '',
           rLuarFound: !!rLuarFoundFile,
-          rDalamFilename: row.rDalamFilename,
+          rDalamFilename: row.rDalamFilename || (rDalamFoundFile ? cleanPhotoFilename(rDalamFoundFile.id) : ''),
           rDalamDriveFileId: rDalamFoundFile?.id || '',
           rDalamFound: !!rDalamFoundFile,
         };
       });
+
+      const matchedWithPhotosCount = previewList.filter(
+        (p) => p.isKpmExists && (p.rLuarFound || p.rDalamFound || p.statusRumah || p.usaha)
+      ).length;
 
       return NextResponse.json({
         success: true,
@@ -713,6 +740,7 @@ export async function POST(request: Request) {
         category: 'rumah',
         totalOldRows: parsedRows.length,
         matchedKpmCount,
+        matchedWithPhotosCount,
         unmatchedKpmCount,
         driveFolderScanned,
         driveFilesCount: driveFilesMap.size,
@@ -1004,6 +1032,11 @@ export async function POST(request: Request) {
             const dType = detectDocType(cleanName);
             if (cDigits && dType) {
               imageDocKeyMap.set(`${cDigits}:${dType}`, buf);
+              if (cDigits.length === 15) {
+                imageDocKeyMap.set(`0${cDigits}:${dType}`, buf);
+              } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+                imageDocKeyMap.set(`${cDigits.slice(1)}:${dType}`, buf);
+              }
             }
           }
         }
@@ -1023,15 +1056,28 @@ export async function POST(request: Request) {
           const dType = detectDocType(cleanName);
           if (cDigits && dType) {
             imageDocKeyMap.set(`${cDigits}:${dType}`, f.buffer);
+            if (cDigits.length === 15) {
+              imageDocKeyMap.set(`0${cDigits}:${dType}`, f.buffer);
+            } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+              imageDocKeyMap.set(`${cDigits.slice(1)}:${dType}`, f.buffer);
+            }
           }
         });
       }
 
       if (imageBuffersMap.size === 0) {
-        return NextResponse.json({ error: 'Tidak ada file foto yang berhasil diekstrak atau diunggah.' }, { status: 400 });
+        return NextResponse.json({
+          success: true,
+          uploadedCount: 0,
+          asetUpdatedCount: 0,
+          asetCreatedCount: 0,
+          keluargaUpdatedCount: 0,
+          message: 'Tidak ada file foto pada batch ini.',
+          errors: [],
+        });
       }
 
-      const findImageBuffer = (noKK: string, filename: string, type: 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie') => {
+      const findImageBuffer = (noKK: string, filename: string, type: 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie' | 'r_luar' | 'r_dalam') => {
         if (filename) {
           const clean = cleanPhotoFilename(filename).toLowerCase();
           let buf = imageBuffersMap.get(clean);
@@ -1046,8 +1092,15 @@ export async function POST(request: Request) {
 
         const cDigits = cleanDigits(noKK);
         if (cDigits) {
-          const buf = imageDocKeyMap.get(`${cDigits}:${type}`);
+          let buf = imageDocKeyMap.get(`${cDigits}:${type}`);
           if (buf) return buf;
+          if (cDigits.length === 15) {
+            buf = imageDocKeyMap.get(`0${cDigits}:${type}`);
+            if (buf) return buf;
+          } else if (cDigits.length === 16 && cDigits.startsWith('0')) {
+            buf = imageDocKeyMap.get(`${cDigits.slice(1)}:${type}`);
+            if (buf) return buf;
+          }
         }
 
         return null;
@@ -1187,41 +1240,25 @@ export async function POST(request: Request) {
           let newLuarId = '';
           let newDalamId = '';
 
-          if (item.rLuarFilename) {
-            const clean = item.rLuarFilename.toLowerCase();
-            let buf = imageBuffersMap.get(clean);
-            if (!buf) {
-              const parts = clean.split(/[\._]/);
-              if (parts.length >= 2) buf = imagePrefixMap.get(`${parts[0]}.${parts[1]}`);
-            }
-
-            if (buf) {
-              const ext = item.rLuarFilename.split('.').pop() || 'jpg';
-              const newName = `RUMAH_LUAR_${item.noKK}_${Date.now()}.${ext}`;
-              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', buf, targetFolderId || undefined);
-              if (upResult?.id) {
-                newLuarId = upResult.id;
-                uploadedCount++;
-              }
+          const luarBuf = findImageBuffer(item.noKK, item.rLuarFilename, 'r_luar');
+          if (luarBuf) {
+            const ext = item.rLuarFilename ? item.rLuarFilename.split('.').pop() || 'jpg' : 'jpg';
+            const newName = `RUMAH_LUAR_${item.noKK}_${Date.now()}.${ext}`;
+            const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', luarBuf, targetFolderId || undefined);
+            if (upResult?.id) {
+              newLuarId = upResult.id;
+              uploadedCount++;
             }
           }
 
-          if (item.rDalamFilename) {
-            const clean = item.rDalamFilename.toLowerCase();
-            let buf = imageBuffersMap.get(clean);
-            if (!buf) {
-              const parts = clean.split(/[\._]/);
-              if (parts.length >= 2) buf = imagePrefixMap.get(`${parts[0]}.${parts[1]}`);
-            }
-
-            if (buf) {
-              const ext = item.rDalamFilename.split('.').pop() || 'jpg';
-              const newName = `RUMAH_DALAM_${item.noKK}_${Date.now()}.${ext}`;
-              const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', buf, targetFolderId || undefined);
-              if (upResult?.id) {
-                newDalamId = upResult.id;
-                uploadedCount++;
-              }
+          const dalamBuf = findImageBuffer(item.noKK, item.rDalamFilename, 'r_dalam');
+          if (dalamBuf) {
+            const ext = item.rDalamFilename ? item.rDalamFilename.split('.').pop() || 'jpg' : 'jpg';
+            const newName = `RUMAH_DALAM_${item.noKK}_${Date.now()}.${ext}`;
+            const upResult = await uploadFileToDrive(accessToken, newName, 'image/jpeg', dalamBuf, targetFolderId || undefined);
+            if (upResult?.id) {
+              newDalamId = upResult.id;
+              uploadedCount++;
             }
           }
 

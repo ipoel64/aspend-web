@@ -57,6 +57,7 @@ interface AnalysisResult {
   category: PhotoImportCategory;
   totalOldRows: number;
   matchedKpmCount: number;
+  matchedWithPhotosCount?: number;
   unmatchedKpmCount: number;
   driveFolderScanned: boolean;
   driveFilesCount: number;
@@ -74,6 +75,88 @@ interface AnalysisResult {
   canDirectDriveCopy: boolean;
   previewItems: PreviewItem[];
   allMatchedItems: PreviewItem[];
+}
+
+function detectDocType(str: string): 'ktp' | 'kk' | 'butab' | 'kks' | 'selfie' | 'r_luar' | 'r_dalam' | null {
+  const s = str.toLowerCase();
+  if (s.includes('selfie') || s.includes('f_selfie')) return 'selfie';
+  if (s.includes('ktp') || s.includes('f_ktp')) return 'ktp';
+  if (s.includes('butab') || s.includes('buku_tab') || s.includes('bukutab') || s.includes('tabungan') || s.includes('f_butab')) return 'butab';
+  if (s.includes('kks') || s.includes('f_kks')) return 'kks';
+  if (s.includes('kk') || s.includes('f_kk')) return 'kk';
+  if (s.includes('r_luar') || s.includes('luar') || s.includes('rluar')) return 'r_luar';
+  if (s.includes('r_dalam') || s.includes('dalam') || s.includes('rdalam')) return 'r_dalam';
+  return null;
+}
+
+function findZipKey(
+  zipObj: JSZip,
+  noKK: string,
+  docType: string,
+  preferredKey?: string,
+  filename?: string
+): string | null {
+  if (!zipObj) return null;
+  const files = zipObj.files;
+  const allKeys = Object.keys(files).filter(
+    (k) => !files[k].dir && !k.startsWith('__MACOSX')
+  );
+
+  // 1. Direct match on preferredKey
+  if (preferredKey && files[preferredKey]) {
+    return preferredKey;
+  }
+
+  // 2. Case-insensitive or normalized path match for preferredKey
+  if (preferredKey) {
+    const pNorm = preferredKey.replace(/\\/g, '/').toLowerCase();
+    const pBase = pNorm.replace(/^.*[\/]/, '');
+    const found = allKeys.find((k) => {
+      const kNorm = k.replace(/\\/g, '/').toLowerCase();
+      return kNorm === pNorm || kNorm.endsWith('/' + pBase) || kNorm.endsWith(pBase);
+    });
+    if (found) return found;
+  }
+
+  // 3. Match by filename
+  if (filename) {
+    const fNorm = filename.replace(/\\/g, '/').toLowerCase();
+    const fBase = fNorm.replace(/^.*[\/]/, '');
+    let found = allKeys.find((k) => {
+      const kNorm = k.replace(/\\/g, '/').toLowerCase();
+      return kNorm === fNorm || kNorm.endsWith('/' + fBase) || kNorm.endsWith(fBase);
+    });
+    if (found) return found;
+
+    const parts = fBase.split(/[\._]/);
+    if (parts.length >= 2) {
+      const prefix = `${parts[0]}.${parts[1]}`.toLowerCase();
+      found = allKeys.find((k) => k.replace(/\\/g, '/').toLowerCase().includes(prefix));
+      if (found) return found;
+    }
+  }
+
+  // 4. Match by clean NoKK + docType
+  const cleanKK = noKK.replace(/\D/g, '');
+  if (cleanKK) {
+    const found = allKeys.find((k) => {
+      const kNorm = k.replace(/\\/g, '/').toLowerCase();
+      const kBase = kNorm.replace(/^.*[\/]/, '');
+      const parts = kBase.split(/[\._]/);
+      const cDigits = parts[0].replace(/\D/g, '');
+      if (
+        cDigits === cleanKK ||
+        cDigits === '0' + cleanKK ||
+        ('0' + cDigits) === cleanKK
+      ) {
+        return detectDocType(kBase) === docType;
+      }
+      return false;
+    });
+    if (found) return found;
+  }
+
+  return null;
 }
 
 export default function KpmImportPhotoModal({
@@ -252,6 +335,32 @@ export default function KpmImportPhotoModal({
     setIsExecuting(true);
 
     try {
+      // 1. Filter items that actually have photos or relevant data to import!
+      const itemsToImport = analysisResult.allMatchedItems.filter((item) => {
+        if (category === 'dokumen') {
+          return (
+            item.selfieFound ||
+            item.ktpFound ||
+            item.kkFound ||
+            item.butabFound ||
+            item.kksFound ||
+            Boolean(item.selfieDriveFileId || item.ktpDriveFileId || item.kkDriveFileId || item.butabDriveFileId || item.kksDriveFileId)
+          );
+        } else {
+          return (
+            item.rLuarFound ||
+            item.rDalamFound ||
+            Boolean(item.rLuarDriveFileId || item.rDalamDriveFileId) ||
+            Boolean(item.statusRumah) ||
+            Boolean(item.usaha)
+          );
+        }
+      });
+
+      if (itemsToImport.length === 0) {
+        throw new Error('Tidak ada berkas/foto yang cocok dengan data KPM terdaftar untuk diimpor.');
+      }
+
       if (sourceType === 'drive') {
         // Direct Cloud-to-Cloud copy
         const res = await fetch('/api/kpm/import-photos', {
@@ -262,7 +371,7 @@ export default function KpmImportPhotoModal({
             category,
             oldDriveFolderId: driveFolderInput.trim(),
             mode,
-            items: analysisResult.allMatchedItems,
+            items: itemsToImport,
           }),
         });
 
@@ -289,11 +398,10 @@ export default function KpmImportPhotoModal({
           setCachedZip(zipObj);
         }
 
-        const matchedItems = analysisResult.allMatchedItems;
         const BATCH_SIZE = 5;
         setProgress({
           current: 0,
-          total: matchedItems.length,
+          total: itemsToImport.length,
           percent: 0,
           uploaded: 0,
           profileUpdated: 0,
@@ -305,80 +413,133 @@ export default function KpmImportPhotoModal({
         let totalKeluargaUpdated = 0;
         const batchErrors: string[] = [];
 
-        for (let i = 0; i < matchedItems.length; i += BATCH_SIZE) {
-          const batchItems = matchedItems.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < itemsToImport.length; i += BATCH_SIZE) {
+          const batchItems = itemsToImport.slice(i, i + BATCH_SIZE);
           const batchFormData = new FormData();
           batchFormData.append('action', 'commit-upload');
           batchFormData.append('category', category);
           batchFormData.append('mode', mode);
-          batchFormData.append('items', JSON.stringify(batchItems));
+
+          let filesAttachedCount = 0;
 
           // Attach photos for this batch
           for (const item of batchItems) {
             if (category === 'dokumen') {
-              const docList = [
-                item.selfieFilename,
-                item.ktpFilename,
-                item.kkFilename,
-                item.butabFilename,
-                item.kksFilename,
-              ].filter(Boolean) as string[];
+              const docConfigs = [
+                { type: 'selfie', driveId: item.selfieDriveFileId, filename: item.selfieFilename },
+                { type: 'ktp', driveId: item.ktpDriveFileId, filename: item.ktpFilename },
+                { type: 'kk', driveId: item.kkDriveFileId, filename: item.kkFilename },
+                { type: 'butab', driveId: item.butabDriveFileId, filename: item.butabFilename },
+                { type: 'kks', driveId: item.kksDriveFileId, filename: item.kksFilename },
+              ];
 
-              for (const fname of docList) {
+              for (const doc of docConfigs) {
                 if (zipObj) {
-                  const targetName = fname.toLowerCase();
-                  let zipKey = Object.keys(zipObj.files).find((k) => k.toLowerCase().endsWith(targetName));
-                  if (!zipKey) {
-                    const parts = targetName.split(/[\._]/);
-                    if (parts.length >= 2) {
-                      const prefix = `${parts[0]}.${parts[1]}`.toLowerCase();
-                      zipKey = Object.keys(zipObj.files).find((k) => k.toLowerCase().includes(prefix));
-                    }
-                  }
-                  if (zipKey) {
+                  const zipKey = findZipKey(zipObj, item.noKK, doc.type, doc.driveId, doc.filename);
+                  if (zipKey && zipObj.files[zipKey]) {
                     const blob = await zipObj.files[zipKey].async('blob');
-                    batchFormData.append('imageFiles', blob, fname);
+                    const cleanName = zipKey.replace(/^.*[\\\/]/, '') || `${item.noKK}.${doc.type.toUpperCase()}.jpg`;
+                    batchFormData.append('imageFiles', blob, cleanName);
+                    filesAttachedCount++;
+                    if (doc.type === 'selfie') item.selfieFilename = cleanName;
+                    if (doc.type === 'ktp') item.ktpFilename = cleanName;
+                    if (doc.type === 'kk') item.kkFilename = cleanName;
+                    if (doc.type === 'butab') item.butabFilename = cleanName;
+                    if (doc.type === 'kks') item.kksFilename = cleanName;
                   }
                 } else if (multipleImages) {
                   for (const img of Array.from(multipleImages)) {
-                    if (img.name.toLowerCase() === fname.toLowerCase()) {
-                      batchFormData.append('imageFiles', img);
+                    const imgName = img.name.replace(/^.*[\\\/]/, '').toLowerCase();
+                    const cleanKK = item.noKK.replace(/\D/g, '');
+                    const targetDriveId = (doc.driveId || '').replace(/^.*[\\\/]/, '').toLowerCase();
+                    const targetFname = (doc.filename || '').replace(/^.*[\\\/]/, '').toLowerCase();
+
+                    let isMatch = false;
+                    if (targetDriveId && (imgName === targetDriveId || imgName.endsWith(targetDriveId))) {
+                      isMatch = true;
+                    } else if (targetFname && (imgName === targetFname || imgName.endsWith(targetFname))) {
+                      isMatch = true;
+                    } else if (cleanKK && imgName.includes(cleanKK) && detectDocType(imgName) === doc.type) {
+                      isMatch = true;
+                    }
+
+                    if (isMatch) {
+                      batchFormData.append('imageFiles', img, img.name);
+                      filesAttachedCount++;
+                      if (doc.type === 'selfie') item.selfieFilename = img.name;
+                      if (doc.type === 'ktp') item.ktpFilename = img.name;
+                      if (doc.type === 'kk') item.kkFilename = img.name;
+                      if (doc.type === 'butab') item.butabFilename = img.name;
+                      if (doc.type === 'kks') item.kksFilename = img.name;
+                      break;
                     }
                   }
                 }
               }
             } else {
               // category === 'rumah'
-              if (zipObj) {
-                if (item.rLuarFilename) {
-                  const targetName = item.rLuarFilename.toLowerCase();
-                  const zipKey = Object.keys(zipObj.files).find((k) => k.toLowerCase().endsWith(targetName));
-                  if (zipKey) {
+              const docConfigs = [
+                { type: 'r_luar', driveId: item.rLuarDriveFileId, filename: item.rLuarFilename },
+                { type: 'r_dalam', driveId: item.rDalamDriveFileId, filename: item.rDalamFilename },
+              ];
+
+              for (const doc of docConfigs) {
+                if (zipObj) {
+                  const zipKey = findZipKey(zipObj, item.noKK, doc.type, doc.driveId, doc.filename);
+                  if (zipKey && zipObj.files[zipKey]) {
                     const blob = await zipObj.files[zipKey].async('blob');
-                    batchFormData.append('imageFiles', blob, item.rLuarFilename);
+                    const cleanName = zipKey.replace(/^.*[\\\/]/, '') || `${item.noKK}.${doc.type.toUpperCase()}.jpg`;
+                    batchFormData.append('imageFiles', blob, cleanName);
+                    filesAttachedCount++;
+                    if (doc.type === 'r_luar') item.rLuarFilename = cleanName;
+                    if (doc.type === 'r_dalam') item.rDalamFilename = cleanName;
                   }
-                }
-                if (item.rDalamFilename) {
-                  const targetName = item.rDalamFilename.toLowerCase();
-                  const zipKey = Object.keys(zipObj.files).find((k) => k.toLowerCase().endsWith(targetName));
-                  if (zipKey) {
-                    const blob = await zipObj.files[zipKey].async('blob');
-                    batchFormData.append('imageFiles', blob, item.rDalamFilename);
-                  }
-                }
-              } else if (multipleImages) {
-                for (const img of Array.from(multipleImages)) {
-                  const imgLower = img.name.toLowerCase();
-                  if (
-                    imgLower === item.rLuarFilename?.toLowerCase() ||
-                    imgLower === item.rDalamFilename?.toLowerCase()
-                  ) {
-                    batchFormData.append('imageFiles', img);
+                } else if (multipleImages) {
+                  for (const img of Array.from(multipleImages)) {
+                    const imgName = img.name.replace(/^.*[\\\/]/, '').toLowerCase();
+                    const cleanKK = item.noKK.replace(/\D/g, '');
+                    const targetDriveId = (doc.driveId || '').replace(/^.*[\\\/]/, '').toLowerCase();
+                    const targetFname = (doc.filename || '').replace(/^.*[\\\/]/, '').toLowerCase();
+
+                    let isMatch = false;
+                    if (targetDriveId && (imgName === targetDriveId || imgName.endsWith(targetDriveId))) {
+                      isMatch = true;
+                    } else if (targetFname && (imgName === targetFname || imgName.endsWith(targetFname))) {
+                      isMatch = true;
+                    } else if (cleanKK && imgName.includes(cleanKK) && detectDocType(imgName) === doc.type) {
+                      isMatch = true;
+                    }
+
+                    if (isMatch) {
+                      batchFormData.append('imageFiles', img, img.name);
+                      filesAttachedCount++;
+                      if (doc.type === 'r_luar') item.rLuarFilename = img.name;
+                      if (doc.type === 'r_dalam') item.rDalamFilename = img.name;
+                      break;
+                    }
                   }
                 }
               }
             }
           }
+
+          // If no files attached for this batch and no metadata, skip smoothly
+          if (filesAttachedCount === 0) {
+            const hasMeta = category === 'rumah' && batchItems.some((it) => it.statusRumah || it.usaha);
+            if (!hasMeta) {
+              const currentCount = Math.min(i + BATCH_SIZE, itemsToImport.length);
+              setProgress({
+                current: currentCount,
+                total: itemsToImport.length,
+                percent: Math.round((currentCount / itemsToImport.length) * 100),
+                uploaded: totalUploaded,
+                profileUpdated: category === 'dokumen' ? totalKeluargaUpdated : totalAsetUpdated,
+              });
+              continue;
+            }
+          }
+
+          batchFormData.append('items', JSON.stringify(batchItems));
 
           const res = await fetch('/api/kpm/import-photos', {
             method: 'POST',
@@ -406,11 +567,11 @@ export default function KpmImportPhotoModal({
           if (resData.keluargaUpdatedCount) totalKeluargaUpdated += resData.keluargaUpdatedCount;
           if (resData.errors) batchErrors.push(...resData.errors);
 
-          const currentCount = Math.min(i + BATCH_SIZE, matchedItems.length);
+          const currentCount = Math.min(i + BATCH_SIZE, itemsToImport.length);
           setProgress({
             current: currentCount,
-            total: matchedItems.length,
-            percent: Math.round((currentCount / matchedItems.length) * 100),
+            total: itemsToImport.length,
+            percent: Math.round((currentCount / itemsToImport.length) * 100),
             uploaded: totalUploaded,
             profileUpdated: category === 'dokumen' ? totalKeluargaUpdated : totalAsetUpdated,
           });
@@ -1105,7 +1266,11 @@ export default function KpmImportPhotoModal({
                       <button
                         type="button"
                         onClick={handleExecuteImport}
-                        disabled={isExecuting || analysisResult.matchedKpmCount === 0}
+                        disabled={
+                          isExecuting ||
+                          analysisResult.matchedKpmCount === 0 ||
+                          (category === 'dokumen' && (analysisResult.totalDocMatchCount || 0) === 0)
+                        }
                         className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         {isExecuting ? (
@@ -1116,7 +1281,9 @@ export default function KpmImportPhotoModal({
                         ) : (
                           <>
                             <span className="material-symbols-outlined text-sm">cloud_upload</span>
-                            Mulai Impor {analysisResult.matchedKpmCount} KPM {category === 'dokumen' ? `(${analysisResult.totalDocMatchCount || 0} Berkas)` : 'Foto Rumah'}
+                            Mulai Impor {category === 'dokumen'
+                              ? `${analysisResult.totalDocMatchCount || 0} Berkas (${analysisResult.matchedWithPhotosCount || analysisResult.matchedKpmCount} KPM)`
+                              : `${analysisResult.matchedWithPhotosCount || analysisResult.matchedKpmCount} KPM Foto Rumah`}
                           </>
                         )}
                       </button>
