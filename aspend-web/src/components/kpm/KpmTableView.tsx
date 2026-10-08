@@ -15,7 +15,6 @@ import KpmPermasalahanModal from './KpmPermasalahanModal';
 import KpmFullProfileModal from './KpmFullProfileModal';
 import KpmShareLinkModal from './KpmShareLinkModal';
 import KpmImportModal from './KpmImportModal';
-import KpmImportPhotoModal from './KpmImportPhotoModal';
 import KpmAbsensiModal from './KpmAbsensiModal';
 
 interface KpmTableViewProps {
@@ -93,8 +92,6 @@ export default function KpmTableView({
   const [isFullProfileModalOpen, setIsFullProfileModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isImportPhotoModalOpen, setIsImportPhotoModalOpen] = useState(false);
-  const [importPhotoCategory, setImportPhotoCategory] = useState<'dokumen' | 'rumah'>('dokumen');
   const [isAbsensiModalOpen, setIsAbsensiModalOpen] = useState(false);
 
   const [activeKeluarga, setActiveKeluarga] = useState<KpmKeluarga | null>(null);
@@ -1687,21 +1684,6 @@ export default function KpmTableView({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onNavigateHome={onNavigateHome}
-        onOpenImportPhoto={(cat) => {
-          setIsImportModalOpen(false);
-          setImportPhotoCategory(cat || 'dokumen');
-          setIsImportPhotoModalOpen(true);
-        }}
-        onSuccess={() => {
-          fetchData();
-          if (onDataChange) onDataChange();
-        }}
-      />
-
-      <KpmImportPhotoModal
-        isOpen={isImportPhotoModalOpen}
-        initialCategory={importPhotoCategory}
-        onClose={() => setIsImportPhotoModalOpen(false)}
         onSuccess={() => {
           fetchData();
           if (onDataChange) onDataChange();

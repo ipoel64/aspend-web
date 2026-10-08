@@ -23,6 +23,7 @@ import KpmAnalisaTahapView from "@/components/kpm/KpmAnalisaTahapView";
 import RekapP2K2View from "@/components/RekapP2K2View";
 import VerkomToolsView from "@/components/verkom/VerkomToolsView";
 import NotaDinasView from "@/components/nota-dinas/NotaDinasView";
+import KpmImportPhotoModal from "@/components/kpm/KpmImportPhotoModal";
 
 interface Report {
   ReportId: string;
@@ -271,6 +272,9 @@ export default function Home() {
 
   // Toast notification
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Modal Impor Foto KPM
+  const [isImportPhotoModalOpen, setIsImportPhotoModalOpen] = useState(false);
 
   // Modal Delete State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -3777,6 +3781,33 @@ export default function Home() {
               </div>
 
             </div>
+
+            {/* Tombol kecil di pojok kanan bawah Profil Pengguna */}
+            <div className="mt-8 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+              <span className="text-[11px] text-gray-400">Migrasi &amp; Arsip Foto KPM</span>
+              <button
+                type="button"
+                onClick={() => setIsImportPhotoModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-900 text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                title="Impor / Migrasi Foto Berkas (KTP/KK/Selfie) & Rumah KPM"
+              >
+                <span className="material-symbols-outlined text-[15px] text-teal-600 group-hover:scale-110 transition-transform">photo_library</span>
+                <span>Impor Foto KPM</span>
+              </button>
+            </div>
+
+            {/* Tombol melayang kecil di pojok kanan bawah layar saat membuka Profil Pengguna */}
+            <div className="fixed bottom-6 right-6 z-30">
+              <button
+                type="button"
+                onClick={() => setIsImportPhotoModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/95 hover:bg-white text-gray-700 hover:text-teal-900 border border-gray-200/90 rounded-full text-xs font-semibold shadow-md hover:shadow-lg transition-all backdrop-blur-xs cursor-pointer active:scale-95 group"
+                title="Impor Foto Dokumen (KTP, KK, Selfie, dll) & Rumah KPM"
+              >
+                <span className="material-symbols-outlined text-base text-teal-600 group-hover:scale-110 transition-transform">photo_library</span>
+                <span className="text-[11px]">Impor Foto KPM</span>
+              </button>
+            </div>
           </main>
         )}
 
@@ -4618,6 +4649,18 @@ export default function Home() {
             />
           </main>
         )}
+
+        {/* Modal Impor / Migrasi Foto Berkas Dokumen & Rumah KPM */}
+        <KpmImportPhotoModal
+          isOpen={isImportPhotoModalOpen}
+          onClose={() => setIsImportPhotoModalOpen(false)}
+          onSuccess={() => {
+            setToast({
+              text: 'Impor berkas foto KPM berhasil diproses dan disimpan!',
+              type: 'success',
+            });
+          }}
+        />
 
       </div>
     </div>
