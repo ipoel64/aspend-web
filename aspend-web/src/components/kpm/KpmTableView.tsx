@@ -37,7 +37,9 @@ export default function KpmTableView({
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTahapFilter, setSelectedTahapFilter] = useState('');
   const [selectedKepesertaanFilter, setSelectedKepesertaanFilter] = useState('');
-  const [showOnlyDuplicates, setShowOnlyDuplicates] = useState(false);
+  const [duplicateFilterMode, setDuplicateFilterMode] = useState<'none' | 'kpm' | 'anggota'>('none');
+  const showOnlyDuplicates = duplicateFilterMode !== 'none';
+  const setShowOnlyDuplicates = (val: boolean) => setDuplicateFilterMode(val ? 'kpm' : 'none');
   const [showOnlyCatatan, setShowOnlyCatatan] = useState(false);
   const [popupCatatanKpm, setPopupCatatanKpm] = useState<KpmKeluarga | null>(null);
 
@@ -270,12 +272,14 @@ export default function KpmTableView({
       }
 
       let matchDuplicate = true;
-      if (showOnlyDuplicates) {
+      if (duplicateFilterMode === 'kpm') {
         const cleanNik = (item.NIK || '').trim();
         const cleanKK = (item.NoKK || '').trim();
         const isDupNik = cleanNik && (duplicateInfo.kpmNikCounts.get(cleanNik) || 0) > 1;
         const isDupKK = cleanKK && (duplicateInfo.kpmKKCounts.get(cleanKK) || 0) > 1;
-        matchDuplicate = isDupNik || isDupKK || Boolean(item.IsDuplicateNik) || Boolean(item.IsDuplicateKK) || Boolean(item.HasDuplicateAnggotaNik);
+        matchDuplicate = Boolean(isDupNik || isDupKK || item.IsDuplicateNik || item.IsDuplicateKK);
+      } else if (duplicateFilterMode === 'anggota') {
+        matchDuplicate = Boolean(item.HasDuplicateAnggotaNik);
       }
 
       let matchCatatan = true;
@@ -310,7 +314,7 @@ export default function KpmTableView({
       // Jika status sama, urutkan berdasarkan Nama Pengurus
       return (a.NamaPengurus || '').localeCompare(b.NamaPengurus || '', undefined, { sensitivity: 'base' });
     });
-  }, [dataList, searchQuery, selectedKelompok, selectedStatusKelompok, selectedStatus, selectedTahapFilter, selectedKepesertaanFilter, showOnlyDuplicates, showOnlyCatatan, duplicateInfo]);
+  }, [dataList, searchQuery, selectedKelompok, selectedStatusKelompok, selectedStatus, selectedTahapFilter, selectedKepesertaanFilter, duplicateFilterMode, showOnlyCatatan, duplicateInfo]);
 
   // Ringkasan jumlah KPM per kelompok (untuk header kelompok: Total, Aktif, Tidak Aktif)
   const kelompokSummaryMap = useMemo(() => {
@@ -442,13 +446,39 @@ export default function KpmTableView({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Gagal membersihkan duplikat');
       alert(json.message || 'Data duplikat berhasil dibersihkan!');
-      setShowOnlyDuplicates(false);
+      setDuplicateFilterMode('none');
       fetchData();
       if (onDataChange) onDataChange();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
       setIsDeduplicating(false);
+    }
+  };
+
+  const [isDeduplicatingAnggota, setIsDeduplicatingAnggota] = useState(false);
+
+  const handleDeduplicateAnggota = async () => {
+    if (
+      !confirm(
+        `Sistem akan memeriksa seluruh data anggota keluarga di sheet KPM_Anggota, mempertahankan data anggota yang paling lengkap, dan menghapus baris anggota duplikat dari Google Sheets. Lanjutkan?`
+      )
+    ) {
+      return;
+    }
+    setIsDeduplicatingAnggota(true);
+    try {
+      const res = await fetch('/api/kpm?action=deduplicate-anggota', { method: 'PATCH' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Gagal membersihkan anggota duplikat');
+      alert(json.message || 'Data anggota duplikat berhasil dibersihkan!');
+      setDuplicateFilterMode('none');
+      fetchData();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsDeduplicatingAnggota(false);
     }
   };
 
@@ -495,11 +525,11 @@ export default function KpmTableView({
               onClick={() => {
                 setSelectedKepesertaanFilter('');
                 setShowOnlyCatatan(false);
-                setShowOnlyDuplicates(false);
+                setDuplicateFilterMode('none');
                 setCurrentPage(1);
               }}
               className={`px-2 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
-                !selectedKepesertaanFilter && !showOnlyCatatan && !showOnlyDuplicates
+                !selectedKepesertaanFilter && !showOnlyCatatan && duplicateFilterMode === 'none'
                   ? 'bg-cyan-600 text-white border border-cyan-700 ring-2 ring-cyan-200'
                   : 'bg-cyan-50 text-cyan-900 border border-cyan-300 hover:bg-cyan-100'
               }`}
@@ -577,43 +607,85 @@ export default function KpmTableView({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {duplicateInfo.totalAnyDuplicates > 0 && (
+          {/* Badge & Tombol KPM Ganda (Hanya jika kepala keluarga ada yang ganda) */}
+          {duplicateInfo.totalKpmDup > 0 && (
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={() => {
-                  setShowOnlyDuplicates(!showOnlyDuplicates);
+                  setDuplicateFilterMode(duplicateFilterMode === 'kpm' ? 'none' : 'kpm');
                   setCurrentPage(1);
                 }}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
-                  showOnlyDuplicates
+                  duplicateFilterMode === 'kpm'
                     ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 shadow-rose-200'
                     : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
                 }`}
-                title="Filter tabel untuk hanya menampilkan data KPM yang memiliki NIK/KK ganda atau NIK Anggota ganda"
+                title="Filter tabel untuk hanya menampilkan data KPM yang NIK/KK kepalanya ganda"
               >
                 <span className="material-symbols-outlined text-[14px] text-rose-600">warning</span>
                 <span>
-                  {showOnlyDuplicates
+                  {duplicateFilterMode === 'kpm'
                     ? 'Semua Data'
-                    : `${duplicateInfo.totalAnyDuplicates} Duplikat`}
+                    : `${duplicateInfo.totalKpmDup} KPM Ganda`}
                 </span>
               </button>
 
-              {duplicateInfo.totalKpmDup > 0 && (
-                <button
-                  onClick={handleDeduplicateKpm}
-                  disabled={isDeduplicating}
-                  className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
-                  title="Bersihkan seluruh data KPM duplikat di Google Sheets secara otomatis (menggabungkan riwayat bansos dan menghapus baris duplikat)"
-                >
-                  {isDeduplicating ? (
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
-                  )}
-                  <span className="hidden sm:inline">Bersihkan Duplikat</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleDeduplicateKpm}
+                disabled={isDeduplicating}
+                className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
+                title="Bersihkan seluruh data KPM duplikat di Google Sheets secara otomatis"
+              >
+                {isDeduplicating ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                )}
+                <span className="hidden sm:inline">Bersihkan KPM</span>
+              </button>
+            </div>
+          )}
+
+          {/* Badge & Tombol ART Ganda (Jika ada anggota keluarga yang NIK-nya ganda di sheet KPM_Anggota) */}
+          {duplicateInfo.totalAnggotaDup > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicateFilterMode(duplicateFilterMode === 'anggota' ? 'none' : 'anggota');
+                  setCurrentPage(1);
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
+                  duplicateFilterMode === 'anggota'
+                    ? 'bg-amber-600 text-white border-amber-700 hover:bg-amber-700 shadow-amber-200'
+                    : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                }`}
+                title="Filter tabel untuk melihat KPM yang memiliki NIK Anggota (ART) ganda di database Google Sheets"
+              >
+                <span className="material-symbols-outlined text-[14px] text-amber-600">group</span>
+                <span>
+                  {duplicateFilterMode === 'anggota'
+                    ? 'Semua Data'
+                    : `${duplicateInfo.totalAnggotaDup} Ada ART Ganda`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDeduplicateAnggota}
+                disabled={isDeduplicatingAnggota}
+                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
+                title="Bersihkan baris anggota keluarga (ART) yang terdaftar ganda di sheet KPM_Anggota Google Sheets"
+              >
+                {isDeduplicatingAnggota ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                )}
+                <span className="hidden sm:inline">Bersihkan ART Ganda</span>
+              </button>
             </div>
           )}
           <button
@@ -728,6 +800,48 @@ export default function KpmTableView({
                   <span>Bersihkan Duplikat Sekarang</span>
                 </>
               )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Notice Banner jika filter ART Duplikat sedang aktif */}
+      {duplicateFilterMode === 'anggota' && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <span className="material-symbols-outlined text-amber-600 text-2xl shrink-0 mt-0.5 sm:mt-0">info</span>
+            <div>
+              <p className="text-xs font-bold text-amber-950">
+                Filter Aktif: Menampilkan {duplicateInfo.totalAnggotaDup} KPM dengan NIK Anggota (ART) Ganda di Database
+              </p>
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                <strong>Catatan Penting:</strong> Seluruh {duplicateInfo.totalAnggotaDup} keluarga KPM ini <strong>100% unik (bukan KPM kembar)</strong>. Duplikasi terjadi pada baris data anggota keluarga di sheet <code>KPM_Anggota</code> (misal tersimpan dua kali saat pengisian mandiri). Klik tombol di samping untuk otomatis membersihkan baris anggota kembar.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleDeduplicateAnggota}
+              disabled={isDeduplicatingAnggota}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isDeduplicatingAnggota ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Membersihkan...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm">cleaning_services</span>
+                  <span>Bersihkan ART Ganda Sekarang</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setDuplicateFilterMode('none')}
+              className="px-2.5 py-1.5 text-xs text-amber-800 hover:text-amber-950 font-bold hover:underline cursor-pointer"
+            >
+              Tutup
             </button>
           </div>
         </div>

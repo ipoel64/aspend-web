@@ -50,11 +50,12 @@ export async function GET(request: Request) {
 
     const allMembers = rows.filter(row => row.length > 0).map(parseAnggotaRow);
 
-    // Hitung frekuensi kemunculan NIK di seluruh data anggota
+    // Hitung frekuensi kemunculan NIK di seluruh data anggota (hanya untuk NIK valid 16 digit non-ilmiah)
     const nikCounts = new Map<string, number>();
     for (const m of allMembers) {
       const mNik = m.NIK?.trim();
-      if (mNik && mNik !== '—' && mNik !== '-') {
+      const isValidNik = Boolean(mNik && validateNIK(mNik) && !/e[+-]?\d+/i.test(mNik) && !mNik.endsWith('00000000'));
+      if (isValidNik && mNik) {
         nikCounts.set(mNik, (nikCounts.get(mNik) || 0) + 1);
       }
     }
@@ -83,13 +84,31 @@ export async function GET(request: Request) {
       }
     }
 
+    // Cek duplikasi di dalam keluarga (NoKK) yang sama
+    const familyNikCounts = new Map<string, number>();
+    const familyNamaCounts = new Map<string, number>();
+    for (const m of data) {
+      const mNik = m.NIK?.trim();
+      const mNama = m.Nama?.trim().toLowerCase();
+      if (mNik && validateNIK(mNik) && !/e[+-]?\d+/i.test(mNik) && !mNik.endsWith('00000000')) {
+        familyNikCounts.set(mNik, (familyNikCounts.get(mNik) || 0) + 1);
+      }
+      if (mNama) {
+        familyNamaCounts.set(mNama, (familyNamaCounts.get(mNama) || 0) + 1);
+      }
+    }
+
     const enrichedData = data.map((item) => {
       const mNik = item.NIK?.trim() || '';
-      const dupCount = mNik ? (nikCounts.get(mNik) || 1) : 1;
+      const mNama = item.Nama?.trim().toLowerCase() || '';
+      const isValidNik = Boolean(mNik && validateNIK(mNik) && !/e[+-]?\d+/i.test(mNik) && !mNik.endsWith('00000000'));
+      const globalDupCount = isValidNik ? (nikCounts.get(mNik) || 1) : 1;
+      const isFamilyDup = (isValidNik && (familyNikCounts.get(mNik) || 0) > 1) || (Boolean(mNama) && (familyNamaCounts.get(mNama) || 0) > 1);
+      const isDup = globalDupCount > 1 || isFamilyDup;
       return {
         ...item,
-        IsDuplicateNik: dupCount > 1,
-        DuplicateCount: dupCount,
+        IsDuplicateNik: isDup,
+        DuplicateCount: Math.max(globalDupCount, isFamilyDup ? 2 : 1),
       };
     });
 

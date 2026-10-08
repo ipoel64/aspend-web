@@ -26,6 +26,7 @@ import {
   parseAsetRow,
   parseGraduasiRow,
   keluargaToRow,
+  anggotaToRow,
   graduasiToRow,
   validateNIK,
   validateNoKK,
@@ -100,11 +101,12 @@ export async function GET(request: Request) {
       if (normKK && !asetByKK.has(normKK)) asetByKK.set(normKK, ast);
     }
 
-    // Hitung frekuensi kemunculan NIK anggota di seluruh database
+    // Hitung frekuensi kemunculan NIK anggota di seluruh database (hanya untuk NIK valid 16 digit non-ilmiah)
     const anggotaNikCounts = new Map<string, number>();
     for (const ang of allAnggota) {
       const aNik = ang.NIK?.trim();
-      if (aNik && aNik !== '—' && aNik !== '-') {
+      const isValidNik = Boolean(aNik && validateNIK(aNik) && !/e[+-]?\d+/i.test(aNik) && !aNik.endsWith('00000000'));
+      if (isValidNik && aNik) {
         anggotaNikCounts.set(aNik, (anggotaNikCounts.get(aNik) || 0) + 1);
       }
     }
@@ -242,20 +244,38 @@ export async function GET(request: Request) {
       const isDupNik = Boolean(cleanNik && validateNIK(cleanNik) && (kpmNikCounts.get(cleanNik) || 0) > 1);
       const isDupKK = Boolean(cleanKK && validateNoKK(cleanKK) && (kpmKKCounts.get(cleanKK) || 0) > 1);
 
+      // Cek apakah ada anggota kembar di dalam keluarga yang sama (berdasarkan NIK valid atau Nama)
+      const familyNikCounts = new Map<string, number>();
+      const familyNamaCounts = new Map<string, number>();
+      for (const ang of item.AnggotaList || []) {
+        const aNik = ang.NIK?.trim();
+        const aNama = ang.Nama?.trim().toLowerCase();
+        if (aNik && validateNIK(aNik) && !/e[+-]?\d+/i.test(aNik) && !aNik.endsWith('00000000')) {
+          familyNikCounts.set(aNik, (familyNikCounts.get(aNik) || 0) + 1);
+        }
+        if (aNama) {
+          familyNamaCounts.set(aNama, (familyNamaCounts.get(aNama) || 0) + 1);
+        }
+      }
+
       const enrichedAnggotaList = (item.AnggotaList || []).map((ang) => {
         const aNik = ang.NIK?.trim() || '';
-        const dupCount = aNik ? (anggotaNikCounts.get(aNik) || 1) : 1;
+        const aNama = ang.Nama?.trim().toLowerCase() || '';
+        const isValidNik = Boolean(aNik && validateNIK(aNik) && !/e[+-]?\d+/i.test(aNik) && !aNik.endsWith('00000000'));
+        const globalDupCount = isValidNik ? (anggotaNikCounts.get(aNik) || 1) : 1;
+        const isFamilyDup = (isValidNik && (familyNikCounts.get(aNik) || 0) > 1) || (Boolean(aNama) && (familyNamaCounts.get(aNama) || 0) > 1);
+        const isDup = globalDupCount > 1 || isFamilyDup;
         return {
           ...ang,
-          IsDuplicateNik: dupCount > 1,
-          DuplicateCount: dupCount,
+          IsDuplicateNik: isDup,
+          DuplicateCount: Math.max(globalDupCount, isFamilyDup ? 2 : 1),
         };
       });
 
       const hasDupAnggotaNik = enrichedAnggotaList.some((ang) => ang.IsDuplicateNik);
       const dupAnggotaNiks = enrichedAnggotaList
         .filter((ang) => ang.IsDuplicateNik)
-        .map((ang) => ang.NIK?.trim())
+        .map((ang) => ang.NIK?.trim() || ang.Nama?.trim())
         .filter(Boolean);
 
       return {
@@ -880,6 +900,112 @@ export async function PATCH(request: Request) {
       return NextResponse.json({
         success: true,
         message: `Berhasil membersihkan dan menghapus ${duplicateRowIndices0Based.length} baris data duplikat di Google Sheets.`,
+        deletedCount: duplicateRowIndices0Based.length,
+      });
+    }
+
+    // ─── Fitur Bersihkan Seluruh Data Anggota Keluarga (ART) Duplikat Otomatis ───
+    if (action === 'deduplicate-anggota') {
+      const anggotaRaw = await getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A:N`, 'UNFORMATTED_VALUE');
+      if (anggotaRaw.length <= 1) {
+        return NextResponse.json({ success: true, message: 'Data Anggota kosong', deletedCount: 0 });
+      }
+
+      // Kelompokkan baris anggota berdasarkan NIK valid atau (NoKK + Nama)
+      const groupsByKey = new Map<string, number[]>(); // key -> row indices (0-based)
+
+      for (let i = 1; i < anggotaRaw.length; i++) {
+        const row = anggotaRaw[i];
+        const noKK = cleanTextCell(row[1]);
+        const nik = cleanTextCell(row[2]);
+        const nama = cleanTextCell(row[3]).trim().toLowerCase();
+        const normKK = normalizeKK(noKK) || noKK;
+
+        const isValidNik = Boolean(nik && validateNIK(nik) && !/e[+-]?\d+/i.test(nik) && !nik.endsWith('00000000'));
+
+        let key = '';
+        if (isValidNik) {
+          key = `nik:${nik}`;
+        } else if (normKK && nama) {
+          key = `kk:${normKK}|nama:${nama}`;
+        }
+
+        if (key) {
+          if (!groupsByKey.has(key)) groupsByKey.set(key, []);
+          groupsByKey.get(key)!.push(i);
+        }
+      }
+
+      const duplicateRowIndices0Based: number[] = [];
+      const primaryUpdates: Array<{ range: string; values: string[][] }> = [];
+
+      for (const [, indices] of groupsByKey.entries()) {
+        if (indices.length <= 1) continue;
+
+        let bestIndex = indices[0];
+        let bestScore = -1;
+
+        for (const idx of indices) {
+          const row = anggotaRaw[idx];
+          const a = parseAnggotaRow(row);
+          let score = 0;
+          const aNik = (a.NIK || '').trim();
+          if (aNik && validateNIK(aNik) && !/e[+-]?\d+/i.test(aNik) && !aNik.endsWith('00000000')) score += 10;
+          if (a.Nama) score += 5;
+          if (a.HubunganKeluarga) score += 3;
+          if (a.Komponen) score += 3;
+          if (a.TanggalLahir) score += 2;
+          if (a.JenisKelamin) score += 2;
+          if (a.Posyandu || a.Sekolah || a.Pekerjaan) score += 2;
+          if (score > bestScore) {
+            bestScore = score;
+            bestIndex = idx;
+          }
+        }
+
+        const primaryAng = parseAnggotaRow(anggotaRaw[bestIndex]);
+
+        for (const idx of indices) {
+          if (idx === bestIndex) continue;
+          duplicateRowIndices0Based.push(idx);
+
+          const dupAng = parseAnggotaRow(anggotaRaw[idx]);
+          if (!primaryAng.NIK && dupAng.NIK) primaryAng.NIK = dupAng.NIK;
+          if (!primaryAng.Nama && dupAng.Nama) primaryAng.Nama = dupAng.Nama;
+          if (!primaryAng.TanggalLahir && dupAng.TanggalLahir) primaryAng.TanggalLahir = dupAng.TanggalLahir;
+          if (!primaryAng.JenisKelamin && dupAng.JenisKelamin) primaryAng.JenisKelamin = dupAng.JenisKelamin;
+          if (!primaryAng.Komponen && dupAng.Komponen) primaryAng.Komponen = dupAng.Komponen;
+          if (!primaryAng.HubunganKeluarga && dupAng.HubunganKeluarga) primaryAng.HubunganKeluarga = dupAng.HubunganKeluarga;
+          if (!primaryAng.Posyandu && dupAng.Posyandu) primaryAng.Posyandu = dupAng.Posyandu;
+          if (!primaryAng.Sekolah && dupAng.Sekolah) primaryAng.Sekolah = dupAng.Sekolah;
+          if (!primaryAng.Kelas && dupAng.Kelas) primaryAng.Kelas = dupAng.Kelas;
+          if (!primaryAng.Pekerjaan && dupAng.Pekerjaan) primaryAng.Pekerjaan = dupAng.Pekerjaan;
+          if (!primaryAng.Keterangan && dupAng.Keterangan) primaryAng.Keterangan = dupAng.Keterangan;
+        }
+
+        primaryUpdates.push({
+          range: `${KPM_SHEET_ANGGOTA}!A${bestIndex + 1}:N${bestIndex + 1}`,
+          values: [anggotaToRow(primaryAng)],
+        });
+      }
+
+      if (duplicateRowIndices0Based.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Tidak ditemukan data anggota keluarga (ART) yang terdaftar duplikat di Google Sheets.',
+          deletedCount: 0,
+        });
+      }
+
+      if (primaryUpdates.length > 0) {
+        await batchUpdateSheetValues(accessToken, spreadsheetId, primaryUpdates);
+      }
+
+      await deleteSheetRowsBatch(accessToken, spreadsheetId, KPM_SHEET_ANGGOTA, duplicateRowIndices0Based);
+
+      return NextResponse.json({
+        success: true,
+        message: `Berhasil membersihkan dan menghapus ${duplicateRowIndices0Based.length} baris data anggota (ART) duplikat di Google Sheets.`,
         deletedCount: duplicateRowIndices0Based.length,
       });
     }
