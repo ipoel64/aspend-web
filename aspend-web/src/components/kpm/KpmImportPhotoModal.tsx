@@ -159,6 +159,53 @@ function findZipKey(
   return null;
 }
 
+function guessImageMime(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'bmp') return 'image/bmp';
+  return 'image/jpeg';
+}
+
+/**
+ * Compress/resize an image in the browser before uploading.
+ * Vercel serverless functions reject request bodies larger than ~4.5 MB (HTTP 413),
+ * so original phone photos (2–6 MB each) must be shrunk first.
+ */
+async function compressImage(input: Blob, name: string): Promise<Blob> {
+  const typed = input.type ? input : new Blob([input], { type: guessImageMime(name) });
+  if (typed.size <= 300 * 1024) return typed;
+
+  const attempt = async (src: Blob, maxDim: number, quality: number): Promise<Blob | null> => {
+    try {
+      const bmp = await createImageBitmap(src);
+      const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(bmp, 0, 0, w, h);
+      if (typeof bmp.close === 'function') bmp.close();
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    } catch {
+      return null;
+    }
+  };
+
+  let out = await attempt(typed, 1600, 0.75);
+  if (out && out.size > 900 * 1024) {
+    out = (await attempt(typed, 1200, 0.6)) || out;
+  }
+  if (!out) return typed;
+  return out.size < typed.size ? out : typed;
+}
+
 export default function KpmImportPhotoModal({
   isOpen,
   onClose,
@@ -398,7 +445,11 @@ export default function KpmImportPhotoModal({
           setCachedZip(zipObj);
         }
 
-        const BATCH_SIZE = 5;
+        // Keep each request well below Vercel's ~4.5 MB body limit
+        const MAX_BATCH_BYTES = 3 * 1024 * 1024;
+        const MAX_BATCH_FILES = 10;
+        const MAX_BATCH_ITEMS = 10;
+
         setProgress({
           current: 0,
           total: itemsToImport.length,
@@ -411,149 +462,121 @@ export default function KpmImportPhotoModal({
         let totalAsetUpdated = 0;
         let totalAsetCreated = 0;
         let totalKeluargaUpdated = 0;
+        let processedCount = 0;
         const batchErrors: string[] = [];
 
-        for (let i = 0; i < itemsToImport.length; i += BATCH_SIZE) {
-          const batchItems = itemsToImport.slice(i, i + BATCH_SIZE);
-          const batchFormData = new FormData();
-          batchFormData.append('action', 'commit-upload');
-          batchFormData.append('category', category);
-          batchFormData.append('mode', mode);
+        type UploadFile = { blob: Blob; name: string };
+        type UploadEntry = { item: PreviewItem; files: UploadFile[]; bytes: number };
 
-          let filesAttachedCount = 0;
-
-          // Attach photos for this batch
-          for (const item of batchItems) {
-            if (category === 'dokumen') {
-              const docConfigs = [
-                { type: 'selfie', driveId: item.selfieDriveFileId, filename: item.selfieFilename },
-                { type: 'ktp', driveId: item.ktpDriveFileId, filename: item.ktpFilename },
-                { type: 'kk', driveId: item.kkDriveFileId, filename: item.kkFilename },
-                { type: 'butab', driveId: item.butabDriveFileId, filename: item.butabFilename },
-                { type: 'kks', driveId: item.kksDriveFileId, filename: item.kksFilename },
-              ];
-
-              for (const doc of docConfigs) {
-                if (zipObj) {
-                  const zipKey = findZipKey(zipObj, item.noKK, doc.type, doc.driveId, doc.filename);
-                  if (zipKey && zipObj.files[zipKey]) {
-                    const blob = await zipObj.files[zipKey].async('blob');
-                    const cleanName = zipKey.replace(/^.*[\\\/]/, '') || `${item.noKK}.${doc.type.toUpperCase()}.jpg`;
-                    batchFormData.append('imageFiles', blob, cleanName);
-                    filesAttachedCount++;
-                    if (doc.type === 'selfie') item.selfieFilename = cleanName;
-                    if (doc.type === 'ktp') item.ktpFilename = cleanName;
-                    if (doc.type === 'kk') item.kkFilename = cleanName;
-                    if (doc.type === 'butab') item.butabFilename = cleanName;
-                    if (doc.type === 'kks') item.kksFilename = cleanName;
-                  }
-                } else if (multipleImages) {
-                  for (const img of Array.from(multipleImages)) {
-                    const imgName = img.name.replace(/^.*[\\\/]/, '').toLowerCase();
-                    const cleanKK = item.noKK.replace(/\D/g, '');
-                    const targetDriveId = (doc.driveId || '').replace(/^.*[\\\/]/, '').toLowerCase();
-                    const targetFname = (doc.filename || '').replace(/^.*[\\\/]/, '').toLowerCase();
-
-                    let isMatch = false;
-                    if (targetDriveId && (imgName === targetDriveId || imgName.endsWith(targetDriveId))) {
-                      isMatch = true;
-                    } else if (targetFname && (imgName === targetFname || imgName.endsWith(targetFname))) {
-                      isMatch = true;
-                    } else if (cleanKK && imgName.includes(cleanKK) && detectDocType(imgName) === doc.type) {
-                      isMatch = true;
-                    }
-
-                    if (isMatch) {
-                      batchFormData.append('imageFiles', img, img.name);
-                      filesAttachedCount++;
-                      if (doc.type === 'selfie') item.selfieFilename = img.name;
-                      if (doc.type === 'ktp') item.ktpFilename = img.name;
-                      if (doc.type === 'kk') item.kkFilename = img.name;
-                      if (doc.type === 'butab') item.butabFilename = img.name;
-                      if (doc.type === 'kks') item.kksFilename = img.name;
-                      break;
-                    }
-                  }
-                }
-              }
-            } else {
-              // category === 'rumah'
-              const docConfigs = [
-                { type: 'r_luar', driveId: item.rLuarDriveFileId, filename: item.rLuarFilename },
-                { type: 'r_dalam', driveId: item.rDalamDriveFileId, filename: item.rDalamFilename },
-              ];
-
-              for (const doc of docConfigs) {
-                if (zipObj) {
-                  const zipKey = findZipKey(zipObj, item.noKK, doc.type, doc.driveId, doc.filename);
-                  if (zipKey && zipObj.files[zipKey]) {
-                    const blob = await zipObj.files[zipKey].async('blob');
-                    const cleanName = zipKey.replace(/^.*[\\\/]/, '') || `${item.noKK}.${doc.type.toUpperCase()}.jpg`;
-                    batchFormData.append('imageFiles', blob, cleanName);
-                    filesAttachedCount++;
-                    if (doc.type === 'r_luar') item.rLuarFilename = cleanName;
-                    if (doc.type === 'r_dalam') item.rDalamFilename = cleanName;
-                  }
-                } else if (multipleImages) {
-                  for (const img of Array.from(multipleImages)) {
-                    const imgName = img.name.replace(/^.*[\\\/]/, '').toLowerCase();
-                    const cleanKK = item.noKK.replace(/\D/g, '');
-                    const targetDriveId = (doc.driveId || '').replace(/^.*[\\\/]/, '').toLowerCase();
-                    const targetFname = (doc.filename || '').replace(/^.*[\\\/]/, '').toLowerCase();
-
-                    let isMatch = false;
-                    if (targetDriveId && (imgName === targetDriveId || imgName.endsWith(targetDriveId))) {
-                      isMatch = true;
-                    } else if (targetFname && (imgName === targetFname || imgName.endsWith(targetFname))) {
-                      isMatch = true;
-                    } else if (cleanKK && imgName.includes(cleanKK) && detectDocType(imgName) === doc.type) {
-                      isMatch = true;
-                    }
-
-                    if (isMatch) {
-                      batchFormData.append('imageFiles', img, img.name);
-                      filesAttachedCount++;
-                      if (doc.type === 'r_luar') item.rLuarFilename = img.name;
-                      if (doc.type === 'r_dalam') item.rDalamFilename = img.name;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // If no files attached for this batch and no metadata, skip smoothly
-          if (filesAttachedCount === 0) {
-            const hasMeta = category === 'rumah' && batchItems.some((it) => it.statusRumah || it.usaha);
-            if (!hasMeta) {
-              const currentCount = Math.min(i + BATCH_SIZE, itemsToImport.length);
-              setProgress({
-                current: currentCount,
-                total: itemsToImport.length,
-                percent: Math.round((currentCount / itemsToImport.length) * 100),
-                uploaded: totalUploaded,
-                profileUpdated: category === 'dokumen' ? totalKeluargaUpdated : totalAsetUpdated,
-              });
-              continue;
-            }
-          }
-
-          batchFormData.append('items', JSON.stringify(batchItems));
-
-          const res = await fetch('/api/kpm/import-photos', {
-            method: 'POST',
-            body: batchFormData,
+        const updateProgress = () => {
+          setProgress({
+            current: processedCount,
+            total: itemsToImport.length,
+            percent: Math.round((processedCount / itemsToImport.length) * 100),
+            uploaded: totalUploaded,
+            profileUpdated: category === 'dokumen' ? totalKeluargaUpdated : totalAsetUpdated,
           });
+        };
 
+        const setItemFilename = (item: PreviewItem, type: string, name: string) => {
+          if (type === 'selfie') item.selfieFilename = name;
+          if (type === 'ktp') item.ktpFilename = name;
+          if (type === 'kk') item.kkFilename = name;
+          if (type === 'butab') item.butabFilename = name;
+          if (type === 'kks') item.kksFilename = name;
+          if (type === 'r_luar') item.rLuarFilename = name;
+          if (type === 'r_dalam') item.rDalamFilename = name;
+        };
+
+        // Collect (and compress) all photos belonging to a single KPM
+        const collectItemFiles = async (item: PreviewItem): Promise<UploadFile[]> => {
+          const docConfigs =
+            category === 'dokumen'
+              ? [
+                  { type: 'selfie', driveId: item.selfieDriveFileId, filename: item.selfieFilename },
+                  { type: 'ktp', driveId: item.ktpDriveFileId, filename: item.ktpFilename },
+                  { type: 'kk', driveId: item.kkDriveFileId, filename: item.kkFilename },
+                  { type: 'butab', driveId: item.butabDriveFileId, filename: item.butabFilename },
+                  { type: 'kks', driveId: item.kksDriveFileId, filename: item.kksFilename },
+                ]
+              : [
+                  { type: 'r_luar', driveId: item.rLuarDriveFileId, filename: item.rLuarFilename },
+                  { type: 'r_dalam', driveId: item.rDalamDriveFileId, filename: item.rDalamFilename },
+                ];
+
+          const result: UploadFile[] = [];
+          for (const doc of docConfigs) {
+            let rawBlob: Blob | null = null;
+            let name = '';
+
+            if (zipObj) {
+              const zipKey = findZipKey(zipObj, item.noKK, doc.type, doc.driveId, doc.filename);
+              if (zipKey && zipObj.files[zipKey]) {
+                rawBlob = await zipObj.files[zipKey].async('blob');
+                name = zipKey.replace(/^.*[\\\/]/, '') || `${item.noKK}.${doc.type.toUpperCase()}.jpg`;
+              }
+            } else if (multipleImages) {
+              const cleanKK = item.noKK.replace(/\D/g, '');
+              const targetDriveId = (doc.driveId || '').replace(/^.*[\\\/]/, '').toLowerCase();
+              const targetFname = (doc.filename || '').replace(/^.*[\\\/]/, '').toLowerCase();
+              for (const img of Array.from(multipleImages)) {
+                const imgName = img.name.replace(/^.*[\\\/]/, '').toLowerCase();
+                const isMatch =
+                  (targetDriveId && (imgName === targetDriveId || imgName.endsWith(targetDriveId))) ||
+                  (targetFname && (imgName === targetFname || imgName.endsWith(targetFname))) ||
+                  (cleanKK && imgName.includes(cleanKK) && detectDocType(imgName) === doc.type);
+                if (isMatch) {
+                  rawBlob = img;
+                  name = img.name;
+                  break;
+                }
+              }
+            }
+
+            if (rawBlob && name) {
+              const compressed = await compressImage(rawBlob, name);
+              result.push({ blob: compressed, name });
+              setItemFilename(item, doc.type, name);
+            }
+          }
+          return result;
+        };
+
+        // Send a group of entries; on 413 split the group in half and retry
+        const sendEntries = async (entries: UploadEntry[]): Promise<void> => {
+          if (entries.length === 0) return;
+
+          const fd = new FormData();
+          fd.append('action', 'commit-upload');
+          fd.append('category', category);
+          fd.append('mode', mode);
+          for (const entry of entries) {
+            for (const f of entry.files) {
+              fd.append('imageFiles', f.blob, f.name);
+            }
+          }
+          fd.append('items', JSON.stringify(entries.map((e) => e.item)));
+
+          const res = await fetch('/api/kpm/import-photos', { method: 'POST', body: fd });
           const responseText = await res.text();
+
+          if (res.status === 413 || (!res.ok && responseText.toLowerCase().includes('too large'))) {
+            if (entries.length > 1) {
+              const mid = Math.ceil(entries.length / 2);
+              await sendEntries(entries.slice(0, mid));
+              await sendEntries(entries.slice(mid));
+              return;
+            }
+            batchErrors.push(`Foto KK ${entries[0].item.noKK} terlalu besar untuk diunggah (413), dilewati.`);
+            processedCount += 1;
+            updateProgress();
+            return;
+          }
+
           let resData: any = {};
           try {
             resData = JSON.parse(responseText);
           } catch {
-            if (res.status === 413 || responseText.toLowerCase().includes('too large')) {
-              throw new Error('Ukuran foto pada batch ini melebihi batas server (413).');
-            }
             throw new Error(`Server error (${res.status}): ${responseText.slice(0, 120)}`);
           }
 
@@ -567,15 +590,47 @@ export default function KpmImportPhotoModal({
           if (resData.keluargaUpdatedCount) totalKeluargaUpdated += resData.keluargaUpdatedCount;
           if (resData.errors) batchErrors.push(...resData.errors);
 
-          const currentCount = Math.min(i + BATCH_SIZE, itemsToImport.length);
-          setProgress({
-            current: currentCount,
-            total: itemsToImport.length,
-            percent: Math.round((currentCount / itemsToImport.length) * 100),
-            uploaded: totalUploaded,
-            profileUpdated: category === 'dokumen' ? totalKeluargaUpdated : totalAsetUpdated,
-          });
+          processedCount += entries.length;
+          updateProgress();
+        };
+
+        let pending: UploadEntry[] = [];
+        let pendingBytes = 0;
+        let pendingFiles = 0;
+
+        const flush = async () => {
+          const toSend = pending;
+          pending = [];
+          pendingBytes = 0;
+          pendingFiles = 0;
+          await sendEntries(toSend);
+        };
+
+        for (const item of itemsToImport) {
+          const files = await collectItemFiles(item);
+          const bytes = files.reduce((sum, f) => sum + f.blob.size, 0);
+          const hasMeta = category === 'rumah' && Boolean(item.statusRumah || item.usaha);
+
+          if (files.length === 0 && !hasMeta) {
+            processedCount += 1;
+            updateProgress();
+            continue;
+          }
+
+          if (
+            pending.length > 0 &&
+            (pendingBytes + bytes > MAX_BATCH_BYTES ||
+              pendingFiles + files.length > MAX_BATCH_FILES ||
+              pending.length >= MAX_BATCH_ITEMS)
+          ) {
+            await flush();
+          }
+
+          pending.push({ item, files, bytes });
+          pendingBytes += bytes;
+          pendingFiles += files.length;
         }
+        await flush();
 
         setExecutionResult({
           success: true,
