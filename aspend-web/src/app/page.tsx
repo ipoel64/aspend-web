@@ -23,6 +23,7 @@ import KpmAnalisaTahapView from "@/components/kpm/KpmAnalisaTahapView";
 import RekapP2K2View from "@/components/RekapP2K2View";
 import VerkomToolsView from "@/components/verkom/VerkomToolsView";
 import NotaDinasView from "@/components/nota-dinas/NotaDinasView";
+import QrWebLoginCard from "@/components/auth/QrWebLoginCard";
 import KpmImportPhotoModal from "@/components/kpm/KpmImportPhotoModal";
 
 interface Report {
@@ -1739,25 +1740,17 @@ export default function Home() {
     );
   }
 
-  // Jika belum login, tampilkan Login Screen
+  // Jika belum login, tampilkan Login Screen dengan Kode QR & Google Sign-In
   if (status === "unauthenticated") {
     return (
-      <main className="min-h-screen bg-surface text-on-surface font-body-md transition-colors duration-300 antialiased selection:bg-primary/20 flex items-center justify-center bg-surface/90">
-        <div className="bg-surface-container-lowest p-8 rounded-2xl shadow-xl w-full max-w-md mx-4 border border-outline-variant/30 flex flex-col items-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary-fixed-dim/10 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
-          <Image src="/logo.png" alt="ASPEND Logo" width={64} height={64} className="rounded-2xl shadow-lg border border-outline-variant/20 object-cover mb-6 bg-white floating-logo" />
-          <h1 className="font-headline-md text-headline-md font-bold text-on-surface mb-2">Masuk ke ASPEND</h1>
-          <p className="text-on-surface-variant font-body-md text-body-md mb-8 text-center">Silakan otentikasi dengan akun Google Anda untuk mengakses Database (Google Drive & Sheets).</p>
+      <main className="min-h-screen bg-slate-900 text-slate-100 font-body-md transition-colors duration-300 antialiased flex items-center justify-center p-4">
+        <div className="bg-slate-800/90 backdrop-blur-md p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-slate-700/60 flex flex-col items-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+          <Image src="/logo.png" alt="ASPEND Logo" width={56} height={56} className="rounded-2xl shadow-lg border border-slate-600/50 object-cover mb-4 bg-white" />
+          <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">Masuk ke ASPEND Web</h1>
+          <p className="text-xs text-slate-400 mb-6 text-center">Pindai barcode dari aplikasi HP Anda untuk masuk otomatis.</p>
           
-          <div className="w-full space-y-4">
-            <button 
-              onClick={() => signIn('google')}
-              className="w-full py-3 bg-white text-on-surface border border-outline-variant font-label-md text-label-md font-bold rounded-lg hover:bg-surface-variant transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95 cursor-pointer"
-            >
-              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-              <span>Lanjutkan dengan Google</span>
-            </button>
-          </div>
+          <QrWebLoginCard onGoogleSignIn={() => signIn('google')} />
         </div>
       </main>
     );
