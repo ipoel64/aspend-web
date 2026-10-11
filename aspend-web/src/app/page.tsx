@@ -1740,7 +1740,7 @@ export default function Home() {
     );
   }
 
-  // Jika belum login, tampilkan Login Screen dengan Kode QR & Google Sign-In
+  // Jika belum login, tampilkan Login Screen dengan Barcode Scanner
   if (status === "unauthenticated") {
     return (
       <main className="min-h-screen bg-slate-900 text-slate-100 font-body-md transition-colors duration-300 antialiased flex items-center justify-center p-4">
@@ -1750,7 +1750,7 @@ export default function Home() {
           <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">Masuk ke ASPEND Web</h1>
           <p className="text-xs text-slate-400 mb-6 text-center">Pindai barcode dari aplikasi HP Anda untuk masuk otomatis.</p>
           
-          <QrWebLoginCard onGoogleSignIn={() => signIn('google')} />
+          <QrWebLoginCard />
         </div>
       </main>
     );

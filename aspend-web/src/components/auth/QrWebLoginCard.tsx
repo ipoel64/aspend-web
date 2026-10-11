@@ -4,10 +4,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { signIn } from 'next-auth/react';
 
 interface QrWebLoginCardProps {
-  onGoogleSignIn: () => void;
+  onGoogleSignIn?: () => void;
+  showGoogleSignIn?: boolean;
 }
 
-export default function QrWebLoginCard({ onGoogleSignIn }: QrWebLoginCardProps) {
+export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = false }: QrWebLoginCardProps) {
   const [sessionId, setSessionId] = useState<string>('');
   const [qrPayload, setQrPayload] = useState<string>('');
   const [qrStatus, setQrStatus] = useState<'LOADING' | 'READY' | 'AUTHORIZED' | 'EXPIRED' | 'ERROR'>('LOADING');
@@ -182,7 +183,7 @@ export default function QrWebLoginCard({ onGoogleSignIn }: QrWebLoginCardProps) 
 
       {/* Guide text */}
       <div className="mt-4 text-center px-2">
-        <p className="text-xs text-gray-600 font-medium leading-relaxed">
+        <p className="text-xs text-slate-300/90 font-medium leading-relaxed">
           1. Buka aplikasi <b>Aspend</b> di HP Anda
           <br />
           2. Ketuk tombol scanner <b>[ ⛶ ]</b> di bagian atas Dashboard
@@ -191,21 +192,24 @@ export default function QrWebLoginCard({ onGoogleSignIn }: QrWebLoginCardProps) 
         </p>
       </div>
 
-      {/* Divider */}
-      <div className="w-full flex items-center my-5">
-        <div className="flex-1 border-t border-gray-200"></div>
-        <span className="px-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">atau</span>
-        <div className="flex-1 border-t border-gray-200"></div>
-      </div>
+      {/* Divider & Google Sign In (Hidden: login is barcode-only) */}
+      {showGoogleSignIn && onGoogleSignIn && (
+        <>
+          <div className="w-full flex items-center my-5">
+            <div className="flex-1 border-t border-gray-200"></div>
+            <span className="px-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">atau</span>
+            <div className="flex-1 border-t border-gray-200"></div>
+          </div>
 
-      {/* Google Sign In Fallback Button */}
-      <button
-        onClick={onGoogleSignIn}
-        className="w-full py-3 bg-white text-gray-700 border border-gray-300 font-medium text-xs rounded-xl hover:bg-gray-50 transition-all shadow-xs flex items-center justify-center gap-3 active:scale-98 cursor-pointer"
-      >
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-        <span>Masuk manual dengan Akun Google</span>
-      </button>
+          <button
+            onClick={onGoogleSignIn}
+            className="w-full py-3 bg-white text-gray-700 border border-gray-300 font-medium text-xs rounded-xl hover:bg-gray-50 transition-all shadow-xs flex items-center justify-center gap-3 active:scale-98 cursor-pointer"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
+            <span>Masuk manual dengan Akun Google</span>
+          </button>
+        </>
+      )}
     </div>
   );
 }
