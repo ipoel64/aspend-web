@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +17,7 @@ class AdService {
 
   // Counter key
   static const String _saveCountKey = 'pdf_save_count';
-  static const int _adInterval = 5;
+  static const int _adInterval = 2;
 
   InterstitialAd? _interstitialAd;
   bool _isAdLoaded = false;

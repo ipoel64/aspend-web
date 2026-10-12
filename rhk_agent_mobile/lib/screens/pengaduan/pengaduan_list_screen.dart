@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -306,7 +306,7 @@ class _PengaduanListScreenState extends State<PengaduanListScreen> {
                                 Column(
                                   children: [
                                     const SizedBox(height: 24),
-                                    _buildThumbnailWidget(context, auth, item.screenshotSiks, 'Bukti'),
+                                    _buildThumbnailWidget(context, auth, item.screenshotSiks.split(',').first.trim(), 'Bukti'),
                                   ],
                                 ),
                               ],

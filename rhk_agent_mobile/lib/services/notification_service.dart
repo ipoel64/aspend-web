@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -13,12 +14,14 @@ class NotificationService {
   static const String prefHourKey = 'notification_hour';
   static const String prefMinuteKey = 'notification_minute';
   static const String prefEnabledKey = 'notification_enabled';
-  static const int defaultHour = 17;
-  static const int defaultMinute = 0;
+  static const int defaultHour = 16;
+  static const int defaultMinute = 5;
 
   Future<void> init() async {
     tz.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Jakarta')); // Default to WIB, can be adjusted later if needed
+    try {
+      tz.setLocalLocation(tz.getLocation('Asia/Jakarta'));
+    } catch (_) {}
 
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
     
@@ -37,20 +40,56 @@ class NotificationService {
     await flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
+        // Handle notification tap -> Buka Asisten Pintar
+        navigatorKey.currentState?.pushNamed('/jarvis');
       },
     );
 
-    // Request permissions for Android 13+
+    // Create Notification Channel for Android 8.0+ & Request permissions for Android 13+
     final androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    await androidImplementation?.requestNotificationsPermission();
-    try {
-      await androidImplementation?.requestExactAlarmsPermission();
-    } catch (_) {}
+    if (androidImplementation != null) {
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'daily_reminder_channel_v3',
+        'Pengingat Harian Asisten Pintar',
+        description: 'Pengingat harian untuk membuat laporan RHK bersama Asisten Pintar',
+        importance: Importance.max,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('jarvis_reminder'),
+        enableVibration: true,
+      );
+      await androidImplementation.createNotificationChannel(channel);
+      await androidImplementation.requestNotificationsPermission();
+      try {
+        await androidImplementation.requestExactAlarmsPermission();
+      } catch (_) {}
+    }
 
     // Schedule notification based on saved preference or default
     await scheduleDailyNotification();
+  }
+
+  Future<void> showTestNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      'daily_reminder_channel_v3',
+      'Pengingat Harian Asisten Pintar',
+      channelDescription: 'Pengingat harian untuk membuat laporan RHK bersama Asisten Pintar',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      sound: RawResourceAndroidNotificationSound('jarvis_reminder'),
+      playSound: true,
+      enableVibration: true,
+    );
+
+    final details = const NotificationDetails(android: androidDetails);
+    await flutterLocalNotificationsPlugin.show(
+      999,
+      'Pengingat Laporan RHK 🤖 (Asisten Pintar)',
+      'Waktunya membuat laporan RHK bersama Asisten Pintar! Ketuk untuk memulai.',
+      details,
+      payload: 'jarvis',
+    );
   }
 
   Future<void> scheduleDailyNotification({int? hour, int? minute, bool? enabled}) async {
@@ -78,39 +117,44 @@ class NotificationService {
     }
 
     const androidDetails = AndroidNotificationDetails(
-      'daily_reminder_channel',
-      'Daily Reminders',
-      channelDescription: 'Pengingat harian untuk membuat laporan RHK',
+      'daily_reminder_channel_v3',
+      'Pengingat Harian Asisten Pintar',
+      channelDescription: 'Pengingat harian untuk membuat laporan RHK bersama Asisten Pintar',
       importance: Importance.max,
       priority: Priority.max,
       icon: '@mipmap/ic_launcher',
+      sound: RawResourceAndroidNotificationSound('jarvis_reminder'),
       playSound: true,
       enableVibration: true,
+      visibility: NotificationVisibility.public,
     );
 
     final details = const NotificationDetails(android: androidDetails);
 
-    // Schedule for Monday(1) to Friday(5)
+    // Schedule for Monday to Friday (1 to 5)
     for (int i = 1; i <= 5; i++) {
+      final scheduledDate = _nextInstanceOfWeekdayTime(i, scheduledHour, scheduledMinute);
       try {
         await flutterLocalNotificationsPlugin.zonedSchedule(
           i, // Unique ID per day
-          'Pengingat Laporan RHK 📝',
-          'jangan lupa buat RHK hari ini ya....',
-          _nextInstanceOfWeekdayTime(i, scheduledHour, scheduledMinute),
+          'Pengingat Laporan RHK 🤖',
+          'Waktunya membuat laporan RHK hari ini bersama Asisten Pintar.',
+          scheduledDate,
           details,
+          payload: 'jarvis',
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         );
       } catch (e) {
-        // Fallback to inexact if exact is not permitted (e.g. Android 14 without user granting permission)
+        // Fallback to inexact if exact is not permitted
         await flutterLocalNotificationsPlugin.zonedSchedule(
           i,
-          'Pengingat Laporan RHK 📝',
-          'jangan lupa buat RHK hari ini ya....',
-          _nextInstanceOfWeekdayTime(i, scheduledHour, scheduledMinute),
+          'Pengingat Laporan RHK 🤖',
+          'Waktunya membuat laporan RHK hari ini bersama Asisten Pintar.',
+          scheduledDate,
           details,
+          payload: 'jarvis',
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
@@ -120,17 +164,10 @@ class NotificationService {
   }
 
   tz.TZDateTime _nextInstanceOfWeekdayTime(int weekday, int hour, int minute) {
-    tz.TZDateTime scheduledDate = _nextInstanceOfTime(hour, minute);
-    while (scheduledDate.weekday != weekday) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
-    }
-    return scheduledDate;
-  }
-
-  tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     tz.TZDateTime scheduledDate = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    if (scheduledDate.isBefore(now)) {
+    
+    while (scheduledDate.weekday != weekday || scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
     return scheduledDate;

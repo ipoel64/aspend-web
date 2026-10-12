@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../providers/auth_provider.dart';
 import 'package:provider/provider.dart';
+
+import 'package:in_app_update/in_app_update.dart';
 
 /// Splash Screen — Cek sesi login & navigate ke halaman yang sesuai
 class SplashScreen extends StatefulWidget {
@@ -37,7 +39,22 @@ class _SplashScreenState extends State<SplashScreen>
     _checkAuth();
   }
 
+  Future<void> _checkForUpdate() async {
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+        // Paksa pembaruan secara langsung (Immediate / Full Screen)
+        await InAppUpdate.performImmediateUpdate();
+      }
+    } catch (e) {
+      debugPrint('InAppUpdate error: $e');
+    }
+  }
+
   Future<void> _checkAuth() async {
+    // Check for app update first
+    await _checkForUpdate();
+
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 

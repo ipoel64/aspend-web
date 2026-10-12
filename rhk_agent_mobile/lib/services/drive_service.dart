@@ -49,16 +49,42 @@ class DriveService {
     String folderId,
     String fileName,
     List<int> bytes,
-    String mimeType,
-  ) async {
-    final file = drive.File(name: fileName, parents: [folderId]);
-    final media = drive.Media(Stream.value(bytes), bytes.length);
-    final result = await _api.files.create(
-      file,
-      uploadMedia: media,
-      $fields: 'id',
-    );
-    return result.id!;
+    String mimeType, {
+    Future<void> Function()? onAuthExpired,
+  }) async {
+    int attempts = 0;
+    while (attempts < 3) {
+      attempts++;
+      try {
+        final file = drive.File(name: fileName, parents: [folderId]);
+        final media = drive.Media(Stream.value(bytes), bytes.length);
+        final result = await _api.files.create(
+          file,
+          uploadMedia: media,
+          $fields: 'id',
+        ).timeout(const Duration(seconds: 45));
+        return result.id!;
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        final isAuthErr = errStr.contains('invalid_token') ||
+            errStr.contains('access was denied') ||
+            errStr.contains('401');
+        final isConnErr = errStr.contains('abort') ||
+            errStr.contains('socketexception') ||
+            errStr.contains('timeout') ||
+            errStr.contains('connection');
+
+        if ((isAuthErr || isConnErr) && attempts < 3) {
+          if (isAuthErr && onAuthExpired != null) {
+            await onAuthExpired();
+          }
+          await Future.delayed(Duration(milliseconds: 1000 * attempts));
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw Exception('Gagal mengunggah file ke Google Drive setelah 3 percobaan');
   }
 
   Future<void> deleteFile(String fileId) async {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 /// Kartu statistik untuk dashboard (Total Laporan, Bulan Ini)
 class StatCard extends StatelessWidget {

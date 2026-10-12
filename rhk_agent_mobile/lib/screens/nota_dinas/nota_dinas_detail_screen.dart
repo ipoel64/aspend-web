@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -488,11 +488,24 @@ class _NotaDinasDetailScreenState extends State<NotaDinasDetailScreen> {
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
-                    width: 160,
-                    child: _buildAttachmentCard(
-                      context,
-                      'Foto Bukti Dukung',
-                      _currentNotaDinas.buktiDukung,
+                    height: 180,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: _currentNotaDinas.buktiDukung
+                          .split(',')
+                          .where((id) => id.trim().isNotEmpty)
+                          .map((id) => Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: SizedBox(
+                                  width: 160,
+                                  child: _buildAttachmentCard(
+                                    context,
+                                    'Foto Bukti Dukung',
+                                    id.trim(),
+                                  ),
+                                ),
+                              ))
+                          .toList(),
                     ),
                   ),
                 ],

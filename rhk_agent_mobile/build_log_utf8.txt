@@ -1,0 +1,7 @@
+﻿Resolving dependencies...
+Downloading packages...
+  archive 3.6.1 (4.0.9 available)
+  camera 0.10.6 (0.12.0+2 available)
+  camera_android 0.10.10+18 (0.10.11 available)
+  camera_avfoundation 0.9.23+2 (0.10.2 available)
+  camera_platform_interface 2.13.0 (2.13.1 available)

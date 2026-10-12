@@ -1,15 +1,14 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-
 import '../config/constants.dart';
 import '../models/p2k2_data.dart';
 import '../models/report.dart';
 import '../services/ai_service.dart';
 import '../services/pdf_service.dart';
 import '../services/ad_service.dart';
+import '../services/subscription_service.dart';
 import 'auth_provider.dart';
 
 class FormProvider extends ChangeNotifier {
@@ -25,6 +24,8 @@ class FormProvider extends ChangeNotifier {
   void updateAuth(AuthProvider auth) {
     _auth = auth;
   }
+
+  AuthProvider? get auth => _auth;
 
   bool get isSubmitting => _isSubmitting;
   bool get isGeneratingNarrative => _isGeneratingNarrative;
@@ -42,6 +43,9 @@ class FormProvider extends ChangeNotifier {
     required String poinKegiatan,
     required List<XFile> photos,
     P2K2Data? p2k2Data,
+    String? physicalLokasi,
+    bool showTanggalInPdf = true,
+    bool showPukulInPdf = true,
   }) async {
     if (auth.sheetsService == null ||
         auth.driveService == null ||
@@ -56,6 +60,8 @@ class FormProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await auth.ensureFreshAuth();
+
       // 1. Generate ID (menggunakan timestamp detik untuk menjamin keunikan instan)
       final now = DateTime.now();
       final dateStr = DateFormat('yyyyMMdd').format(now);
@@ -79,6 +85,9 @@ class FormProvider extends ChangeNotifier {
           fileName,
           bytes,
           'image/jpeg',
+          onAuthExpired: () async {
+            await auth.ensureFreshAuth();
+          },
         );
         await auth.driveService!.setPublicAccess(fileId);
         photoIds.add(fileId);
@@ -99,8 +108,10 @@ class FormProvider extends ChangeNotifier {
         pdfFileId: '',
         fotoIds: photoIds,
         p2k2Data: p2k2Data,
-        physicalLokasi: '', // Will be filled by AI
+        physicalLokasi: physicalLokasi ?? (p2k2Data?.tempatPelaksanaan ?? ''),
         createdAt: now.toIso8601String(),
+        showTanggalInPdf: showTanggalInPdf,
+        showPukulInPdf: showPukulInPdf,
       );
 
       // 4. Save to Sheets
@@ -134,6 +145,9 @@ class FormProvider extends ChangeNotifier {
     required List<String> existingPhotoIds,
     required List<XFile> newPhotos,
     P2K2Data? p2k2Data,
+    String? physicalLokasi,
+    bool showTanggalInPdf = true,
+    bool showPukulInPdf = true,
   }) async {
     if (auth.sheetsService == null ||
         auth.driveService == null ||
@@ -148,6 +162,8 @@ class FormProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await auth.ensureFreshAuth();
+
       // 1. Find report row index
       final rowIndex = await auth.sheetsService!.findRowByValue(
         auth.spreadsheetId!,
@@ -184,6 +200,9 @@ class FormProvider extends ChangeNotifier {
           fileName,
           bytes,
           'image/jpeg',
+          onAuthExpired: () async {
+            await auth.ensureFreshAuth();
+          },
         );
         await auth.driveService!.setPublicAccess(fileId);
         photoIds.add(fileId);
@@ -218,14 +237,16 @@ class FormProvider extends ChangeNotifier {
         rencanaAksi: rencanaAksi,
         pukul: pukul,
         poinKegiatan: poinKegiatan,
-        narasiAI: '', // Reset narrative so it gets regenerated
-        narasiEdited: '',
+        narasiAI: oldReport.narasiAI,
+        narasiEdited: oldReport.narasiEdited,
         status: 'Draft',
         pdfFileId: '', // Reset PDF ID since we deleted the old one
         fotoIds: photoIds,
         p2k2Data: p2k2Data,
-        physicalLokasi: '', // Will be filled by AI
+        physicalLokasi: physicalLokasi ?? (p2k2Data?.tempatPelaksanaan ?? oldReport.physicalLokasi),
         createdAt: oldReport.createdAt,
+        showTanggalInPdf: showTanggalInPdf,
+        showPukulInPdf: showPukulInPdf,
       );
 
       // Save to Sheets
@@ -248,6 +269,95 @@ class FormProvider extends ChangeNotifier {
   }
 
   // 2. Generate Narrative
+  // 2. Generate Narrative (Stream)
+  Stream<String> generateNarrativeStream({
+    required AuthProvider auth,
+    required String reportId,
+  }) async* {
+    if (auth.sheetsService == null || auth.spreadsheetId == null) {
+      throw Exception('Konfigurasi tidak valid');
+    }
+
+    _isGeneratingNarrative = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final rowData = await auth.sheetsService!.getRowByValue(
+        auth.spreadsheetId!,
+        AppConstants.sheetLaporanLog,
+        0,
+        reportId,
+      );
+      if (rowData == null) throw Exception('Laporan tidak ditemukan');
+
+      final report = Report.fromSheetRow(rowData);
+      String apiKey = AppConstants.defaultOpenRouterApiKey;
+      String model = AppConstants.defaultOpenRouterModel;
+      String provider = 'openrouter';
+
+      final profile = auth.userProfile;
+      String prompt;
+      if (report.p2k2Data != null && report.p2k2Data!.modul.isNotEmpty) {
+        prompt = _aiService.buildP2K2ReportPrompt(
+          jenisRHK: report.jenisRHK,
+          rencanaAksi: report.rencanaAksi,
+          tanggal: report.tanggal,
+          pukul: report.pukul,
+          poinKegiatan: report.poinKegiatan,
+          p2k2Data: report.p2k2Data!,
+          kecamatan: profile?.kecamatan,
+          kabupatenKota: profile?.kabupatenKota,
+          provinsi: profile?.provinsi,
+          namaPetugas: profile?.nama,
+          jabatanPetugas: profile?.jabatan,
+          isLlama: model.toLowerCase().contains('llama'),
+        );
+      } else {
+        prompt = _aiService.buildReportPrompt(
+          jenisRHK: report.jenisRHK,
+          rencanaAksi: report.rencanaAksi,
+          tanggal: report.tanggal,
+          pukul: report.pukul,
+          poinKegiatan: report.poinKegiatan,
+          lokasi: report.physicalLokasi,
+          kecamatan: profile?.kecamatan,
+          kabupatenKota: profile?.kabupatenKota,
+          provinsi: profile?.provinsi,
+          namaPetugas: profile?.nama,
+          jabatanPetugas: profile?.jabatan,
+          isLlama: model.toLowerCase().contains('llama'),
+        );
+      }
+
+      try {
+        yield* _aiService.generateNarrativeStream(
+          provider: provider,
+          apiKey: apiKey,
+          model: model,
+          prompt: prompt,
+        );
+      } catch (streamError) {
+        debugPrint('Stream encountered error, fallback to standard call: $streamError');
+        final fullNarrative = await _aiService.generateNarrative(
+          provider: provider,
+          apiKey: apiKey,
+          model: model,
+          prompt: prompt,
+        );
+        yield fullNarrative;
+      }
+
+    } catch (e) {
+      _errorMessage = _formatAiErrorMessage(e);
+      notifyListeners();
+      rethrow;
+    } finally {
+      _isGeneratingNarrative = false;
+      notifyListeners();
+    }
+  }
+
   Future<String?> generateNarrative({
     required AuthProvider auth,
     required String reportId,
@@ -280,26 +390,13 @@ class FormProvider extends ChangeNotifier {
       final report = Report.fromSheetRow(rowData);
 
       // 2. Get AI config
-      final userEmail = auth.currentUser?.email ?? '';
       String apiKey = AppConstants.defaultOpenRouterApiKey;
       String model = AppConstants.defaultOpenRouterModel;
       String provider = 'openrouter';
 
-      try {
-        final configRows = await auth.sheetsService!.getAllRows(
-          auth.spreadsheetId!,
-          AppConstants.sheetConfig,
-        );
-        for (var row in configRows) {
-          if (row.isNotEmpty && row[0] == 'AI_MODEL' && row.length > 1) {
-            model = row[1].toString();
-          }
-        }
-      } catch (e) {
-        debugPrint('Gagal membaca sheetConfig: $e');
-      }
+      // AI config is fully controlled from AppConstants - no sheet reading needed
 
-      // 3. Build Prompt
+      final profile = auth.userProfile;
       String prompt;
       if (report.p2k2Data != null && report.p2k2Data!.modul.isNotEmpty) {
         prompt = _aiService.buildP2K2ReportPrompt(
@@ -309,6 +406,11 @@ class FormProvider extends ChangeNotifier {
           pukul: report.pukul,
           poinKegiatan: report.poinKegiatan,
           p2k2Data: report.p2k2Data!,
+          kecamatan: profile?.kecamatan,
+          kabupatenKota: profile?.kabupatenKota,
+          provinsi: profile?.provinsi,
+          namaPetugas: profile?.nama,
+          jabatanPetugas: profile?.jabatan,
           isLlama: model.toLowerCase().contains('llama'),
         );
       } else {
@@ -318,6 +420,12 @@ class FormProvider extends ChangeNotifier {
           tanggal: report.tanggal,
           pukul: report.pukul,
           poinKegiatan: report.poinKegiatan,
+          lokasi: report.physicalLokasi,
+          kecamatan: profile?.kecamatan,
+          kabupatenKota: profile?.kabupatenKota,
+          provinsi: profile?.provinsi,
+          namaPetugas: profile?.nama,
+          jabatanPetugas: profile?.jabatan,
           isLlama: model.toLowerCase().contains('llama'),
         );
       }
@@ -332,11 +440,14 @@ class FormProvider extends ChangeNotifier {
       );
 
       // 5. Extract location
-      String location = '';
+      String location = report.physicalLokasi;
       final locRegex = RegExp(r'<lokasi>(.*?)</lokasi>', dotAll: true, caseSensitive: false);
       final locMatch = locRegex.firstMatch(narrative);
       if (locMatch != null) {
-        location = locMatch.group(1)?.trim() ?? '';
+        final parsed = locMatch.group(1)?.trim() ?? '';
+        if (location.isEmpty && parsed.isNotEmpty && parsed != 'Tidak disebutkan') {
+          location = parsed;
+        }
       }
       String cleanNarrative = narrative.replaceAll(locRegex, '').trim();
       
@@ -374,11 +485,28 @@ class FormProvider extends ChangeNotifier {
       notifyListeners();
       return cleanNarrative;
     } catch (e) {
-      _errorMessage = 'Gagal generate narasi: $e';
+      _errorMessage = _formatAiErrorMessage(e);
       _isGeneratingNarrative = false;
       notifyListeners();
       return null;
     }
+  }
+
+  String _formatAiErrorMessage(dynamic e) {
+    final str = e.toString().toLowerCase();
+    if (str.contains('clientexception') ||
+        str.contains('connection closed') ||
+        str.contains('connection reset') ||
+        str.contains('broken pipe') ||
+        str.contains('socketexception') ||
+        str.contains('timed out') ||
+        str.contains('handshake') ||
+        str.contains('network') ||
+        str.contains('host lookup') ||
+        str.contains('connection refused')) {
+      return 'Koneksi internet terputus atau tidak stabil saat membuat narasi. Silakan periksa jaringan internet Anda dan tekan "Buat Ulang".';
+    }
+    return 'Gagal membuat narasi: $e';
   }
 
   // 3. Save Edited Narrative
@@ -386,10 +514,13 @@ class FormProvider extends ChangeNotifier {
     required AuthProvider auth,
     required String reportId,
     required String narrative,
+    String? location,
   }) async {
     if (auth.sheetsService == null || auth.spreadsheetId == null) return false;
 
     try {
+      await auth.ensureFreshAuth();
+
       final rowIndex = await auth.sheetsService!.findRowByValue(
         auth.spreadsheetId!,
         AppConstants.sheetLaporanLog,
@@ -399,7 +530,7 @@ class FormProvider extends ChangeNotifier {
 
       if (rowIndex == -1) return false;
 
-      // Write edited narrative to column I and update status to column J
+      // Write edited narrative to column I
       await auth.sheetsService!.writeCell(
         auth.spreadsheetId!,
         AppConstants.sheetLaporanLog,
@@ -407,13 +538,14 @@ class FormProvider extends ChangeNotifier {
         narrative,
       );
 
-      // Update status to Selesai (Col 9 / J)
-      await auth.sheetsService!.writeCell(
-        auth.spreadsheetId!,
-        AppConstants.sheetLaporanLog,
-        'J$rowIndex',
-        'Selesai',
-      );
+      if (location != null && location.isNotEmpty) {
+        await auth.sheetsService!.writeCell(
+          auth.spreadsheetId!,
+          AppConstants.sheetLaporanLog,
+          'N$rowIndex',
+          location,
+        );
+      }
 
       return true;
     } catch (e) {
@@ -438,6 +570,14 @@ class FormProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      await auth.ensureFreshAuth();
+
+      // 1. Cek limitasi pengguna gratis
+      final hasReachedLimit = await SubscriptionService.instance.hasReachedDailyPdfLimit();
+      if (hasReachedLimit) {
+        throw Exception('LIMIT_REACHED');
+      }
+
       // Fetch full report data
       final rowIndex = await auth.sheetsService!.findRowByValue(
         auth.spreadsheetId!,
@@ -533,11 +673,17 @@ class FormProvider extends ChangeNotifier {
         fileName,
         pdfBytes,
         'application/pdf',
+        onAuthExpired: () async {
+          await auth.ensureFreshAuth();
+        },
       );
       await auth.driveService!.setPublicAccess(pdfFileId);
 
-      // Update sheet with PDF ID
-      final updatedReport = report.copyWith(pdfFileId: pdfFileId);
+      // Update sheet with PDF ID and Selesai status
+      final updatedReport = report.copyWith(
+        pdfFileId: pdfFileId,
+        status: 'Selesai',
+      );
       await auth.sheetsService!.updateRow(
         auth.spreadsheetId!,
         AppConstants.sheetLaporanLog,
@@ -547,6 +693,9 @@ class FormProvider extends ChangeNotifier {
 
       _isGeneratingPdf = false;
       notifyListeners();
+
+      // Tambahkan hitungan limit
+      await SubscriptionService.instance.incrementDailyPdfCount();
 
       // Trigger ad check after successful PDF save
       AdService.instance.onPdfSaved();
@@ -560,3 +709,4 @@ class FormProvider extends ChangeNotifier {
     }
   }
 }
+

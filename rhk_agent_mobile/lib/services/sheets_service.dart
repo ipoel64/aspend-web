@@ -65,13 +65,21 @@ class SheetsService {
     String sheetName,
     List<Object?> row,
   ) async {
-    final valueRange = sheets.ValueRange(values: [row]);
-    await _api.spreadsheets.values.append(
-      valueRange,
-      spreadsheetId,
-      sheetName,
-      valueInputOption: 'USER_ENTERED',
-    );
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final valueRange = sheets.ValueRange(values: [row]);
+        await _api.spreadsheets.values.append(
+          valueRange,
+          spreadsheetId,
+          sheetName,
+          valueInputOption: 'USER_ENTERED',
+        ).timeout(const Duration(seconds: 30));
+        return;
+      } catch (e) {
+        if (attempt == 3) rethrow;
+        await Future.delayed(Duration(milliseconds: 1000 * attempt));
+      }
+    }
   }
 
   Future<void> updateRow(
@@ -80,13 +88,21 @@ class SheetsService {
     int rowIndex,
     List<Object?> row,
   ) async {
-    final valueRange = sheets.ValueRange(values: [row]);
-    await _api.spreadsheets.values.update(
-      valueRange,
-      spreadsheetId,
-      '$sheetName!A$rowIndex',
-      valueInputOption: 'USER_ENTERED',
-    );
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final valueRange = sheets.ValueRange(values: [row]);
+        await _api.spreadsheets.values.update(
+          valueRange,
+          spreadsheetId,
+          '$sheetName!A$rowIndex',
+          valueInputOption: 'USER_ENTERED',
+        ).timeout(const Duration(seconds: 30));
+        return;
+      } catch (e) {
+        if (attempt == 3) rethrow;
+        await Future.delayed(Duration(milliseconds: 1000 * attempt));
+      }
+    }
   }
 
   Future<void> deleteRow(

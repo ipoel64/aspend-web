@@ -392,6 +392,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_tts:
+    dependency: "direct main"
+    description:
+      name: flutter_tts
+      sha256: ce5eb209b40e95f2f4a1397116c87ab2fcdff32257d04ed7a764e75894c03775
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.5"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -685,6 +693,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.10+1"
+  in_app_update:
+    dependency: "direct main"
+    description:
+      name: in_app_update
+      sha256: c55b4da41baf34b440ba627843932aa6f1689b5c499cfac98aec156b3113d89e
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.0.0"
   intl:
     dependency: "direct main"
     description:
@@ -829,6 +845,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  mobile_scanner:
+    dependency: "direct main"
+    description:
+      name: mobile_scanner
+      sha256: "0b466a0a8a211b366c2e87f3345715faef9b6011c7147556ad22f37de6ba3173"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.11"
   nested:
     dependency: transitive
     description:

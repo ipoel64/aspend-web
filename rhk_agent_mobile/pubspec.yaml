@@ -1,7 +1,7 @@
 name: aspend_mobile
 description: Aspend - Asisten Pendamping Laporan PKH
 publish_to: 'none'
-version: 1.0.8+22
+version: 1.0.25+39
 
 environment:
   sdk: ^3.7.0
@@ -37,6 +37,8 @@ dependencies:
   camera: ^0.10.5+9
   speech_to_text: ^7.0.0
   image: ^4.3.0
+  flutter_tts: ^4.2.2
+  mobile_scanner: ^6.0.4
 
   # Notifications
   flutter_local_notifications: ^18.0.1
@@ -66,6 +68,7 @@ dependencies:
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
   signature: ^6.3.0
+  in_app_update: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -83,3 +86,4 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/sounds/

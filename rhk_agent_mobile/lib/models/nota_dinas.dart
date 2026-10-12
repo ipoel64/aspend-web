@@ -1,4 +1,4 @@
-class NotaDinas {
+﻿class NotaDinas {
   final String id;
   final String email;
   final String nomor;

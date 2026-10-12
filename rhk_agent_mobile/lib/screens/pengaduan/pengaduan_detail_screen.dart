@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -515,30 +515,37 @@ class _PengaduanDetailScreenState extends State<PengaduanDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (_currentPengaduan.fotoKtp.isNotEmpty)
-                      Expanded(
-                        child: _buildAttachmentCard(
-                          context,
-                          'Foto KTP',
-                          _currentPengaduan.fotoKtp,
+                SizedBox(
+                  height: 180,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      if (_currentPengaduan.fotoKtp.isNotEmpty)
+                        SizedBox(
+                          width: 160,
+                          child: _buildAttachmentCard(
+                            context,
+                            'Foto KTP',
+                            _currentPengaduan.fotoKtp,
+                          ),
                         ),
-                      )
-                    else
-                      const Expanded(child: SizedBox()),
-                    const SizedBox(width: 12),
-                    if (_currentPengaduan.screenshotSiks.isNotEmpty)
-                      Expanded(
-                        child: _buildAttachmentCard(
-                          context,
-                          'Screenshot SIKS-NG',
-                          _currentPengaduan.screenshotSiks,
-                        ),
-                      )
-                    else
-                      const Expanded(child: SizedBox()),
-                  ],
+                      if (_currentPengaduan.screenshotSiks.isNotEmpty)
+                        ..._currentPengaduan.screenshotSiks
+                            .split(',')
+                            .where((id) => id.trim().isNotEmpty)
+                            .map((id) => Padding(
+                                  padding: const EdgeInsets.only(left: 12),
+                                  child: SizedBox(
+                                    width: 160,
+                                    child: _buildAttachmentCard(
+                                      context,
+                                      'Screenshot',
+                                      id.trim(),
+                                    ),
+                                  ),
+                                )),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
 

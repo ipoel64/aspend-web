@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../config/constants.dart';
@@ -46,13 +46,21 @@ class ReportProvider extends ChangeNotifier {
       );
 
       _reports = rows.map((row) => Report.fromSheetRow(row)).toList();
-      // Sort by report date (tanggal) newest first, secondary sort by creation time
+      // Sort by report date (tanggal) newest first, secondary sort by time (pukul), tertiary by creation time
       _reports.sort((a, b) {
         final dateA = _parseReportDate(a.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
         final dateB = _parseReportDate(b.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final comp = dateB.compareTo(dateA);
+        final pureDateA = DateTime(dateA.year, dateA.month, dateA.day);
+        final pureDateB = DateTime(dateB.year, dateB.month, dateB.day);
+        final comp = pureDateB.compareTo(pureDateA);
         if (comp == 0) {
-          return b.createdAt.compareTo(a.createdAt);
+          final timeA = _parseTime(a.pukul);
+          final timeB = _parseTime(b.pukul);
+          final timeComp = timeB.compareTo(timeA);
+          if (timeComp == 0) {
+            return b.createdAt.compareTo(a.createdAt);
+          }
+          return timeComp;
         }
         return comp;
       });
@@ -64,6 +72,16 @@ class ReportProvider extends ChangeNotifier {
     }
 
     _setLoading(false);
+  }
+
+  int _parseTime(String pukul) {
+    try {
+      final parts = pukul.split(RegExp(r'[:.]'));
+      if (parts.length >= 2) {
+        return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+      }
+    } catch (_) {}
+    return 0;
   }
 
   void _applyFilters() {
@@ -160,6 +178,7 @@ class ReportProvider extends ChangeNotifier {
         '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
     int monthCount = 0;
+    Map<String, int> rhkCountsMonth = {};
     for (var r in _reports) {
       final reportDate = _parseReportDate(r.tanggal);
       if (reportDate != null) {
@@ -167,11 +186,16 @@ class ReportProvider extends ChangeNotifier {
             '${reportDate.year}-${reportDate.month.toString().padLeft(2, '0')}';
         if (rowMonth == currentMonthPrefix) {
           monthCount++;
+          rhkCountsMonth[r.idRHK] = (rhkCountsMonth[r.idRHK] ?? 0) + 1;
         }
       }
     }
 
-    _stats = DashboardStats(total: _reports.length, month: monthCount);
+    _stats = DashboardStats(
+      total: _reports.length,
+      month: monthCount,
+      rhkCountsMonth: rhkCountsMonth,
+    );
   }
 
   Future<void> deleteReport(String reportId) async {

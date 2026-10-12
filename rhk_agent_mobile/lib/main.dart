@@ -16,11 +16,14 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/report/create_report_screen.dart';
-import 'screens/report/narrative_screen.dart';
+import 'package:aspend_mobile/screens/report/narrative_screen.dart';
 import 'screens/settings/subscription_screen.dart';
+import 'screens/jarvis/jarvis_assistant_screen.dart';
 import 'services/notification_service.dart';
 import 'services/ad_service.dart';
 import 'services/subscription_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -115,6 +118,7 @@ class AspendApp extends StatelessWidget {
         builder: (context) {
           final themeProvider = context.watch<ThemeProvider>();
           return MaterialApp(
+            navigatorKey: navigatorKey,
             title: 'Asisten Pendamping (Aspend)',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
@@ -139,6 +143,7 @@ class AspendApp extends StatelessWidget {
               '/create-report': (context) => const CreateReportScreen(),
               '/narrative': (context) => const NarrativeScreen(),
               '/subscription': (context) => const SubscriptionScreen(),
+              '/jarvis': (context) => const JarvisAssistantScreen(),
             },
             builder: (context, child) {
               // Daftarkan context ke AdService agar dialog Premium bisa muncul

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +18,8 @@ class SubscriptionService {
   // SharedPreferences keys
   static const String _premiumKey = 'is_premium_active';
   static const String _premiumExpiryKey = 'premium_expiry_date';
+  static const String _dailyPdfCountKey = 'daily_pdf_count';
+  static const String _dailyPdfDateKey = 'daily_pdf_date';
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
   bool _isAvailable = false;
@@ -181,7 +183,7 @@ class SubscriptionService {
         .firstWhere((p) => p?.id == productId, orElse: () => null);
 
     if (product == null) {
-      debugPrint('SubscriptionService: Produk $productId tidak ditemukan.');
+      debugPrint('SubscriptionService: Product $productId tidak ditemukan.');
       return false;
     }
 
@@ -203,5 +205,43 @@ class SubscriptionService {
 
   void dispose() {
     _subscription?.cancel();
+  }
+
+  /// Mengecek apakah batas PDF harian gratis sudah tercapai.
+  /// Pengguna gratis dibatasi maksimal 3 PDF per hari.
+  Future<bool> hasReachedDailyPdfLimit() async {
+    if (_isPremium) return false; // Premium unlimited
+
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().substring(0, 10); // YYYY-MM-DD
+    final storedDate = prefs.getString(_dailyPdfDateKey);
+
+    if (storedDate != today) {
+      // Hari baru, reset hitungan
+      await prefs.setString(_dailyPdfDateKey, today);
+      await prefs.setInt(_dailyPdfCountKey, 0);
+      return false;
+    }
+
+    final currentCount = prefs.getInt(_dailyPdfCountKey) ?? 0;
+    return currentCount >= 3;
+  }
+
+  /// Menambah hitungan PDF harian (dipanggil setelah sukses generate).
+  Future<void> incrementDailyPdfCount() async {
+    if (_isPremium) return; // Tidak perlu hitung untuk premium
+
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final storedDate = prefs.getString(_dailyPdfDateKey);
+
+    int newCount = 1;
+    if (storedDate == today) {
+      final currentCount = prefs.getInt(_dailyPdfCountKey) ?? 0;
+      newCount = currentCount + 1;
+    } else {
+      await prefs.setString(_dailyPdfDateKey, today);
+    }
+    await prefs.setInt(_dailyPdfCountKey, newCount);
   }
 }

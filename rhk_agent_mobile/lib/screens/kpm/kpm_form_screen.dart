@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -278,19 +278,9 @@ class _KpmFormScreenState extends State<KpmFormScreen> {
       
       // Gunakan API Key AI bawaan
       final apiKey = AppConstants.defaultOpenRouterApiKey;
-      // Ambil detail provider dan model default
-      final configRows = await auth.sheetsService!.getAllRows(auth.spreadsheetId!, 'Config');
-      String provider = 'groq';
-      
-      for (var row in configRows) {
-        if (row.length > 1) {
-          if (row[0] == 'AI_PROVIDER') provider = row[1].toString();
-        }
-      }
-
-      String model = provider == 'groq' ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'google/gemini-2.5-flash';
-
-
+      String provider = 'openrouter';
+      // Force Gemini Flash-Lite model for OCR / vision tasks
+      String model = 'google/gemini-3.5-flash-lite';
       // Panggil OCR
       final ocrData = await AiService().extractDocumentData(
         imageFile: file,

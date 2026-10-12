@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../config/app_theme.dart';
 import '../../providers/pengaduan_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/scanner_overlay.dart';
 import '../camera/custom_camera_screen.dart';
@@ -37,7 +38,7 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
   final _lngController = TextEditingController();
 
   File? _ktpPhoto;
-  File? _screenshotSiks;
+  List<File> _screenshotSiksList = [];
   
   bool _isLocating = false;
   MapController? _mapController;
@@ -325,12 +326,10 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
   }
 
   Future<void> _pickScreenshot() async {
-    final pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-    );
-    if (pickedFile == null) return;
+    final pickedFiles = await _picker.pickMultiImage();
+    if (pickedFiles.isEmpty) return;
     setState(() {
-      _screenshotSiks = File(pickedFile.path);
+      _screenshotSiksList.addAll(pickedFiles.map((x) => File(x.path)));
     });
   }
 
@@ -478,7 +477,7 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
         latitude: double.tryParse(_latController.text) ?? 0.0,
         longitude: double.tryParse(_lngController.text) ?? 0.0,
         ktpPhoto: _ktpPhoto,
-        screenshotSiks: _screenshotSiks,
+        screenshotSiksList: _screenshotSiksList,
       );
 
       if (success) {
@@ -493,10 +492,18 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
         }
       } else {
         final error = context.read<PengaduanProvider>().errorMessage;
-        _showError(error ?? 'Gagal menyimpan pengaduan');
+        if (error != null && error.contains('LIMIT_REACHED')) {
+          DialogUtils.showPremiumLimitDialog(context);
+        } else {
+          _showError(error ?? 'Gagal menyimpan pengaduan');
+        }
       }
     } catch (e) {
-      _showError('Gagal menyimpan pengaduan: $e');
+      if (e.toString().contains('LIMIT_REACHED')) {
+        DialogUtils.showPremiumLimitDialog(context);
+      } else {
+        _showError('Gagal menyimpan pengaduan: $e');
+      }
     } finally {
       setState(() => _isSubmitting = false);
     }
@@ -836,11 +843,44 @@ class _PengaduanFormScreenState extends State<PengaduanFormScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_screenshotSiks != null) ...[
-                    Center(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(_screenshotSiks!, height: 180, fit: BoxFit.contain, cacheHeight: 500),
+                  if (_screenshotSiksList.isNotEmpty) ...[
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _screenshotSiksList.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(_screenshotSiksList[index], height: 120, width: 120, fit: BoxFit.cover, cacheHeight: 300),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _screenshotSiksList.removeAt(index);
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 16),

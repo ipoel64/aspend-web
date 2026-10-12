@@ -1,4 +1,4 @@
-/// Data Master RHK
+﻿/// Data Master RHK
 final List<Map<String, String>> masterRHKData = [
   // RHK-1
   {
@@ -174,14 +174,49 @@ final List<Map<String, String>> masterP2K2Data = [
   {'id': 'p2k229', 'modul': 'MODUL 8: PEMETAAN POTENSI KELUARGA DAN RENCANA AKSI DALAM PENCEGAHAN DAN PENANGANAN STUNTING', 'sesi': 'Sesi 15. Komitmen Melaksanakan rencana Tindak Lanjut'},
 ];
 
+/// Data Master RHK TKSK
+final List<Map<String, String>> masterTKSKRHKData = [
+  {
+    'id': 'RHK-1',
+    'jenisRhk': 'Koordinasi, Konsultasi Dan Pelaksanaan Kesejahteraan Sosial',
+    'rencanaAksi': 'Laporan Pengaduan Masyarakat',
+  },
+  {
+    'id': 'RHK-2',
+    'jenisRhk': 'Kegiatan Sosialisasi Dan Edukasi Pemberdayaan Sosial',
+    'rencanaAksi': 'Melakukan Sosialisasi Dan Edukasi Pemberdayaan Sosial/ Penyaluran Bantuan Sosial',
+  },
+  {
+    'id': 'RHK-3',
+    'jenisRhk': 'Pengumpulan Data Verifikasi dan Validasi',
+    'rencanaAksi': 'Laporan Data Dalam Memberikan Dukungan Pemenuhan Kehidupan Layak Dan Aksesibilitas Bagi PPKS/KPM',
+  },
+  {
+    'id': 'RHK-4',
+    'jenisRhk': 'Hasil Analisis Asesmen PPKS/KPM Penerima Bantuan Sosial',
+    'rencanaAksi': 'Laporan Hasil Analisis Asesmen PPKS/KPM Penerima Bantuan Sosial',
+  },
+  {
+    'id': 'RHK-5',
+    'jenisRhk': 'Pelayanan Pendampingan Dan Rujukan',
+    'rencanaAksi': 'Laporan Hasil Pelayanan Pendampingan Dan Rujukan Bagi PPKS',
+  },
+  {
+    'id': 'RHK-6',
+    'jenisRhk': 'Koordinasi Dan Sinergitas Kelembagaan',
+    'rencanaAksi': 'Laporan Sinergitas Kelembagaaan Dalam Pelaksanaan Pelayanan Dan Pendampingan Sosial',
+  },
+];
+
 // Helper Functions
 bool isP2K2(String jenisRhk) {
   return jenisRhk.toUpperCase().contains('P2K2');
 }
 
-List<Map<String, String>> getUniqueJenisRHK() {
+List<Map<String, String>> getUniqueJenisRHK([String jenisSdm = 'SDM PKH']) {
+  final data = jenisSdm == 'TKSK' ? masterTKSKRHKData : masterRHKData;
   final Map<String, String> map = {};
-  for (var item in masterRHKData) {
+  for (var item in data) {
     if (!map.containsKey(item['jenisRhk'])) {
       map[item['jenisRhk']!] = item['id']!;
     }
@@ -189,8 +224,9 @@ List<Map<String, String>> getUniqueJenisRHK() {
   return map.entries.map((e) => {'jenisRhk': e.key, 'id': e.value}).toList();
 }
 
-List<String> getRencanaAksiByJenis(String jenisRhk) {
-  return masterRHKData
+List<String> getRencanaAksiByJenis(String jenisRhk, [String jenisSdm = 'SDM PKH']) {
+  final data = jenisSdm == 'TKSK' ? masterTKSKRHKData : masterRHKData;
+  return data
       .where((item) => item['jenisRhk'] == jenisRhk)
       .map((item) => item['rencanaAksi']!)
       .toList();
@@ -210,3 +246,5 @@ List<String> getSesiByModul(String modul) {
       .map((item) => item['sesi']!)
       .toList();
 }
+
+

@@ -5,14 +5,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_theme.dart';
 import '../../config/constants.dart';
+import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/ai_service.dart';
+import '../../services/wilayah_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/subscription_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:typed_data';
 import 'widgets/digital_signature_dialog.dart';
+import 'sdm_pkh_screen.dart';
+import '../auth/qr_web_login_screen.dart';
+import '../../utils/string_utils.dart';
 
 /// Settings Screen — Profil, Tanda Tangan, Konfigurasi AI
 class SettingsScreen extends StatefulWidget {
@@ -25,16 +30,25 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _namaController = TextEditingController();
   final _nipController = TextEditingController();
-  final _jabatanController = TextEditingController();
-  final _kabupatenController = TextEditingController();
+  final _jabatanController = TextEditingController(text: 'Pendamping PKH');
+  final _jenisSdmController = TextEditingController(text: 'SDM PKH');
+  
+  String _selectedProvinsi = '';
+  String _selectedKabupaten = '';
+  String _selectedKecamatan = '';
+  List<WilayahItem> _provinces = [];
+  List<WilayahItem> _regencies = [];
+  List<WilayahItem> _districts = [];
+  bool _loadingWilayah = false;
+
   bool _isLoading = false;
   bool _isSaving = false;
   
-  String _adminWhatsapp = '+6283162019160';
+  String _adminWhatsapp = '+6281269731143';
 
   // AI Config State
   String _selectedProvider = 'openrouter';
-  String _selectedModel = 'google/gemini-3.5-flash';
+  String _selectedModel = 'deepseek/deepseek-v4-flash';
   final _apiKeyController = TextEditingController();
   bool _isLoadingConfig = false;
   bool _isSavingConfig = false;
@@ -43,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Notification State
   bool _notificationEnabled = true;
-  TimeOfDay _notificationTime = const TimeOfDay(hour: 17, minute: 0);
+  TimeOfDay _notificationTime = const TimeOfDay(hour: 16, minute: 5);
 
   String _appVersion = '';
   String _packageName = 'com.ipol.aspend';
@@ -54,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _initPackageInfo();
     _loadProfile();
     _loadAiConfig();
+    _initWilayah();
     _loadNotificationConfig();
   }
 
@@ -69,7 +84,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _initWilayah() async {
+    setState(() => _loadingWilayah = true);
+    try {
+      final pList = await WilayahService.instance.getProvinces();
+      if (!mounted) return;
+      setState(() {
+        _provinces = pList;
+        _loadingWilayah = false;
+      });
+      if (_selectedProvinsi.isNotEmpty) {
+        await _fetchRegenciesForProvinsi(_selectedProvinsi);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingWilayah = false);
+    }
+  }
 
+  Future<void> _fetchRegenciesForProvinsi(String provName) async {
+    final matchedP = _provinces.firstWhere(
+      (p) => p.name.toUpperCase() == provName.toUpperCase(),
+      orElse: () => WilayahItem(id: '', name: ''),
+    );
+    if (matchedP.id.isNotEmpty) {
+      final rList = await WilayahService.instance.getRegencies(matchedP.id);
+      if (mounted) {
+        setState(() => _regencies = rList);
+        if (_selectedKabupaten.isNotEmpty) {
+          await _fetchDistrictsForKabupaten(_selectedKabupaten);
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchDistrictsForKabupaten(String kabName) async {
+    final matchedR = _regencies.firstWhere(
+      (r) => r.name.toUpperCase() == kabName.toUpperCase(),
+      orElse: () => WilayahItem(id: '', name: ''),
+    );
+    if (matchedR.id.isNotEmpty) {
+      final dList = await WilayahService.instance.getDistricts(matchedR.id);
+      if (mounted) {
+        setState(() => _districts = dList);
+      }
+    }
+  }
+
+  void _onProvinsiChanged(String? name) async {
+    if (name == null || name == _selectedProvinsi) return;
+    setState(() {
+      _selectedProvinsi = name;
+      _selectedKabupaten = '';
+      _selectedKecamatan = '';
+      _regencies = [];
+      _districts = [];
+    });
+    await _fetchRegenciesForProvinsi(name);
+  }
+
+  void _onKabupatenChanged(String? name) async {
+    if (name == null || name == _selectedKabupaten) return;
+    setState(() {
+      _selectedKabupaten = name;
+      _selectedKecamatan = '';
+      _districts = [];
+    });
+    await _fetchDistrictsForKabupaten(name);
+  }
 
   void _loadProfile() {
     final auth = context.read<AuthProvider>();
@@ -77,8 +158,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (profile != null) {
       _namaController.text = profile.nama;
       _nipController.text = profile.nip;
-      _jabatanController.text = profile.jabatan;
-      _kabupatenController.text = profile.kabupatenKota;
+      _jenisSdmController.text = profile.jenisSdm.isNotEmpty ? profile.jenisSdm : 'SDM PKH';
+      _jabatanController.text = profile.jabatan.isNotEmpty
+          ? profile.jabatan
+          : (_jenisSdmController.text == 'TKSK' ? '' : 'Pendamping PKH');
+      _selectedProvinsi = profile.provinsi;
+      _selectedKabupaten = profile.kabupatenKota;
+      _selectedKecamatan = profile.kecamatan;
+      if (_provinces.isNotEmpty && _selectedProvinsi.isNotEmpty && _regencies.isEmpty) {
+        _fetchRegenciesForProvinsi(_selectedProvinsi);
+      }
+    }
+  }
+
+  void _syncProfileIfEmpty(UserProfile? profile) {
+    if (profile == null) return;
+    if (_namaController.text.isEmpty && profile.nama.isNotEmpty) {
+      _namaController.text = profile.nama;
+    }
+    if (_nipController.text.isEmpty && profile.nip.isNotEmpty) {
+      _nipController.text = profile.nip;
+    }
+    if (_jenisSdmController.text.isEmpty) {
+      _jenisSdmController.text = profile.jenisSdm.isNotEmpty ? profile.jenisSdm : 'SDM PKH';
+    }
+    if (_jabatanController.text.isEmpty && _jenisSdmController.text != 'TKSK') {
+      String loadedJabatan = profile.jabatan;
+      if (loadedJabatan == 'Katim Kecamatan') {
+        loadedJabatan = 'Pendamping PKH';
+      }
+      _jabatanController.text = loadedJabatan.isNotEmpty ? loadedJabatan : 'Pendamping PKH';
+    }
+    if (_selectedProvinsi.isEmpty && profile.provinsi.isNotEmpty) {
+      _selectedProvinsi = profile.provinsi;
+      if (_provinces.isNotEmpty) _fetchRegenciesForProvinsi(_selectedProvinsi);
+    }
+    if (_selectedKabupaten.isEmpty && profile.kabupatenKota.isNotEmpty) {
+      _selectedKabupaten = profile.kabupatenKota;
+      if (_regencies.isNotEmpty) _fetchDistrictsForKabupaten(_selectedKabupaten);
+    }
+    if (_selectedKecamatan.isEmpty && profile.kecamatan.isNotEmpty) {
+      _selectedKecamatan = profile.kecamatan;
     }
   }
 
@@ -87,7 +207,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _namaController.dispose();
     _nipController.dispose();
     _jabatanController.dispose();
-    _kabupatenController.dispose();
+    _jenisSdmController.dispose();
     _apiKeyController.dispose();
     super.dispose();
   }
@@ -135,6 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Consumer<AuthProvider>(
           builder: (context, auth, _) {
+            _syncProfileIfEmpty(auth.userProfile);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -154,9 +275,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSignatureSection(auth),
                 const SizedBox(height: 16),
 
-                // AI Config Section
-                _buildAiConfigSection(),
-                const SizedBox(height: 16),
+                // AI Config Section (Hidden per user request)
+                // _buildAiConfigSection(),
+                // const SizedBox(height: 16),
 
                 // ── Kartu Premium ──
                 _buildPremiumCard(),
@@ -189,6 +310,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+
 
   Widget _buildPremiumCard() {
     final isPremium = SubscriptionService.instance.isPremium();
@@ -422,9 +545,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           _buildFormField('NIP', _nipController, Icons.badge_rounded),
           const SizedBox(height: 12),
-          _buildFormField('Jabatan', _jabatanController, Icons.work_rounded),
+          _buildFormField(
+            'Jenis SDM',
+            _jenisSdmController,
+            Icons.group_work_rounded,
+            options: const ['SDM PKH', 'TKSK'],
+            onChanged: (val) {
+              setState(() {
+                if (val == 'TKSK') {
+                  _jabatanController.clear();
+                } else if (_jabatanController.text.isEmpty) {
+                  _jabatanController.text = 'Pendamping PKH';
+                }
+              });
+            },
+          ),
+          if (_jenisSdmController.text != 'TKSK') ...[
+            const SizedBox(height: 12),
+            _buildFormField(
+              'Jabatan',
+              _jabatanController,
+              Icons.work_rounded,
+              options: const ['Pendamping PKH', 'Katim Kab/Kota', 'Katim Provinsi'],
+              onChanged: (val) => setState(() {}),
+            ),
+          ],
           const SizedBox(height: 12),
-          _buildFormField('Kabupaten/Kota', _kabupatenController, Icons.location_city_rounded),
+          _buildWilayahDropdown(
+            label: 'Provinsi',
+            value: _selectedProvinsi,
+            items: _provinces.map((p) => p.name).toList(),
+            hint: _loadingWilayah ? 'Memuat Provinsi...' : 'Pilih Provinsi',
+            icon: Icons.map_rounded,
+            onChanged: _onProvinsiChanged,
+          ),
+          const SizedBox(height: 12),
+          _buildWilayahDropdown(
+            label: 'Kabupaten / Kota',
+            value: _selectedKabupaten,
+            items: _regencies.map((r) => r.name).toList(),
+            hint: _selectedProvinsi.isEmpty ? 'Pilih Provinsi dahulu' : 'Pilih Kabupaten/Kota',
+            icon: Icons.location_city_rounded,
+            onChanged: _onKabupatenChanged,
+          ),
+          const SizedBox(height: 12),
+          _buildWilayahDropdown(
+            label: 'Kecamatan',
+            value: _selectedKecamatan,
+            items: _districts.map((d) => d.name).toList(),
+            hint: _selectedKabupaten.isEmpty ? 'Pilih Kab/Kota dahulu' : 'Pilih Kecamatan',
+            icon: Icons.holiday_village_rounded,
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedKecamatan = val);
+            },
+          ),
           const SizedBox(height: 20),
 
           // Save button
@@ -450,26 +624,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : const Text('Simpan Profil', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
+          if (_jabatanController.text == 'Katim Kab/Kota' ||
+              _jabatanController.text == 'Katim Provinsi' ||
+              auth.userProfile?.jabatan == 'Katim Kab/Kota' ||
+              auth.userProfile?.jabatan == 'Katim Provinsi') ...[
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.teal.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.teal.withOpacity(0.35)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                leading: Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.people_alt_rounded, color: Colors.white, size: 22),
+                ),
+                title: const Text(
+                  'Data SDM PKH Dampingan',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Kelola master data pendamping untuk supervisi P2K2 (sinkron database web)',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.teal),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SdmPkhScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildFormField(String label, TextEditingController controller, IconData icon) {
+  Widget _buildFormField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    List<String>? options,
+    void Function(String)? onChanged,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(fontSize: 13, color: Colors.grey[600]),
         prefixIcon: Icon(icon, size: 20, color: AppColors.navy.withOpacity(0.5)),
+        suffixIcon: options != null && options.isNotEmpty
+            ? PopupMenuButton<String>(
+                icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.navy),
+                tooltip: 'Pilih $label',
+                onSelected: (val) {
+                  setState(() {
+                    controller.text = val;
+                  });
+                  if (onChanged != null) onChanged(val);
+                },
+                itemBuilder: (context) => options
+                    .map(
+                      (opt) => PopupMenuItem(
+                        value: opt,
+                        child: Text(opt, style: const TextStyle(fontSize: 13)),
+                      ),
+                    )
+                    .toList(),
+              )
+            : null,
         filled: true,
-        fillColor: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
+        fillColor: isDark ? AppColors.bgDark : AppColors.bgLight,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
+    );
+  }
+
+  Widget _buildWilayahDropdown({
+    required String label,
+    required String value,
+    required List<String> items,
+    required String hint,
+    required IconData icon,
+    required void Function(String?) onChanged,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final safeItems = List<String>.from(items);
+    if (value.isNotEmpty && !safeItems.contains(value)) {
+      safeItems.insert(0, value);
+    }
+    final selectedVal = value.isNotEmpty && safeItems.contains(value) ? value : null;
+
+    return DropdownButtonFormField<String>(
+      value: selectedVal,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(fontSize: 13, color: Colors.grey[600]),
+        prefixIcon: Icon(icon, size: 20, color: AppColors.navy.withOpacity(0.5)),
+        filled: true,
+        fillColor: isDark ? AppColors.bgDark : AppColors.bgLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      ),
+      hint: Text(hint, style: TextStyle(fontSize: 13, color: Colors.grey[400])),
+      items: safeItems
+          .map((item) => DropdownMenuItem(
+                value: item,
+                child: Text(item, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
+              ))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 
@@ -602,7 +884,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
-  }  Widget _buildContactAdminSection(AuthProvider auth) {
+  }
+
+  Future<void> _launchTelegram() async {
+    String cleanNumber = _adminWhatsapp.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = '62' + cleanNumber.substring(1);
+    }
+    final url = Uri.parse('https://t.me/+$cleanNumber');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak dapat membuka Telegram')),
+        );
+      }
+    }
+  }
+
+  Widget _buildContactAdminSection(AuthProvider auth) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -647,17 +948,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             title: const Text('Admin Aspend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             subtitle: Text(_adminWhatsapp, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            trailing: ElevatedButton.icon(
-              onPressed: _launchWhatsApp,
-              icon: const Icon(Icons.open_in_new_rounded, size: 14),
-              label: const Text('Chat WA', style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _launchWhatsApp,
+                  icon: const Icon(Icons.chat, size: 16),
+                  label: const Text('Chat WA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[600],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _launchTelegram,
+                  icon: const Icon(Icons.send_rounded, size: 16),
+                  label: const Text('Chat Telegram', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0088CC),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -670,19 +992,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (profile == null) {
       missingItems.add('Data profil belum dimuat');
     } else {
+      final isTksk = profile.jenisSdm == 'TKSK';
       if (profile.nama.trim().isEmpty ||
           profile.nip.trim().isEmpty ||
-          profile.jabatan.trim().isEmpty ||
+          (!isTksk && profile.jabatan.trim().isEmpty) ||
           profile.kabupatenKota.trim().isEmpty) {
-        missingItems.add('Data Profil (Nama, NIP, Jabatan, Kabupaten/Kota)');
+        missingItems.add(isTksk
+            ? 'Data Profil (Nama, NIP, Kabupaten/Kota)'
+            : 'Data Profil (Nama, NIP, Jabatan, Kabupaten/Kota)');
       }
       if (profile.signatureFileId.trim().isEmpty) {
         missingItems.add('Tanda Tangan Digital');
       }
-    }
-    
-    if (_apiKeyController.text.trim().isEmpty) {
-      missingItems.add('API Key Asisten Pendamping');
     }
     
     final baseItemsFilled = profile != null &&
@@ -690,8 +1011,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         profile.nip.trim().isNotEmpty &&
         profile.jabatan.trim().isNotEmpty &&
         profile.kabupatenKota.trim().isNotEmpty &&
-        profile.signatureFileId.trim().isNotEmpty &&
-        _apiKeyController.text.trim().isNotEmpty;
+        profile.jenisSdm.trim().isNotEmpty &&
+        profile.signatureFileId.trim().isNotEmpty;
         
 
 
@@ -956,13 +1277,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveProfile(AuthProvider auth) async {
+    final nama = _namaController.text.trim();
+    final nip = _nipController.text.trim();
+    final jenisSdm = _jenisSdmController.text.trim().isNotEmpty
+        ? _jenisSdmController.text.trim()
+        : 'SDM PKH';
+    final isTksk = jenisSdm == 'TKSK';
+    final jabatan = isTksk
+        ? ''
+        : (_jabatanController.text.trim().isNotEmpty ? _jabatanController.text.trim() : 'Pendamping PKH');
+    final provinsi = formatTitleCase(_selectedProvinsi.trim());
+    final kabupatenKota = formatTitleCase(_selectedKabupaten.trim());
+    final kecamatan = formatTitleCase(_selectedKecamatan.trim());
+
+    if (nama.isEmpty || nip.isEmpty || kabupatenKota.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mohon lengkapi Nama, NIP, dan Kabupaten/Kota'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       await auth.updateProfile(
-        nama: _namaController.text,
-        nip: _nipController.text,
-        jabatan: _jabatanController.text,
-        kabupatenKota: _kabupatenController.text,
+        nama: nama,
+        nip: nip,
+        jabatan: jabatan,
+        kabupatenKota: kabupatenKota,
+        jenisSdm: jenisSdm,
+        provinsi: provinsi,
+        kecamatan: kecamatan,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1016,6 +1363,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _syncCurrentFormToProfile(AuthProvider auth) {
+    if (_namaController.text.trim().isNotEmpty ||
+        _nipController.text.trim().isNotEmpty ||
+        _selectedKabupaten.trim().isNotEmpty) {
+      auth.updateProfile(
+        nama: _namaController.text.trim(),
+        nip: _nipController.text.trim(),
+        jabatan: _jenisSdmController.text == 'TKSK'
+            ? ''
+            : (_jabatanController.text.trim().isNotEmpty ? _jabatanController.text.trim() : 'Pendamping PKH'),
+        kabupatenKota: _selectedKabupaten.trim(),
+        jenisSdm: _jenisSdmController.text.trim().isNotEmpty ? _jenisSdmController.text.trim() : 'SDM PKH',
+        provinsi: _selectedProvinsi.trim(),
+        kecamatan: _selectedKecamatan.trim(),
+      );
+    }
+  }
+
   Future<void> _uploadSignature(AuthProvider auth) async {
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90, maxWidth: 800);
@@ -1036,6 +1401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     setState(() => _isLoading = true);
     try {
+      _syncCurrentFormToProfile(auth);
       await auth.uploadSignature(bytes, 'image/png');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1059,6 +1425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _uploadSignatureBytes(AuthProvider auth, Uint8List bytes) async {
     setState(() => _isLoading = true);
     try {
+      _syncCurrentFormToProfile(auth);
       await auth.uploadSignature(bytes, 'image/png');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1100,8 +1467,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (row[0] == 'AI_MODEL' && row.length > 1) {
             String loadedModel = row[1].toString();
             // Migrate deprecated model
-            if (loadedModel == 'google/gemini-1.5-flash') {
-              loadedModel = 'google/gemini-3.5-flash';
+            if (loadedModel == 'google/gemini-3.5-flash' || loadedModel == 'google/gemini-1.5-flash' || loadedModel == 'google/gemini-1.5-pro' || loadedModel == 'google/gemini-2.5-flash' || loadedModel == 'google/gemini-3.5-flash-lite') {
+              loadedModel = 'deepseek/deepseek-v4-flash';
               setState(() => _selectedModel = loadedModel);
               _saveAiConfigSilent();
             } else {
@@ -1110,8 +1477,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
           if (row[0] == 'ADMIN_WHATSAPP' && row.length > 1) {
             String val = row[1].toString();
-            if (val != '+6283162019160') {
-              setState(() => _adminWhatsapp = '+6283162019160');
+            if (val != '+6281269731143') {
+              setState(() => _adminWhatsapp = '+6281269731143');
               _updateAdminWhatsappInSheet(auth);
             } else {
               setState(() => _adminWhatsapp = val);
@@ -1141,7 +1508,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           auth.spreadsheetId!,
           'Config',
           'B$whatsappRow',
-          '+6283162019160',
+          '+6281269731143',
         );
       }
     } catch (e) {
@@ -1195,6 +1562,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'Config',
         'B$modelRow',
         _selectedModel,
+      );
+    }
+
+    // Redact/Hide API key in Google Sheets (API Key ditanam di dalam binary aplikasi)
+    int apiKeyRow = await auth.sheetsService!.findRowByValue(
+      auth.spreadsheetId!,
+      'Config',
+      0,
+      'AI_API_KEY',
+    );
+    if (apiKeyRow == -1) {
+      await auth.sheetsService!.appendRow(
+        auth.spreadsheetId!,
+        'Config',
+        ['AI_API_KEY', '[TERSEMBUNYI_DI_SISTEM]'],
+      );
+    } else {
+      await auth.sheetsService!.writeCell(
+        auth.spreadsheetId!,
+        'Config',
+        'B$apiKeyRow',
+        '[TERSEMBUNYI_DI_SISTEM]',
       );
     }
   }
@@ -1341,9 +1730,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   isExpanded: true,
                   items: const [
                     DropdownMenuItem(
-                      value: 'google/gemini-3.5-flash',
+                      value: 'deepseek/deepseek-v4-flash',
                       child: Text(
-                        'Narasi Sangat Detail (Rekomendasi)',
+                        'Narasi Detail & Hemat (Rekomendasi)',
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 13),
                       ),
@@ -1497,6 +1886,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  await NotificationService().showTestNotification();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Notifikasi uji coba dikirim! Periksa panel notifikasi HP Anda.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.notifications_active_rounded, size: 16),
+                label: const Text('Tes Notifikasi Sekarang', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.navy,
+                  side: const BorderSide(color: AppColors.navy),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
           ]
         ],
       ),
@@ -1607,3 +2021,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+
+
+

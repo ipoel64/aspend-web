@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_theme.dart';
+import '../config/constants.dart';
 import '../providers/auth_provider.dart';
+import '../providers/report_provider.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'report/create_report_screen.dart';
 import 'settings/settings_screen.dart';
 import 'pengaduan/pengaduan_list_screen.dart';
-import 'nota_dinas/nota_dinas_list_screen.dart';
-import 'verkom/verkom_tools_screen.dart';
 
 /// Home Screen — Bottom Navigation Hub
 class HomeScreen extends StatefulWidget {
@@ -43,10 +44,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final List<Widget> _screens = const [
     DashboardScreen(),       // 0: RHK (Dashboard)
     PengaduanListScreen(),   // 1: Pengaduan
-    VerkomToolsScreen(),     // 2: VERKOM
-    NotaDinasListScreen(),   // 3: Nota Dinas
-    SettingsScreen(),        // 4: Pengaturan (Fallback when profile is incomplete)
+    SettingsScreen(),        // 2: Profil (Pengaturan)
   ];
+
+  Future<void> _openGoogleDriveFolder(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.driveService == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Drive belum siap, silakan sign in kembali')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mencari folder penyimpanan di Google Drive...'), duration: Duration(seconds: 1)),
+    );
+
+    try {
+      final folderId = await auth.driveService!.findFolder(AppConstants.driveFolderOutput);
+      if (folderId != null) {
+        final url = 'https://drive.google.com/drive/folders/$folderId';
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          throw 'Tidak dapat membuka browser untuk link ini';
+        }
+      } else {
+        throw 'Folder penyimpanan "${AppConstants.driveFolderOutput}" tidak ditemukan';
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuka folder Drive: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   void _showIncompleteProfileDialog(BuildContext context) {
     showDialog(
@@ -84,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final isComplete = auth.isProfileComplete;
-        final activeIndex = isComplete ? _currentIndex : 4;
+        final activeIndex = isComplete ? _currentIndex : 2;
 
         return Scaffold(
           body: IndexedStack(index: activeIndex, children: _screens),
@@ -99,7 +133,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const CreateReportScreen()),
-                );
+                ).then((_) {
+                  if (context.mounted) {
+                    context.read<ReportProvider>().loadReports();
+                  }
+                });
               }
             },
             backgroundColor: AppColors.navy,
@@ -119,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 _buildNavItem(
                   icon: Icons.assignment_outlined,
+                  activeIcon: Icons.assignment_rounded,
                   label: 'RHK',
                   index: 0,
                   isEnabled: isComplete,
@@ -126,23 +165,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 _buildNavItem(
                   icon: Icons.assignment_late_outlined,
+                  activeIcon: Icons.assignment_late_rounded,
                   label: 'Pengaduan',
                   index: 1,
                   isEnabled: isComplete,
                   activeIndex: activeIndex,
                 ),
                 const SizedBox(width: 36), // Space for FAB
-                _buildNavItem(
-                  icon: Icons.build_circle_rounded,
-                  label: 'VERKOM',
-                  index: 2,
+                _buildDriveNavItem(
                   isEnabled: isComplete,
-                  activeIndex: activeIndex,
                 ),
                 _buildNavItem(
-                  icon: Icons.description_outlined,
-                  label: 'Nota Dinas',
-                  index: 3,
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profil',
+                  index: 2,
                   isEnabled: isComplete,
                   activeIndex: activeIndex,
                 ),
@@ -156,6 +193,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildNavItem({
     required IconData icon,
+    IconData? activeIcon,
     required String label,
     required int index,
     required bool isEnabled,
@@ -186,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color),
+            Icon(isSelected && activeIcon != null ? activeIcon : icon, color: color),
             const SizedBox(height: 4),
             Text(
               label,
@@ -194,6 +232,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 color: color,
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriveNavItem({required bool isEnabled}) {
+    final color = isEnabled ? AppColors.textSecondary : AppColors.textSecondary.withOpacity(0.3);
+    return InkWell(
+      onTap: () {
+        if (!isEnabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Silakan lengkapi profil & lakukan Tes Koneksi di halaman Pengaturan terlebih dahulu.'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+        _openGoogleDriveFolder(context);
+      },
+      borderRadius: BorderRadius.circular(50),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.folder_shared_rounded, color: color),
+            const SizedBox(height: 4),
+            Text(
+              'Drive',
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.normal,
               ),
             ),
           ],

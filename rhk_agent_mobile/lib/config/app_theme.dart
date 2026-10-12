@@ -30,6 +30,8 @@ class AppColors {
   static const Color error = Color(0xFFE53935);
   static const Color warning = Color(0xFFFFA726);
   static const Color info = Color(0xFF42A5F5);
+  static const Color teal = Color(0xFF00897B);
+  static const Color tealLight = Color(0xFF4DB6AC);
 
   AppColors._();
 }

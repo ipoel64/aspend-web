@@ -166,12 +166,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                 const SizedBox(height: 16),
                 _buildDisclaimerPoint(
                   context,
-                  Icons.vpn_key_rounded,
-                  'Penyediaan API Key Premium',
-                  'Aplikasi ini dilengkapi API Key premium default agar Anda langsung bisa mencoba fitur Asisten Pendamping. Namun, Anda juga bebas mengubahnya menggunakan API Key pribadi Anda di menu Pengaturan.',
-                ),
-                _buildDisclaimerPoint(
-                  context,
                   Icons.storage_rounded,
                   'Penyimpanan Awan Mandiri',
                   'Aplikasi tidak menggunakan server pihak ketiga. Semua data tersimpan eksklusif di dalam Google Drive Anda sendiri.',

@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../config/app_theme.dart';
 import '../../providers/nota_dinas_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../widgets/loading_overlay.dart';
 
 class NotaDinasFormScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _NotaDinasFormScreenState extends State<NotaDinasFormScreen> {
   final _tanggalController = TextEditingController();
   final _draftController = TextEditingController();
 
-  File? _buktiDukungPhoto;
+  List<File> _buktiDukungPhotos = [];
   final ImagePicker _picker = ImagePicker();
 
   final stt.SpeechToText _speechToText = stt.SpeechToText();
@@ -143,12 +144,10 @@ class _NotaDinasFormScreenState extends State<NotaDinasFormScreen> {
   }
 
   Future<void> _pickBuktiDukung() async {
-    final pickedFile = await _picker.pickImage(
-      source: ImageSource.gallery,
-    );
-    if (pickedFile == null) return;
+    final pickedFiles = await _picker.pickMultiImage();
+    if (pickedFiles.isEmpty) return;
     setState(() {
-      _buktiDukungPhoto = File(pickedFile.path);
+      _buktiDukungPhotos.addAll(pickedFiles.map((x) => File(x.path)));
     });
   }
 
@@ -181,7 +180,7 @@ class _NotaDinasFormScreenState extends State<NotaDinasFormScreen> {
         tanggal: _tanggalController.text.trim(),
         poinDraft: _draftController.text.trim(),
         isiNotaDinas: generatedIsi,
-        buktiDukungPhoto: _buktiDukungPhoto,
+        buktiDukungPhotos: _buktiDukungPhotos.isNotEmpty ? _buktiDukungPhotos : null,
       );
 
       if (success) {
@@ -194,16 +193,24 @@ class _NotaDinasFormScreenState extends State<NotaDinasFormScreen> {
       } else {
         if (mounted) {
           final error = context.read<NotaDinasProvider>().errorMessage;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error ?? 'Gagal menyimpan Nota Dinas'), backgroundColor: Colors.red),
-          );
+          if (error != null && error.contains('LIMIT_REACHED')) {
+            DialogUtils.showPremiumLimitDialog(context);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error ?? 'Gagal menyimpan Nota Dinas'), backgroundColor: Colors.red),
+            );
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyusun/menyimpan surat: $e'), backgroundColor: Colors.red),
-        );
+        if (e.toString().contains('LIMIT_REACHED')) {
+          DialogUtils.showPremiumLimitDialog(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal menyusun/menyimpan surat: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -376,29 +383,39 @@ class _NotaDinasFormScreenState extends State<NotaDinasFormScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (_buktiDukungPhoto != null) ...[
-                    Center(
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(_buktiDukungPhoto!, height: 180, fit: BoxFit.contain, cacheHeight: 500),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.red.withOpacity(0.8),
-                              radius: 16,
-                              child: IconButton(
-                                icon: const Icon(Icons.close, size: 16, color: Colors.white),
-                                onPressed: () => setState(() => _buktiDukungPhoto = null),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
+                  if (_buktiDukungPhotos.isNotEmpty) ...[
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _buktiDukungPhotos.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12.0),
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(_buktiDukungPhotos[index], height: 120, width: 120, fit: BoxFit.cover, cacheWidth: 300),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: CircleAvatar(
+                                    backgroundColor: Colors.red.withOpacity(0.8),
+                                    radius: 12,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.close, size: 12, color: Colors.white),
+                                      onPressed: () => setState(() => _buktiDukungPhotos.removeAt(index)),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 16),

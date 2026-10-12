@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../config/app_theme.dart';
 import '../../services/subscription_service.dart';
 
@@ -19,7 +19,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   bool _isLoading = false;
   bool _isPremium = false;
   DateTime? _expiryDate;
-  String _selectedPlan = SubscriptionService.kYearlyId; // default tahunan (lebih hemat)
+  String _selectedPlan = SubscriptionService.kMonthlyId; // default bulanan
 
   @override
   void initState() {
@@ -168,8 +168,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
               const Text('Yang Anda Dapatkan:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.navyDark)),
               const SizedBox(height: 12),
               _buildBenefitItem(Icons.block_rounded, 'Bebas Iklan Selamanya', 'Tidak ada iklan muncul saat membuat PDF'),
-              _buildBenefitItem(Icons.picture_as_pdf_rounded, 'PDF Tanpa Batas', 'Buat laporan sebanyak apapun tanpa jeda iklan'),
-              _buildBenefitItem(Icons.mic_rounded, 'Semua Fitur Unlocked', 'Termasuk narasi AI, rekap, dan pencarian'),
+              _buildBenefitItem(Icons.picture_as_pdf_rounded, 'PDF Tanpa Batas', 'Buat Laporan sebanyak apapun setiap hari tanpa batas'),
               _buildBenefitItem(Icons.support_agent_rounded, 'Dukungan Prioritas', 'Keluhan Anda mendapat penanganan lebih cepat'),
               const SizedBox(height: 24),
 

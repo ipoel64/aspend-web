@@ -1,4 +1,4 @@
-class Pengaduan {
+﻿class Pengaduan {
   final String id;
   final String email;
   final String nik;

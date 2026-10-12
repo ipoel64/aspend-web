@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:marquee/marquee.dart';
+import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants.dart';
 import '../../config/app_theme.dart';
@@ -12,6 +12,8 @@ import '../../models/report.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/report_card.dart';
 import '../settings/settings_screen.dart';
+import '../jarvis/jarvis_assistant_screen.dart';
+import '../auth/qr_web_login_screen.dart';
 
 /// Dashboard Screen — Statistik + Riwayat Laporan + Filter
 class DashboardScreen extends StatefulWidget {
@@ -22,7 +24,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final TextEditingController _searchController = TextEditingController();
+
   String? _filterJenis;
   String? _filterRencanaAksi;
   String? _filterMonth;
@@ -38,13 +40,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     super.dispose();
   }
 
   void _resetFilters() {
     setState(() {
-      _searchController.clear();
       _filterJenis = null;
       _filterRencanaAksi = null;
       _filterMonth = null;
@@ -59,156 +59,143 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: RefreshIndicator(
-        color: AppColors.navy,
-        onRefresh: () => context.read<ReportProvider>().loadReports(),
-        child: CustomScrollView(
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            color: AppColors.navy,
+            onRefresh: () => context.read<ReportProvider>().loadReports(),
+            child: CustomScrollView(
           slivers: [
-            // App Bar
+            // App Bar - Compact & Spacious Header
+            // App Bar - Animated Collapsible & Fading Header
             SliverAppBar(
-              expandedHeight: 140,
-              floating: false,
-              pinned: true,
-              backgroundColor: AppColors.navy,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.navyDark, AppColors.navy],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: AppColors.gold.withOpacity(0.3),
-                                child: auth.userProfile?.photoFileId.isNotEmpty == true
-                                    ? ClipOval(
-                                        child: Image.network(
-                                          'https://drive.google.com/thumbnail?id=${auth.userProfile!.photoFileId}&sz=w200',
-                                          width: 44,
-                                          height: 44,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => _buildDashboardAvatarInitial(auth),
-                                        ),
-                                      )
-                                    : _buildDashboardAvatarInitial(auth),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Selamat Datang',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.white.withOpacity(0.7),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      auth.userProfile?.nama.isNotEmpty == true
-                                          ? auth.userProfile!.nama
-                                          : (auth.currentUser?.displayName ?? 'Pengguna'),
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
+              expandedHeight: MediaQuery.of(context).padding.top + 68.0,
+              toolbarHeight: 0,
+              floating: true,
+              pinned: false,
+              snap: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              flexibleSpace: LayoutBuilder(
+                builder: (context, constraints) {
+                  final topPadding = MediaQuery.of(context).padding.top;
+                  final totalHeaderHeight = topPadding + 68.0;
+                  final currentHeight = constraints.biggest.height;
+                  final progress = (currentHeight / totalHeaderHeight).clamp(0.0, 1.0);
+                  if (progress <= 0.01) {
+                    return const SizedBox.shrink();
+                  }
+                  return Opacity(
+                    opacity: progress,
+                    child: Container(
+                      height: totalHeaderHeight,
+                      padding: EdgeInsets.only(
+                        top: topPadding + 6,
+                        bottom: 8,
+                        left: 16,
+                        right: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.navyDark.withOpacity(progress),
+                            AppColors.navy.withOpacity(progress),
+                          ],
+                        ),
+                        boxShadow: progress > 0.3
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15 * progress),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
                                 ),
-                              ),
-                              // Google Drive Folder Link
-                              IconButton(
-                                onPressed: _openGoogleDriveFolder,
-                                icon: const Icon(Icons.folder_shared_rounded, color: Colors.white),
-                                tooltip: 'Folder Penyimpanan Drive',
-                              ),
-                              // Notification / Refresh
-                              IconButton(
-                                onPressed: () => context.read<ReportProvider>().loadReports(),
-                                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                              ),
-                              // Settings Gear Icon
-                              IconButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                                  );
-                                },
-                                icon: const Icon(Icons.settings_rounded, color: Colors.white),
-                                tooltip: 'Pengaturan',
-                              ),
-                            ],
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: CircleAvatar(
+                              radius: 22,
+                              backgroundColor: AppColors.gold.withOpacity(0.3),
+                              child: auth.userProfile?.photoFileId.isNotEmpty == true
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        'https://drive.google.com/thumbnail?id=${auth.userProfile!.photoFileId}&sz=w200',
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => _buildDashboardAvatarInitial(auth),
+                                      ),
+                                    )
+                                  : _buildDashboardAvatarInitial(auth),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Selamat Datang',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  auth.userProfile?.nama.isNotEmpty == true
+                                      ? auth.userProfile!.nama
+                                      : (auth.currentUser?.displayName ?? 'Pengguna'),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Scan QR Tautkan Perangkat Web Button
+                          IconButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const QrWebLoginScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 24),
+                            tooltip: 'Tautkan Perangkat Web',
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ),
-                titlePadding: const EdgeInsets.only(left: 20, bottom: 14),
-                title: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'RHK',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: SizedBox(
-                          height: 16,
-                          child: Marquee(
-                            text: 'Hasil laporan ini juga dapat dilihat di web (laptop) melalui link : aspend-web.vercel.app',
-                            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 11, fontWeight: FontWeight.w500),
-                            scrollAxis: Axis.horizontal,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            blankSpace: 40.0,
-                            velocity: 25.0,
-                            pauseAfterRound: const Duration(seconds: 2),
-                            startPadding: 10.0,
-                            accelerationDuration: const Duration(seconds: 1),
-                            accelerationCurve: Curves.linear,
-                            decelerationDuration: const Duration(milliseconds: 500),
-                            decelerationCurve: Curves.easeOut,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
 
             // Content
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Stat Cards
                     _buildStatCards(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
 
                     // Filter Section
                     _buildFilterSection(),
@@ -227,17 +214,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         Consumer<ReportProvider>(
-                          builder: (_, rp, __) => Text(
-                            '${rp.filteredReports.length} laporan',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[500],
+                          builder: (_, rp, __) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.navy.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${rp.filteredReports.length} laporan',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.navy.withOpacity(0.7),
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
                   ],
                 ),
               ),
@@ -348,30 +343,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             if (isFirstOfGroup) ...[
                               Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.only(top: 20, bottom: 12),
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: Divider(
-                                        color: AppColors.navy.withOpacity(0.3),
-                                        thickness: 1,
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(parseReportDate(report.tanggal)),
-                                        style: TextStyle(
-                                          color: AppColors.navy.withOpacity(0.7),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
+                                      child: Container(
+                                        height: 2,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              AppColors.teal.withOpacity(0.0),
+                                              AppColors.teal,
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
+                                    Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 10),
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [AppColors.navyDark, AppColors.teal],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.teal.withOpacity(0.35),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.25),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.calendar_month_rounded,
+                                            size: 14,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(parseReportDate(report.tanggal)),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 0.2,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                     Expanded(
-                                      child: Divider(
-                                        color: AppColors.navy.withOpacity(0.3),
-                                        thickness: 1,
+                                      child: Container(
+                                        height: 2,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              AppColors.teal,
+                                              AppColors.teal.withOpacity(0.0),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -398,11 +439,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
 
             // Bottom padding
-            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+            const SliverToBoxAdapter(child: SizedBox(height: 90)),
           ],
         ),
       ),
-    );
+      // Floating Asisten Pintar Button on Dashboard (Dapat Digeser-geser)
+      const _AsistenPintarFloatingWidget(),
+    ],
+  ),
+);
   }
 
   Widget _buildStatCards() {
@@ -432,7 +477,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildFilterSection() {
-    final uniqueJenis = getUniqueJenisRHK();
+    final auth = context.read<AuthProvider>();
+    final jenisSdm = auth.userProfile?.jenisSdm ?? 'SDM PKH';
+    final uniqueJenis = getUniqueJenisRHK(jenisSdm);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -449,47 +496,127 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Column(
         children: [
-          // Search bar
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Cari laporan...',
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-              prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 20),
-                      onPressed: () {
-                        _searchController.clear();
-                        context.read<ReportProvider>().setSearchTerm('');
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            onChanged: (value) {
-              context.read<ReportProvider>().setSearchTerm(value);
+          // RHK Counts Summary
+          Consumer<ReportProvider>(
+            builder: (context, rp, child) {
+              final counts = rp.stats.rhkCountsMonth;
+              if (counts.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text('Belum ada RHK bulan ini', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                  ),
+                );
+              }
+              
+              // Sort by RHK name
+              final keys = counts.keys.toList()..sort();
+              
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: keys.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final key = entry.value;
+                        
+                        // Pick a distinct color based on index
+                        final colors = [
+                          Colors.teal,
+                          Colors.deepOrange,
+                          Colors.indigo,
+                          Colors.pink,
+                          Colors.green,
+                          Colors.purple,
+                          Colors.blue,
+                          Colors.brown,
+                        ];
+                        final color = colors[index % colors.length];
+                        
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardTheme.color ?? Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: color.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                key,
+                                style: TextStyle(
+                                  fontSize: 9, 
+                                  fontWeight: FontWeight.w700, 
+                                  color: color,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: Text(
+                                  '${counts[key]}',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  Positioned(
+                    left: 14,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      color: Theme.of(context).cardTheme.color ?? Colors.white,
+                      child: Text(
+                        'Rekap Jumlah RHK Bulan ini',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
             },
           ),
-          const SizedBox(height: 10),
-
-          // Filter dropdowns row 1
+          const SizedBox(height: 16),
+          // Filter row
           Row(
             children: [
               // Jenis RHK filter
               Expanded(
+                flex: 3,
                 child: _buildFilterDropdown(
                   value: _filterJenis,
-                  hint: 'Jenis RHK',
+                  hint: 'RHK',
                   items: uniqueJenis.map((j) => DropdownMenuItem(
                     value: j['id'] as String,
-                    child: Text(j['id'] as String, style: const TextStyle(fontSize: 13)),
+                    child: Text(j['id'] as String, style: const TextStyle(fontSize: 11)),
                   )).toList(),
                   onChanged: (value) {
                     setState(() {
@@ -500,37 +627,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 8),
-
+              const SizedBox(width: 6),
+              // Date filter
+              Expanded(
+                flex: 3,
+                child: _buildDatePicker(),
+              ),
+              const SizedBox(width: 6),
+              // Month filter
+              Expanded(
+                flex: 3,
+                child: _buildMonthPicker(),
+              ),
+              const SizedBox(width: 6),
               // Reset button
               InkWell(
                 onTap: _resetFilters,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.all(10),
+                  height: 32,
+                  width: 32,
                   decoration: BoxDecoration(
                     color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.refresh_rounded, size: 20, color: Colors.grey[500]),
+                  child: Center(child: Icon(Icons.refresh_rounded, size: 16, color: Colors.grey[500])),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          
-          // Filter row 2
-          Row(
-            children: [
-              // Date filter
-              Expanded(
-                child: _buildDatePicker(),
-              ),
-              const SizedBox(width: 8),
-
-              // Month filter
-              Expanded(
-                child: _buildMonthPicker(),
               ),
             ],
           ),
@@ -548,7 +670,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
         borderRadius: BorderRadius.circular(10),
@@ -556,10 +679,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          hint: Text(hint, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+          isDense: true,
+          hint: Text(hint, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
           isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey[500]),
-          style: const TextStyle(fontSize: 13, color: AppColors.navyDark),
+          icon: Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey[500]),
+          style: const TextStyle(fontSize: 11, color: AppColors.navyDark),
           items: items,
           onChanged: onChanged,
         ),
@@ -669,7 +793,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
           borderRadius: BorderRadius.circular(10),
@@ -682,7 +807,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? DateFormat('d MMM yyyy', 'id_ID').format(DateTime.parse(_filterDate!))
                     : 'Tanggal',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: _filterDate != null ? AppColors.navyDark : Colors.grey[500],
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -717,7 +842,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
           borderRadius: BorderRadius.circular(10),
@@ -730,7 +856,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? DateFormat('MMMM yyyy', 'id_ID').format(DateTime.parse('$_filterMonth-01'))
                     : 'Bulan',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: _filterMonth != null ? AppColors.navyDark : Colors.grey[500],
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -850,8 +976,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _editReport(Report report) {
-    Navigator.pushNamed(context, '/create-report', arguments: report);
+  void _editReport(Report report) async {
+    await Navigator.pushNamed(context, '/create-report', arguments: report);
+    if (mounted) {
+      context.read<ReportProvider>().loadReports();
+    }
   }
 
   Widget _buildDashboardAvatarInitial(AuthProvider auth) {
@@ -869,3 +998,230 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+
+/// Floating button khusus Asisten Pintar dengan latar icon Aspend (tanpa celah hitam), draggable, dan teks "Asisten Pintar"
+class _AsistenPintarFloatingWidget extends StatefulWidget {
+  const _AsistenPintarFloatingWidget();
+
+  @override
+  State<_AsistenPintarFloatingWidget> createState() => _AsistenPintarFloatingWidgetState();
+}
+
+class _AsistenPintarFloatingWidgetState extends State<_AsistenPintarFloatingWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  Offset? _position;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final padding = MediaQuery.of(context).padding;
+    const buttonWidth = 72.0;
+    const buttonHeight = 72.0;
+
+    // Posisi awal: pojok kanan bawah di atas bottom bar
+    final defaultLeft = screenSize.width - buttonWidth - 18;
+    final defaultTop = screenSize.height - buttonHeight - 110;
+
+    final currentLeft = _position?.dx ?? defaultLeft;
+    final currentTop = _position?.dy ?? defaultTop;
+
+    return Positioned(
+      left: currentLeft,
+      top: currentTop,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            final newX = (currentLeft + details.delta.dx).clamp(
+              10.0,
+              screenSize.width - buttonWidth - 10.0,
+            );
+            final newTop = (currentTop + details.delta.dy).clamp(
+              padding.top + 50.0,
+              screenSize.height - buttonHeight - 80.0,
+            );
+            _position = Offset(newX, newTop);
+          });
+        },
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const JarvisAssistantScreen()),
+          );
+          if (result != null && result is Map && result['success'] == true && context.mounted) {
+            context.read<ReportProvider>().loadReports();
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: const Color(0xFF0F172A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
+                    SizedBox(width: 10),
+                    Text(
+                      'Laporan & PDF Selesai!',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Laporan ${result['idRHK'] ?? 'RHK'} berhasil disimpan dan file PDF resmi telah dibuat serta diunggah ke Google Drive.',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 18),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Status: Selesai (File PDF Resmi Terbit)',
+                              style: TextStyle(
+                                color: Color(0xFF10B981),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
+        child: AnimatedBuilder(
+          animation: _animController,
+          builder: (context, child) {
+            final glowRadius = 8 + (_animController.value * 8);
+            return Container(
+              width: buttonWidth,
+              height: buttonHeight,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00F0FF).withOpacity(0.4 + (_animController.value * 0.3)),
+                    blurRadius: glowRadius,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // Outer Ring Neon Gradient
+                  Container(
+                    width: 66,
+                    height: 66,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00F0FF), Color(0xFF0A84FF), Color(0xFFFFD700)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.9),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  // Inner Circular Avatar with Zoomed Aspend icon - NO BLACK GAPS
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                    child: ClipOval(
+                      child: Transform.scale(
+                        scale: 1.25, // Zoomed in agar tidak ada celah hitam di pinggirnya
+                        child: Image.asset(
+                          'assets/images/app_icon.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.auto_awesome,
+                            color: Color(0xFF00F0FF),
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Pulsing Online Green Dot
+                  Positioned(
+                    top: 2,
+                    right: 4,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.greenAccent.withOpacity(0.8),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+

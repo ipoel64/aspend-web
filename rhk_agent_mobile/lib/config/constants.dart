@@ -23,7 +23,7 @@ class AppConstants {
   static const String defaultAiProvider = 'openrouter';
   static const String defaultAiApiKey = '[REDACTED_API_KEY]'; // Default locked key
   static const String defaultGroqModel = 'llama-3.3-70b-versatile';
-  static const String defaultOpenRouterModel = 'google/gemini-3.5-flash';
+  static const String defaultOpenRouterModel = 'google/gemini-2.5-flash-lite';
   static const String defaultOpenRouterApiKey = '[REDACTED_API_KEY]';
 
   // App Meta

@@ -1,4 +1,4 @@
-import 'package:shared_preferences/shared_preferences.dart';
+﻿import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
 import 'drive_service.dart';
@@ -37,6 +37,9 @@ class SetupService {
         'SignatureFileId',
         'PhotoFileId',
         'LogoFileId',
+        'JenisSdm',
+        'Provinsi',
+        'Kecamatan',
       ],
     );
 
@@ -75,16 +78,19 @@ class SetupService {
       '',
       '',
       '',
+      'SDM PKH',
+      '',
+      '',
     ]);
 
-    // 5. Initial Config Rows
+    // 5. Initial Config Rows (API Key disembunyikan dari Google Sheets demi keamanan)
     await _sheetsService.appendRow(spreadsheetId, AppConstants.sheetConfig, [
       'AI_PROVIDER',
       'openrouter',
     ]);
     await _sheetsService.appendRow(spreadsheetId, AppConstants.sheetConfig, [
       'AI_API_KEY',
-      AppConstants.defaultOpenRouterApiKey,
+      '[TERSEMBUNYI_DI_SISTEM]',
     ]);
     await _sheetsService.appendRow(spreadsheetId, AppConstants.sheetConfig, [
       'AI_MODEL',
@@ -92,7 +98,7 @@ class SetupService {
     ]);
     await _sheetsService.appendRow(spreadsheetId, AppConstants.sheetConfig, [
       'ADMIN_WHATSAPP',
-      '+6283162019160',
+      '+6281269731143',
     ]);
 
     // 6. Create Drive Folders

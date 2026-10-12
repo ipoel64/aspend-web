@@ -2,12 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../models/nota_dinas.dart';
 import '../services/ai_service.dart';
 import '../services/pdf_service.dart';
 import '../services/ad_service.dart';
+import '../services/subscription_service.dart';
 import 'auth_provider.dart';
 
 class NotaDinasProvider extends ChangeNotifier {
@@ -52,31 +52,10 @@ class NotaDinasProvider extends ChangeNotifier {
   }
 
   Future<Map<String, String>> _getAiConfig() async {
-    String apiKey = AppConstants.defaultOpenRouterApiKey;
-    String model = AppConstants.defaultOpenRouterModel;
-
-    if (_auth?.sheetsService != null && _auth?.spreadsheetId != null) {
-      try {
-        final configRows = await _auth!.sheetsService!.getAllRows(
-          _auth!.spreadsheetId!,
-          AppConstants.sheetConfig,
-        );
-        for (var row in configRows) {
-          if (row.isNotEmpty) {
-            if (row[0] == 'AI_MODEL' && row.length > 1) {
-              model = row[1].toString();
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Failed to load config from sheet: $e');
-      }
-    }
-
     return {
       'provider': 'openrouter',
-      'apiKey': apiKey,
-      'model': model,
+      'apiKey': AppConstants.defaultOpenRouterApiKey,
+      'model': AppConstants.defaultOpenRouterModel,
     };
   }
 
@@ -127,7 +106,7 @@ Aturan Penulisan:
     required String tanggal,
     required String poinDraft,
     required String isiNotaDinas,
-    File? buktiDukungPhoto,
+    List<File>? buktiDukungPhotos,
   }) async {
     if (_auth?.sheetsService == null || _auth?.driveService == null || _auth?.spreadsheetId == null) {
       _errorMessage = 'Sistem belum siap';
@@ -139,26 +118,43 @@ Aturan Penulisan:
     notifyListeners();
 
     try {
+      // 1. Cek limitasi pengguna gratis
+      final hasReachedLimit = await SubscriptionService.instance.hasReachedDailyPdfLimit();
+      if (hasReachedLimit) {
+        throw Exception('LIMIT_REACHED');
+      }
+
       final now = DateTime.now();
       final dateStr = DateFormat('yyyyMMdd').format(now);
       final timeStr = DateFormat('HHmmss').format(now);
       final id = 'ND-$dateStr-$timeStr';
 
+      await _auth?.ensureFreshAuth();
       final folderId = await _auth!.driveService!.getOrCreateFolder(AppConstants.driveFolderNotaDinas);
 
       String buktiDukungId = '';
-      List<int>? buktiDukungBytes;
-      if (buktiDukungPhoto != null) {
-        buktiDukungBytes = await buktiDukungPhoto.readAsBytes();
-        final ext = buktiDukungPhoto.path.split('.').last.toLowerCase();
-        final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
-        buktiDukungId = await _auth!.driveService!.uploadFile(
-          folderId,
-          '${id}_bukti.$ext',
-          buktiDukungBytes,
-          mime,
-        );
-        await _auth!.driveService!.setPublicAccess(buktiDukungId);
+      List<List<int>> rawBuktiDukungBytesList = [];
+      if (buktiDukungPhotos != null && buktiDukungPhotos.isNotEmpty) {
+        List<String> uploadedIds = [];
+        for (int i = 0; i < buktiDukungPhotos.length; i++) {
+          final photo = buktiDukungPhotos[i];
+          final bytes = await photo.readAsBytes();
+          rawBuktiDukungBytesList.add(bytes);
+          final ext = photo.path.split('.').last.toLowerCase();
+          final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+          final idImg = await _auth!.driveService!.uploadFile(
+            folderId,
+            '${id}_bukti_$i.$ext',
+            bytes,
+            mime,
+            onAuthExpired: () async {
+              await _auth?.ensureFreshAuth();
+            },
+          );
+          await _auth!.driveService!.setPublicAccess(idImg);
+          uploadedIds.add(idImg);
+        }
+        buktiDukungId = uploadedIds.join(',');
       }
 
       // Create initial NotaDinas object
@@ -191,10 +187,14 @@ Aturan Penulisan:
       }
 
       // Compress bukti dukung for PDF to prevent OOM
-      Uint8List? compressedBuktiDukung;
-      if (buktiDukungBytes != null && buktiDukungBytes.isNotEmpty) {
-        compressedBuktiDukung = await _pdfService.compressForPdf(buktiDukungBytes);
-        buktiDukungBytes = null; // Release raw bytes immediately
+      List<Uint8List>? compressedBuktiDukungList;
+      if (rawBuktiDukungBytesList.isNotEmpty) {
+        compressedBuktiDukungList = [];
+        for (var bytes in rawBuktiDukungBytesList) {
+          final compressed = await _pdfService.compressForPdf(bytes);
+          compressedBuktiDukungList.add(compressed);
+        }
+        rawBuktiDukungBytesList.clear(); // Release raw bytes immediately
       }
 
       final pdfBytes = await _pdfService.createNotaDinasPdf(
@@ -202,7 +202,7 @@ Aturan Penulisan:
         userProfile: _auth!.userProfile!,
         logoBytes: logoBytes,
         signatureBytes: signatureBytes,
-        buktiDukungBytes: compressedBuktiDukung,
+        buktiDukungBytesList: compressedBuktiDukungList,
       );
 
       final cleanHal = hal.replaceAll(RegExp(r'[^\w\s\-]'), '').replaceAll(RegExp(r'\s+'), '_');
@@ -211,6 +211,9 @@ Aturan Penulisan:
         'ND-$dateStr-${cleanHal}_nota_dinas.pdf',
         pdfBytes,
         'application/pdf',
+        onAuthExpired: () async {
+          await _auth?.ensureFreshAuth();
+        },
       );
       await _auth!.driveService!.setPublicAccess(pdfFileId);
 
@@ -225,6 +228,9 @@ Aturan Penulisan:
       );
 
       _notaDinasList.insert(0, notaDinas);
+
+      // Tambahkan hitungan limit
+      await SubscriptionService.instance.incrementDailyPdfCount();
 
       // Trigger ad check after successful PDF save
       AdService.instance.onPdfSaved();
@@ -269,9 +275,12 @@ Aturan Penulisan:
             } catch (_) {}
           }
           if (notaDinas.buktiDukung.isNotEmpty) {
-            try {
-              await _auth!.driveService!.deleteFile(notaDinas.buktiDukung);
-            } catch (_) {}
+            final ids = notaDinas.buktiDukung.split(',');
+            for (var id in ids) {
+              if (id.trim().isNotEmpty) {
+                await _auth!.driveService!.deleteFile(id.trim());
+              }
+            }
           }
         }
 
@@ -310,14 +319,21 @@ Aturan Penulisan:
       if (rowIndex == -1) throw Exception('Nota Dinas tidak ditemukan di Google Sheets');
 
       // 2. Download foto bukti dukung lama jika ada, compress for PDF
-      Uint8List? compressedBuktiDukung;
+      List<Uint8List>? compressedBuktiDukungList;
       if (notaDinas.buktiDukung.isNotEmpty) {
-        try {
-          final rawBukti = await _auth!.driveService!.downloadFile(notaDinas.buktiDukung);
-          if (rawBukti != null && rawBukti.isNotEmpty) {
-            compressedBuktiDukung = await _pdfService.compressForPdf(rawBukti);
+        compressedBuktiDukungList = [];
+        final ids = notaDinas.buktiDukung.split(',');
+        for (var id in ids) {
+          if (id.trim().isNotEmpty) {
+            try {
+              final rawBukti = await _auth!.driveService!.downloadFile(id.trim());
+              if (rawBukti != null) {
+                final compressed = await _pdfService.compressForPdf(rawBukti);
+                compressedBuktiDukungList.add(compressed);
+              }
+            } catch (_) {}
           }
-        } catch (_) {}
+        }
       }
 
       // 3. Hapus PDF laporan lama di Drive
@@ -343,7 +359,7 @@ Aturan Penulisan:
         userProfile: _auth!.userProfile!,
         logoBytes: null,
         signatureBytes: signatureBytes,
-        buktiDukungBytes: compressedBuktiDukung,
+        buktiDukungBytesList: compressedBuktiDukungList,
       );
 
       final cleanHal = notaDinas.hal.replaceAll(RegExp(r'[^\w\s\-]'), '').replaceAll(RegExp(r'\s+'), '_');

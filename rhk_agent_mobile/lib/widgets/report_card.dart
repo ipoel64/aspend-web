@@ -22,6 +22,9 @@ class ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isCompleted = report.status.trim().toLowerCase() == 'selesai';
+    final isDraft = report.status.trim().toLowerCase() == 'draft';
+
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color ?? Colors.white,
@@ -39,13 +42,13 @@ class ReportCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: onViewPdf,
+          onTap: (!isCompleted || report.pdfFileId.isEmpty) ? onEdit : onViewPdf,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
               children: [
                 // Thumbnail
-                _buildThumbnail(),
+                _buildThumbnail(context),
                 const SizedBox(width: 14),
 
                 // Info
@@ -75,17 +78,17 @@ class ReportCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             decoration: BoxDecoration(
-                              color: report.status == 'Selesai'
+                              color: isCompleted
                                   ? Colors.green.withOpacity(0.1)
                                   : Colors.orange.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              report.status,
+                              isCompleted ? 'Selesai' : (isDraft ? 'Draft' : report.status),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: report.status == 'Selesai'
+                                color: isCompleted
                                     ? Colors.green[700]
                                     : Colors.orange[700],
                               ),
@@ -154,12 +157,57 @@ class ReportCard extends StatelessWidget {
     );
   }
 
-  Widget _buildThumbnail() {
+  Widget _buildThumbnail(BuildContext context) {
     final thumbUrl = report.thumbnailUrl;
+    final fullImageUrl = report.fotoIds.isNotEmpty 
+        ? 'https://drive.google.com/uc?id=${report.fotoIds.first}'
+        : thumbUrl;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
+    return GestureDetector(
+      onTap: fullImageUrl != null
+          ? () {
+              showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: EdgeInsets.zero,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    fit: StackFit.expand,
+                    children: [
+                      // Backdrop
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(color: Colors.black87),
+                      ),
+                      // Image Viewer
+                      InteractiveViewer(
+                        clipBehavior: Clip.none,
+                        child: CachedNetworkImage(
+                          imageUrl: fullImageUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                          errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: Colors.white, size: 50),
+                        ),
+                      ),
+                      // Close button
+                      Positioned(
+                        top: 40,
+                        right: 20,
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 32),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         width: 60,
         height: 60,
         color: AppColors.bgLight,
@@ -186,7 +234,7 @@ class ReportCard extends StatelessWidget {
                 size: 28,
               ),
       ),
-    );
+    ));
   }
 
   Widget _buildActionButton({

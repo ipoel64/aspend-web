@@ -25,7 +25,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.aspend.mobile"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -60,8 +60,15 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 

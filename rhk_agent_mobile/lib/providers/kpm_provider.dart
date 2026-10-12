@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
 import '../models/kpm_model.dart';
@@ -209,9 +208,18 @@ class KpmProvider extends ChangeNotifier {
     if (drive == null) throw Exception('DriveService belum siap');
 
     try {
+      await _authProvider?.ensureFreshAuth();
       final folderId = await drive.getOrCreateFolder(AppConstants.driveFolderKpmDocs);
       final fileName = 'KPM_${kpmId}_${fileType}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final fileId = await drive.uploadFile(folderId, fileName, bytes, mimeType);
+      final fileId = await drive.uploadFile(
+        folderId,
+        fileName,
+        bytes,
+        mimeType,
+        onAuthExpired: () async {
+          await _authProvider?.ensureFreshAuth();
+        },
+      );
       await drive.setPublicAccess(fileId);
       return fileId;
     } catch (e) {

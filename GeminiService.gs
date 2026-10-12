@@ -19,9 +19,10 @@ var GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/'
 
 /** Daftar model yang akan dicoba (urutan prioritas) */
 var GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',  // Kuota gratis paling besar (30 RPM)
-  'gemini-1.5-flash',       // Fallback model (15 RPM)
-  'gemini-2.0-flash'        // Model utama (jika tersedia)
+  'gemini-2.5-flash',       // Model utama yang diminta (sangat cepat & efisien)
+  'gemini-2.0-flash-lite',  // Kuota gratis paling besar
+  'gemini-2.0-flash',       // Fallback 1
+  'gemini-1.5-flash'        // Fallback 2
 ];
 
 
@@ -231,7 +232,7 @@ function callOpenRouterAPI(prompt, modelOverride, apiKey) {
     throw new Error('OPENROUTER_API_KEY belum diatur di Script Properties. Buka Pengaturan untuk menyiapkannya.');
   }
 
-  var model = modelOverride ? modelOverride.trim() : 'openrouter/free';
+  var model = modelOverride ? modelOverride.trim() : 'google/gemini-2.5-flash';
   var url = 'https://openrouter.ai/api/v1/chat/completions';
 
   var payload = {

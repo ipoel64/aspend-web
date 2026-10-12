@@ -1,4 +1,4 @@
-class UserProfile {
+﻿class UserProfile {
   final String email;
   final String nama;
   final String nip;
@@ -7,6 +7,9 @@ class UserProfile {
   final String signatureFileId;
   final String photoFileId;
   final String logoFileId;
+  final String jenisSdm;
+  final String provinsi;
+  final String kecamatan;
 
   UserProfile({
     required this.email,
@@ -17,6 +20,9 @@ class UserProfile {
     required this.signatureFileId,
     required this.photoFileId,
     required this.logoFileId,
+    required this.jenisSdm,
+    this.provinsi = '',
+    this.kecamatan = '',
   });
 
   factory UserProfile.fromSheetRow(List<Object?> row) {
@@ -36,6 +42,9 @@ class UserProfile {
       signatureFileId: safeString(5),
       photoFileId: safeString(6),
       logoFileId: safeString(7),
+      jenisSdm: safeString(8),
+      provinsi: safeString(9),
+      kecamatan: safeString(10),
     );
   }
 
@@ -49,6 +58,9 @@ class UserProfile {
       signatureFileId,
       photoFileId,
       logoFileId,
+      jenisSdm,
+      provinsi,
+      kecamatan,
     ];
   }
 
@@ -61,6 +73,9 @@ class UserProfile {
     String? signatureFileId,
     String? photoFileId,
     String? logoFileId,
+    String? jenisSdm,
+    String? provinsi,
+    String? kecamatan,
   }) {
     return UserProfile(
       email: email ?? this.email,
@@ -71,6 +86,41 @@ class UserProfile {
       signatureFileId: signatureFileId ?? this.signatureFileId,
       photoFileId: photoFileId ?? this.photoFileId,
       logoFileId: logoFileId ?? this.logoFileId,
+      jenisSdm: jenisSdm ?? this.jenisSdm,
+      provinsi: provinsi ?? this.provinsi,
+      kecamatan: kecamatan ?? this.kecamatan,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'email': email,
+      'nama': nama,
+      'nip': nip,
+      'jabatan': jabatan,
+      'kabupatenKota': kabupatenKota,
+      'signatureFileId': signatureFileId,
+      'photoFileId': photoFileId,
+      'logoFileId': logoFileId,
+      'jenisSdm': jenisSdm,
+      'provinsi': provinsi,
+      'kecamatan': kecamatan,
+    };
+  }
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      email: json['email']?.toString() ?? '',
+      nama: json['nama']?.toString() ?? '',
+      nip: json['nip']?.toString() ?? '',
+      jabatan: json['jabatan']?.toString() ?? '',
+      kabupatenKota: json['kabupatenKota']?.toString() ?? '',
+      signatureFileId: json['signatureFileId']?.toString() ?? '',
+      photoFileId: json['photoFileId']?.toString() ?? '',
+      logoFileId: json['logoFileId']?.toString() ?? '',
+      jenisSdm: json['jenisSdm']?.toString() ?? 'SDM PKH',
+      provinsi: json['provinsi']?.toString() ?? '',
+      kecamatan: json['kecamatan']?.toString() ?? '',
     );
   }
 }

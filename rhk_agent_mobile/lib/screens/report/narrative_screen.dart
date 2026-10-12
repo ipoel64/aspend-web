@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
+import '../../config/constants.dart';
+import '../../models/report.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/form_provider.dart';
 import '../../providers/report_provider.dart';
+import '../../utils/dialog_utils.dart';
 import '../../widgets/loading_overlay.dart';
 
-/// Narrative Screen — Preview & Edit narasi AI + Generate PDF
+/// Narrative Screen - Preview & Edit narasi AI + Generate PDF
 class NarrativeScreen extends StatefulWidget {
   const NarrativeScreen({super.key});
 
@@ -27,7 +30,7 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
       if (_reportId != null && !_hasGenerated) {
         _hasGenerated = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _generateNarrative();
+          _initNarrative();
         });
       }
     }
@@ -39,22 +42,121 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
     super.dispose();
   }
 
+  String _extractedLocation = '';
+
+  Future<void> _initNarrative() async {
+    if (_reportId == null) return;
+    final auth = context.read<AuthProvider>();
+
+    // 1. Cek apakah laporan sudah memiliki narasi tersimpan sebelumnya (dari Draft / Edit)
+    try {
+      if (auth.sheetsService != null && auth.spreadsheetId != null) {
+        final rowData = await auth.sheetsService!.getRowByValue(
+          auth.spreadsheetId!,
+          AppConstants.sheetLaporanLog,
+          0,
+          _reportId!,
+        );
+        if (rowData != null) {
+          final report = Report.fromSheetRow(rowData);
+          final existing = report.narasiEdited.isNotEmpty
+              ? report.narasiEdited
+              : report.narasiAI;
+          if (existing.trim().isNotEmpty) {
+            if (mounted) {
+              setState(() {
+                _narrativeController.text = existing;
+                _extractedLocation = report.physicalLokasi;
+              });
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking existing draft narrative: $e');
+    }
+
+    // 2. Jika belum ada narasi tersimpan, buat narasi baru dengan AI
+    _generateNarrative();
+  }
+
   Future<void> _generateNarrative() async {
     if (_reportId == null) return;
     final formProvider = context.read<FormProvider>();
     final auth = context.read<AuthProvider>();
     
-    final narrative = await formProvider.generateNarrative(
-      auth: auth,
-      reportId: _reportId!,
-    );
-    
-    if (narrative != null && mounted) {
-      setState(() {
-        _narrativeController.text = narrative;
-      });
+    _narrativeController.clear();
+    try {
+      final stream = formProvider.generateNarrativeStream(
+        auth: auth,
+        reportId: _reportId!,
+      );
+      
+      await for (final chunk in stream) {
+        if (mounted) {
+          _narrativeController.text += chunk;
+        }
+      }
+
+      if (mounted) {
+        String finalNarrative = _narrativeController.text;
+        
+        final locRegex = RegExp(r'<lokasi>(.*?)</lokasi>', dotAll: true, caseSensitive: false);
+        final locMatch = locRegex.firstMatch(finalNarrative);
+        if (locMatch != null) {
+          _extractedLocation = locMatch.group(1)?.trim() ?? '';
+          finalNarrative = finalNarrative.replaceAll(locRegex, '').trim();
+        }
+
+        finalNarrative = finalNarrative
+            .replaceAll(RegExp(r'[\u201C\u201D]'), '"')
+            .replaceAll(RegExp(r'[\u2018\u2019]'), "'")
+            .replaceAll('\u2013', '-')
+            .replaceAll('\u2014', '-')
+            .replaceAll('\u2212', '-')
+            .replaceAll('\u00A0', ' ')
+            .replaceAll('•', '-');
+            
+        setState(() {
+          _narrativeController.text = finalNarrative;
+        });
+
+        // Simpan langsung narasi yang di-generate ke draft laporan di Google Sheets
+        if (finalNarrative.trim().isNotEmpty) {
+          formProvider.saveNarrative(
+            auth: auth,
+            reportId: _reportId!,
+            narrative: finalNarrative,
+            location: _extractedLocation,
+          ).catchError((e) {
+            debugPrint('Auto-save draft narrative error: $e');
+            return false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        final errText = e.toString().toLowerCase();
+        final isNetwork = errText.contains('clientexception') ||
+            errText.contains('connection') ||
+            errText.contains('socket') ||
+            errText.contains('timed out') ||
+            errText.contains('network');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isNetwork
+                ? 'Koneksi internet terputus. Silakan tekan tombol Buat Ulang.'
+                : 'Gagal membuat narasi: $e'),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +302,8 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
               // Loading overlays
               if (formProvider.isGeneratingNarrative)
                 const LoadingOverlay(
-                  message: '🤖 Asisten Pendamping sedang membuat narasi...\nProses ini memerlukan beberapa detik',
+                  message: 'Asisten Pendamping sedang membuat narasi...\nProses ini memerlukan beberapa detik',
+                  showProgress: true,
                 ),
               if (formProvider.isGeneratingPdf)
                 const LoadingOverlay(
@@ -275,6 +378,7 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
       auth: auth,
       reportId: _reportId!,
       narrative: _narrativeController.text,
+      location: _extractedLocation,
     );
 
     // Generate PDF
@@ -307,22 +411,31 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
       // Go back to home
       Navigator.popUntil(context, ModalRoute.withName('/home'));
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Gagal membuat PDF: ${formProvider.errorMessage ?? "Terjadi kesalahan"}'),
-              ),
-            ],
+      // Refresh reports so draft is up-to-date on dashboard
+      context.read<ReportProvider>().loadReports();
+
+      if (formProvider.errorMessage != null && formProvider.errorMessage!.contains('LIMIT_REACHED')) {
+        DialogUtils.showPremiumLimitDialog(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Gagal membuat PDF: ${formProvider.errorMessage ?? "Terjadi kesalahan"}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+        );
+      }
     }
   }
 }
+
+

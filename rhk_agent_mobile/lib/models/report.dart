@@ -17,6 +17,8 @@ class Report {
   final P2K2Data? p2k2Data;
   final String physicalLokasi;
   final String createdAt;
+  final bool showTanggalInPdf;
+  final bool showPukulInPdf;
 
   Report({
     required this.id,
@@ -34,6 +36,8 @@ class Report {
     this.p2k2Data,
     required this.physicalLokasi,
     required this.createdAt,
+    this.showTanggalInPdf = true,
+    this.showPukulInPdf = true,
   });
 
   String? get thumbnailUrl {
@@ -82,6 +86,8 @@ class Report {
       p2k2Data: P2K2Data.fromJsonString(safeString(12)),
       physicalLokasi: safeString(13),
       createdAt: safeString(14),
+      showTanggalInPdf: row.length > 15 && row[15] != null ? row[15].toString().toLowerCase() != 'false' : true,
+      showPukulInPdf: row.length > 16 && row[16] != null ? row[16].toString().toLowerCase() != 'false' : true,
     );
   }
 
@@ -102,6 +108,8 @@ class Report {
       p2k2Data?.toJsonString() ?? '',
       physicalLokasi,
       createdAt,
+      showTanggalInPdf.toString(),
+      showPukulInPdf.toString(),
     ];
   }
 
@@ -111,6 +119,8 @@ class Report {
     String? status,
     String? pdfFileId,
     String? physicalLokasi,
+    bool? showTanggalInPdf,
+    bool? showPukulInPdf,
   }) {
     return Report(
       id: id,
@@ -128,6 +138,8 @@ class Report {
       p2k2Data: p2k2Data,
       physicalLokasi: physicalLokasi ?? this.physicalLokasi,
       createdAt: createdAt,
+      showTanggalInPdf: showTanggalInPdf ?? this.showTanggalInPdf,
+      showPukulInPdf: showPukulInPdf ?? this.showPukulInPdf,
     );
   }
 }

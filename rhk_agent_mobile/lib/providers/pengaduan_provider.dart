@@ -2,12 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../models/pengaduan.dart';
 import '../services/ai_service.dart';
 import '../services/pdf_service.dart';
 import '../services/ad_service.dart';
+import '../services/subscription_service.dart';
 import 'auth_provider.dart';
 
 class PengaduanProvider extends ChangeNotifier {
@@ -52,31 +52,10 @@ class PengaduanProvider extends ChangeNotifier {
   }
 
   Future<Map<String, String>> _getAiConfig() async {
-    String apiKey = AppConstants.defaultOpenRouterApiKey;
-    String model = AppConstants.defaultOpenRouterModel;
-
-    if (_auth?.sheetsService != null && _auth?.spreadsheetId != null) {
-      try {
-        final configRows = await _auth!.sheetsService!.getAllRows(
-          _auth!.spreadsheetId!,
-          AppConstants.sheetConfig,
-        );
-        for (var row in configRows) {
-          if (row.isNotEmpty) {
-            if (row[0] == 'AI_MODEL' && row.length > 1) {
-              model = row[1].toString();
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Failed to load config from sheet: $e');
-      }
-    }
-
     return {
       'provider': 'openrouter',
-      'apiKey': apiKey,
-      'model': model,
+      'apiKey': AppConstants.defaultOpenRouterApiKey,
+      'model': AppConstants.defaultOpenRouterModel,
     };
   }
 
@@ -88,8 +67,8 @@ class PengaduanProvider extends ChangeNotifier {
       final aiConfig = await _getAiConfig();
       final apiKey = aiConfig['apiKey'] ?? '';
       final provider = aiConfig['provider'] ?? 'openrouter';
-      // Force Gemini Flash model for OCR / vision tasks
-      final model = 'google/gemini-3.5-flash';
+      // Force Gemini Flash-Lite model for OCR / vision tasks
+      final model = 'google/gemini-3.5-flash-lite';
 
       final extracted = await _aiService.extractDocumentData(
         imageFile: imageFile,
@@ -144,7 +123,7 @@ Format Respons:
     final aiConfig = await _getAiConfig();
     final apiKey = aiConfig['apiKey'] ?? '';
     final provider = aiConfig['provider'] ?? 'openrouter';
-    final model = aiConfig['model'] ?? AppConstants.defaultOpenRouterModel;
+    final model = AppConstants.defaultOpenRouterModel;
 
     final prompt = _aiService.buildPengaduanAnalysisPrompt(
       aduan: aduan,
@@ -171,7 +150,7 @@ Format Respons:
     required double latitude,
     required double longitude,
     File? ktpPhoto,
-    File? screenshotSiks,
+    List<File>? screenshotSiksList,
   }) async {
     if (_auth?.sheetsService == null || _auth?.driveService == null || _auth?.spreadsheetId == null) {
       _errorMessage = 'Sistem belum siap';
@@ -183,6 +162,12 @@ Format Respons:
     notifyListeners();
 
     try {
+      // 1. Cek limitasi pengguna gratis
+      final hasReachedLimit = await SubscriptionService.instance.hasReachedDailyPdfLimit();
+      if (hasReachedLimit) {
+        throw Exception('LIMIT_REACHED');
+      }
+
       final now = DateTime.now();
       final dateStr = DateFormat('yyyyMMdd').format(now);
       final timeStr = DateFormat('HHmmss').format(now);
@@ -191,6 +176,7 @@ Format Respons:
       String fotoKtpId = '';
       String screenshotSiksId = '';
 
+      await _auth?.ensureFreshAuth();
       final folderId = await _auth!.driveService!.getOrCreateFolder(AppConstants.driveFolderPengaduan);
 
       // Upload KTP if any
@@ -204,23 +190,39 @@ Format Respons:
           '${id}_ktp.$ext',
           ktpBytes,
           mime,
+          onAuthExpired: () async {
+            await _auth?.ensureFreshAuth();
+          },
         );
         await _auth!.driveService!.setPublicAccess(fotoKtpId);
       }
 
-      // Upload Screenshot if any
-      List<int>? screenshotBytes;
-      if (screenshotSiks != null) {
-        screenshotBytes = await screenshotSiks.readAsBytes();
-        final ext = screenshotSiks.path.split('.').last.toLowerCase();
-        final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
-        screenshotSiksId = await _auth!.driveService!.uploadFile(
-          folderId,
-          '${id}_screenshot.$ext',
-          screenshotBytes,
-          mime,
-        );
-        await _auth!.driveService!.setPublicAccess(screenshotSiksId);
+      // Upload Screenshots if any
+      List<Uint8List> compressedScreenshotList = [];
+      if (screenshotSiksList != null && screenshotSiksList.isNotEmpty) {
+        List<String> siksIds = [];
+        for (int i = 0; i < screenshotSiksList.length; i++) {
+          final file = screenshotSiksList[i];
+          final bytes = await file.readAsBytes();
+          final ext = file.path.split('.').last.toLowerCase();
+          final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+          final uploadedId = await _auth!.driveService!.uploadFile(
+            folderId,
+            '${id}_screenshot_$i.$ext',
+            bytes,
+            mime,
+            onAuthExpired: () async {
+              await _auth?.ensureFreshAuth();
+            },
+          );
+          await _auth!.driveService!.setPublicAccess(uploadedId);
+          siksIds.add(uploadedId);
+          
+          // Compress right away for PDF to prevent OOM
+          final compressed = await _pdfService.compressForPdf(bytes);
+          compressedScreenshotList.add(compressed);
+        }
+        screenshotSiksId = siksIds.join(',');
       }
 
       // Create initial Pengaduan object
@@ -260,11 +262,8 @@ Format Respons:
         compressedKtp = await _pdfService.compressForPdf(ktpBytes);
         ktpBytes = null; // Release raw bytes immediately
       }
-      Uint8List? compressedScreenshot;
-      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
-        compressedScreenshot = await _pdfService.compressForPdf(screenshotBytes);
-        screenshotBytes = null; // Release raw bytes immediately
-      }
+      // KTP is already compressed above.
+      // Screenshots were already compressed in the upload loop.
 
       final pdfBytes = await _pdfService.createPengaduanPdf(
         pengaduan: pengaduan,
@@ -272,7 +271,7 @@ Format Respons:
         logoBytes: logoBytes,
         signatureBytes: signatureBytes,
         ktpBytes: compressedKtp,
-        screenshotBytes: compressedScreenshot,
+        screenshotBytesList: compressedScreenshotList,
       );
 
       final cleanNama = nama.replaceAll(RegExp(r'[^\w\s\-]'), '').replaceAll(RegExp(r'\s+'), '_');
@@ -281,6 +280,9 @@ Format Respons:
         'ADU-$dateStr-${cleanNama}_laporan.pdf',
         pdfBytes,
         'application/pdf',
+        onAuthExpired: () async {
+          await _auth?.ensureFreshAuth();
+        },
       );
       await _auth!.driveService!.setPublicAccess(pdfFileId);
 
@@ -295,6 +297,12 @@ Format Respons:
       );
 
       _pengaduans.insert(0, pengaduan);
+
+      _isLoading = false;
+      notifyListeners();
+
+      // Tambahkan hitungan limit
+      await SubscriptionService.instance.incrementDailyPdfCount();
 
       // Trigger ad check after successful PDF save
       AdService.instance.onPdfSaved();
@@ -339,9 +347,12 @@ Format Respons:
             } catch (_) {}
           }
           if (pengaduan.screenshotSiks.isNotEmpty) {
-            try {
-              await _auth!.driveService!.deleteFile(pengaduan.screenshotSiks);
-            } catch (_) {}
+            final ids = pengaduan.screenshotSiks.split(',').where((e) => e.trim().isNotEmpty);
+            for (final sId in ids) {
+              try {
+                await _auth!.driveService!.deleteFile(sId.trim());
+              } catch (_) {}
+            }
           }
           if (pengaduan.pdfFileId.isNotEmpty) {
             try {
@@ -395,14 +406,18 @@ Format Respons:
         } catch (_) {}
       }
 
-      Uint8List? compressedScreenshot;
+      List<Uint8List> compressedScreenshotList = [];
       if (pengaduan.screenshotSiks.isNotEmpty) {
-        try {
-          final rawScreenshot = await _auth!.driveService!.downloadFile(pengaduan.screenshotSiks);
-          if (rawScreenshot != null && rawScreenshot.isNotEmpty) {
-            compressedScreenshot = await _pdfService.compressForPdf(rawScreenshot);
-          }
-        } catch (_) {}
+        final ids = pengaduan.screenshotSiks.split(',').where((e) => e.trim().isNotEmpty);
+        for (final sId in ids) {
+          try {
+            final rawScreenshot = await _auth!.driveService!.downloadFile(sId.trim());
+            if (rawScreenshot != null && rawScreenshot.isNotEmpty) {
+              final compressed = await _pdfService.compressForPdf(rawScreenshot);
+              compressedScreenshotList.add(compressed);
+            }
+          } catch (_) {}
+        }
       }
 
       // 3. Hapus PDF laporan lama di Drive
@@ -429,7 +444,7 @@ Format Respons:
         logoBytes: null,
         signatureBytes: signatureBytes,
         ktpBytes: compressedKtp,
-        screenshotBytes: compressedScreenshot,
+        screenshotBytesList: compressedScreenshotList,
       );
 
       final cleanNama = pengaduan.nama.replaceAll(RegExp(r'[^\w\s\-]'), '').replaceAll(RegExp(r'\s+'), '_');
