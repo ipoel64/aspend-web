@@ -45,7 +45,6 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
   bool _isTtsReady = false;
   bool _isSpeaking = false;
   bool _isListening = false;
-  bool _isContinuousListening = true; // Mode mendengar terus menerus aktif
   bool _isMuted = false;
   bool _sttInitialized = false;
   String _sttLocaleId = 'id_ID';
@@ -54,12 +53,8 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
   String _lastHandledUtterance = '';
   int _lastHandledStep = -1;
 
-  // Echo Filtering & Self-Voice Suppression
-  String _currentSpeakingNormalized = '';
   DateTime? _ttsStartTime;
   DateTime? _ttsFinishedTime;
-  final List<String> _assistantSpeechHistory = [];
-  Set<String> _assistantSpeechTokens = {};
 
   // Animation Controllers
   late AnimationController _waveController;
@@ -258,13 +253,9 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
             _isSpeaking = false;
             _ttsFinishedTime = DateTime.now();
           });
-          // Aktifkan mikrofon secara otomatis segera setelah sistem selesai berbicara
-          if (_isContinuousListening && !_isCompleted && !_isSubmittingReport) {
-            Future.delayed(const Duration(milliseconds: 120), () {
-              if (mounted && !_isSpeaking && _isContinuousListening && !_stt.isListening) {
-                _startListening();
-              }
-            });
+          // Sistem SELESAI berbicara -> mikrofon LANGSUNG AKTIF seketika tanpa jeda!
+          if (!_isCompleted && !_isSubmittingReport) {
+            _startListening();
           }
         }
       });
@@ -275,7 +266,7 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
             _isSpeaking = false;
             _ttsFinishedTime = DateTime.now();
           });
-          if (_isContinuousListening && !_isCompleted && !_isSubmittingReport && !_stt.isListening) {
+          if (!_isCompleted && !_isSubmittingReport) {
             _startListening();
           }
         }
@@ -286,16 +277,22 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
       _sttInitialized = await _stt.initialize(
         onError: (e) {
           debugPrint('STT Error: $e');
-          if (mounted) setState(() => _isListening = false);
-          _scheduleRestartListening();
+          if (mounted && _isListening && !_isSpeaking && !_isCompleted && !_isSubmittingReport) {
+            _triggerListenInternal();
+          }
         },
         onStatus: (s) {
           debugPrint('STT Status: $s');
           if (s == 'done' || s == 'notListening') {
-            if (mounted) setState(() => _isListening = false);
-            _scheduleRestartListening();
+            if (mounted && _isListening && !_isSpeaking && !_isCompleted && !_isSubmittingReport) {
+              _triggerListenInternal();
+            } else if (mounted) {
+              setState(() => _isListening = false);
+            }
           } else if (s == 'listening') {
-            if (mounted) setState(() => _isListening = true);
+            if (mounted && !_isListening) {
+              setState(() => _isListening = true);
+            }
           }
         },
       );
@@ -312,19 +309,10 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
       } catch (_) {}
 
       // Mulai sambutan ramah
-      Future.delayed(const Duration(milliseconds: 400), _startGreeting);
+      Future.delayed(const Duration(milliseconds: 300), _startGreeting);
     } catch (e) {
       debugPrint('Error init TTS/STT: $e');
     }
-  }
-
-  void _scheduleRestartListening() {
-    if (!mounted || !_isContinuousListening || _isCompleted || _isSubmittingReport || _isSpeaking) return;
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && _isContinuousListening && !_isCompleted && !_isSubmittingReport && !_isSpeaking && !_stt.isListening) {
-        _startListening();
-      }
-    });
   }
 
   String _normalizeForComparison(String text) {
@@ -362,132 +350,27 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
     }
   }
 
-  /// Memeriksa apakah ucapan yang ditangkap STT adalah gema (echo) dari suara speaker HP sendiri
-  bool _isEchoOfAssistant(String rawWords) {
-    final words = _normalizeForComparison(rawWords);
-    if (words.isEmpty) return true;
-
-    // 1. Suara echo hanya mungkin terjadi jika sistem SEDANG berbicara (TTS aktif)
-    // atau residual speaker hardware dalam rentang sangat singkat (<150ms) setelah TTS selesai.
-    // Jika TTS sedang diam dan sudah lewat 150ms, MAKA INI ADALAH 100% SUARA USER!
-    final isDuringOrRightAfterTts = _isSpeaking ||
-        (_ttsFinishedTime != null &&
-            DateTime.now().difference(_ttsFinishedTime!).inMilliseconds < 150);
-
-    if (!isDuringOrRightAfterTts) {
-      return false;
-    }
-
-    // 2. Jika user menyebutkan angka pilihan (1, 2, 3, dst.), ini adalah perintah user!
-    final spokenNum = _extractSpokenNumber(words);
-    if (spokenNum != null) {
-      return false;
-    }
-
-    // 3. Kata kunci tindakan user selalu diprioritaskan sebagai input asli user
-    if (words.contains('batal') ||
-        words.contains('keluar') ||
-        words.contains('kamera') ||
-        words.contains('galeri') ||
-        words.contains('hari ini') ||
-        words.contains('sekarang') ||
-        words.contains('lanjut') ||
-        words.contains('sudah') ||
-        words.contains('selesai') ||
-        words.contains('riwayat')) {
-      return false;
-    }
-
-    // 4. Daftar kalimat umum asisten di semua langkah yang mungkin bocor ke mikrofon HP saat TTS aktif
-    const commonAssistantPhrases = [
-      'halo bos',
-      'halo boss',
-      'selamat pagi',
-      'selamat siang',
-      'selamat sore',
-      'selamat malam',
-      'siap bantu',
-      'mau buat laporan',
-      'laporan rhk',
-      'berapa hari ini',
-      'hari ini bos',
-      'hari ini boss',
-      'sebutkan nomor',
-      'pilih di layar',
-      'ketuk di layar',
-      'atau pilih di layar',
-      'untuk rencana aksinya',
-      'rencana aksinya',
-      'apa yang akan bos lakukan',
-      'apa yang akan boss lakukan',
-      'yang akan bos lakukan',
-      'yang akan boss lakukan',
-      'terpilih',
-      'dipilih',
-      'belum cocok',
-      'silakan pilih',
-      'bukti dukung',
-      'wajib ya bos',
-      'wajib ya boss',
-      'buka kamera atau dari galeri',
-      'foto bukti dukung tersimpan',
-      'kapan waktu kegiatannya',
-      'apakah hari ini pukul',
-      'waktu kegiatan tanggal',
-      'di mana lokasi kegiatannya',
-      'sekarang sebutkan apa saja poin poin kegiatannya',
-      'poin poin kegiatannya',
-      'poin kegiatan dicatat',
-      'untuk pertemuan p2k2',
-      'modul apa yang disampaikan',
-      'sesi berapa yang dibahas',
-      'sedang merangkai narasi resmi',
-      'membuat file pdf resmi',
-      'asisten pendamping',
-    ];
-
-    for (final phrase in commonAssistantPhrases) {
-      if (words == phrase || words.contains(phrase) || phrase.contains(words)) {
-        return true;
-      }
-    }
-
-    // 5. Substring match dengan kalimat asisten yang sedang diucapkan
-    if (_currentSpeakingNormalized.isNotEmpty) {
-      if (_currentSpeakingNormalized.contains(words) || words.contains(_currentSpeakingNormalized)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   Future<void> _speak(String displayText, {String? voiceText}) async {
     if (!mounted) return;
+
+    // Pastikan mikrofon mati total saat sistem sedang berbicara
+    _stopListening();
+
     setState(() {
       _assistantSubText = displayText;
+      _isSpeaking = true;
+      _isListening = false;
+      _userTranscriptText = '';
     });
 
     final rawSpeech = voiceText ?? displayText;
-    final cleanSpeech = _normalizeForComparison(rawSpeech);
-    _currentSpeakingNormalized = cleanSpeech;
-    _assistantSpeechHistory.add(cleanSpeech);
-    if (_assistantSpeechHistory.length > 5) {
-      _assistantSpeechHistory.removeAt(0);
-    }
-    _assistantSpeechTokens = cleanSpeech.split(RegExp(r'\s+')).where((w) => w.length > 1).toSet();
 
     if (!_isMuted && _isTtsReady) {
-      if (_stt.isListening) {
-        await _stt.stop();
-        if (mounted) setState(() => _isListening = false);
-      }
-      _isSpeaking = true;
       _ttsStartTime = DateTime.now();
       await _tts.speak(_sanitizeForVoice(rawSpeech));
     } else {
       _isSpeaking = false;
-      if (_isContinuousListening && !_isCompleted && !_isSubmittingReport && !_stt.isListening) {
+      if (!_isCompleted && !_isSubmittingReport) {
         _startListening();
       }
     }
@@ -505,22 +388,28 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
   }
 
   void _startListening() async {
-    if (_isSpeaking || _stt.isListening || _isSubmittingReport || _isCompleted) return;
+    if (!mounted || _isSpeaking || _isSubmittingReport || _isCompleted) return;
 
     if (!_sttInitialized) {
       _sttInitialized = await _stt.initialize(
         onError: (e) {
           debugPrint('STT Error: $e');
-          if (mounted) setState(() => _isListening = false);
-          _scheduleRestartListening();
+          if (mounted && _isListening && !_isSpeaking && !_isCompleted && !_isSubmittingReport) {
+            _triggerListenInternal();
+          }
         },
         onStatus: (s) {
           debugPrint('STT Status: $s');
           if (s == 'done' || s == 'notListening') {
-            if (mounted) setState(() => _isListening = false);
-            _scheduleRestartListening();
+            if (mounted && _isListening && !_isSpeaking && !_isCompleted && !_isSubmittingReport) {
+              _triggerListenInternal();
+            } else if (mounted) {
+              setState(() => _isListening = false);
+            }
           } else if (s == 'listening') {
-            if (mounted) setState(() => _isListening = true);
+            if (mounted && !_isListening) {
+              setState(() => _isListening = true);
+            }
           }
         },
       );
@@ -532,46 +421,42 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
       _isListening = true;
     });
 
+    _triggerListenInternal();
+  }
+
+  void _triggerListenInternal() async {
+    if (!mounted || _isSpeaking || _isSubmittingReport || _isCompleted || _stt.isListening) return;
+
     try {
       await _stt.listen(
         onResult: (result) {
-          if (_isSpeaking) return;
+          if (!mounted || _isSpeaking) return;
 
           final words = result.recognizedWords.toLowerCase().trim();
           if (words.isEmpty) return;
 
-          // 1. FILTER EFEK GEMA DARI SUARA SISTEM SENDIRI (ECHO CANCELLATION)
-          if (_isEchoOfAssistant(words)) {
-            debugPrint('Self-echo suppressed: "$words"');
-            return;
-          }
+          setState(() {
+            _userTranscriptText = result.recognizedWords;
+          });
 
-          if (mounted) {
-            setState(() {
-              _userTranscriptText = result.recognizedWords;
-            });
-          }
-
-          // 2. Cek tindakan cepat dari pengenalan suara parsial untuk menghilangkan jeda
+          // 1. Eksekusi cepat jika terdeteksi aksi yang cocok
           final processed = _tryFastActionRecognition(words);
           if (processed) return;
 
-          // 3. Jika final result dan belum diproses cepat, proses di handler utama
+          // 2. Jika pengenalan final selesai, proses di handler utama
           if (result.finalResult) {
             _processVoiceInput(words);
           }
         },
         localeId: _sttLocaleId,
-        listenMode: stt.ListenMode.dictation,
-        pauseFor: const Duration(milliseconds: 1200),
-        listenFor: const Duration(seconds: 40),
+        listenMode: stt.ListenMode.confirmation,
+        pauseFor: const Duration(seconds: 4),
+        listenFor: const Duration(seconds: 45),
         cancelOnError: false,
         partialResults: true,
       );
     } catch (e) {
       debugPrint('STT listen error: $e');
-      if (mounted) setState(() => _isListening = false);
-      _scheduleRestartListening();
     }
   }
 
@@ -591,17 +476,13 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
       // Seketika itu juga suara sistem berhenti dan langsung mendengar suara user!
       _tts.stop();
       setState(() => _isSpeaking = false);
-      _ttsFinishedTime = DateTime.now();
-      if (_isContinuousListening && !_isCompleted && !_isSubmittingReport) {
+      if (!_isCompleted && !_isSubmittingReport) {
         _startListening();
       }
       return;
     }
 
-    if (_isContinuousListening) {
-      setState(() {
-        _isContinuousListening = false;
-      });
+    if (_isListening) {
       _stopListening();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -611,9 +492,6 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
         ),
       );
     } else {
-      setState(() {
-        _isContinuousListening = true;
-      });
       _startListening();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -641,6 +519,8 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
 
   /// Eksekusi cepat jika kata kunci terdeteksi tanpa harus menunggu jeda diam lama
   bool _tryFastActionRecognition(String words) {
+    if (_isSpeaking) return false;
+
     final now = DateTime.now();
     if (_lastVoiceProcessedTime != null && now.difference(_lastVoiceProcessedTime!).inMilliseconds < 350) {
       return false;
@@ -782,6 +662,8 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
   }
 
   void _processVoiceInput(String words) {
+    if (_isSpeaking) return;
+
     final now = DateTime.now();
     if (_lastVoiceProcessedTime != null && now.difference(_lastVoiceProcessedTime!).inMilliseconds < 350) {
       return;
@@ -2577,6 +2459,8 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
                     ? 0.7 + (_pulseController.value * 0.3)
                     : (_isSpeaking ? 0.5 + (_pulseController.value * 0.2) : 0.2);
 
+                final isVoiceActive = _isListening || _isSpeaking;
+
                 return Container(
                   width: 170,
                   height: 56,
@@ -2584,14 +2468,14 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
                     color: const Color(0xFF0F172A),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
-                      color: _isContinuousListening
+                      color: isVoiceActive
                           ? (_isListening ? const Color(0xFF10B981) : const Color(0xFF38BDF8))
                           : Colors.grey.withOpacity(0.4),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: _isContinuousListening
+                        color: isVoiceActive
                             ? (_isListening ? const Color(0xFF10B981) : const Color(0xFF38BDF8))
                                 .withOpacity(glowIntensity)
                             : Colors.transparent,
@@ -2601,7 +2485,7 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
                     ],
                   ),
                   child: Center(
-                    child: _isContinuousListening
+                    child: isVoiceActive
                         ? CustomPaint(
                             size: const Size(130, 32),
                             painter: _TechFluidWavePainter(
