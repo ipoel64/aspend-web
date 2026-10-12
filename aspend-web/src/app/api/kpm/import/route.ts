@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     if (!session || !accessToken) {
       return NextResponse.json({ error: 'Unauthorized: Sesi login tidak valid' }, { status: 401 });
     }
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {
       return NextResponse.json({ error: 'Spreadsheet database ASPEND tidak ditemukan di Google Drive' }, { status: 404 });
     }
@@ -801,6 +801,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Target tipe impor tidak dikenali' }, { status: 400 });
   } catch (error: any) {
     console.error('KPM Import Excel error:', error);
-    return NextResponse.json({ error: error.message || 'Gagal memproses file Excel' }, { status: 500 });
+    const msg = error.message || 'Gagal memproses file Excel';
+    const isAuthError = msg.includes('invalid authentication credentials') || error?.code === 401;
+    return NextResponse.json({ 
+      error: isAuthError 
+        ? 'Sesi otorisasi Google Anda kedaluwarsa atau tidak valid. Silakan scan ulang barcode dari aplikasi Aspend Mobile untuk memperbarui akses.' 
+        : msg,
+      isAuthError 
+    }, { status: isAuthError ? 401 : 500 });
   }
 }

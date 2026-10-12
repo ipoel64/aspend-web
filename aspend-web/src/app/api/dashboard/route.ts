@@ -88,9 +88,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     let spreadsheetId = searchParams.get('spreadsheetId');
 
-    // 1. Jika ID tidak dikirim, otomatis cari di Google Drive milik user
+    // 1. Jika ID tidak dikirim, otomatis gunakan dari session atau cari di Google Drive milik user
     if (!spreadsheetId) {
-      spreadsheetId = await findAspendSpreadsheet(accessToken as string);
+      spreadsheetId = (session.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken as string);
     }
 
     if (!spreadsheetId) {

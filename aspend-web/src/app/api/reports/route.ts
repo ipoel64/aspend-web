@@ -35,7 +35,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Report ID is required' }, { status: 400 });
     }
 
-    const spreadsheetId = await findAspendSpreadsheet(accessToken as string);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken as string);
     if (!spreadsheetId) {
       return NextResponse.json({ error: 'Spreadsheet tidak ditemukan' }, { status: 404 });
     }
@@ -105,7 +105,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Report ID is required' }, { status: 400 });
     }
 
-    const spreadsheetId = await findAspendSpreadsheet(accessToken as string);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken as string);
     if (!spreadsheetId) {
       return NextResponse.json({ error: 'Spreadsheet tidak ditemukan' }, { status: 404 });
     }
@@ -327,7 +327,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Field wajib belum lengkap diisi.' }, { status: 400 });
     }
 
-    const spreadsheetId = await findAspendSpreadsheet(accessToken as string);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken as string);
     if (!spreadsheetId) {
       return NextResponse.json({ error: 'Spreadsheet database Aspend tidak ditemukan di Google Drive.' }, { status: 404 });
     }
@@ -502,7 +502,14 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Error POST /api/reports:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const msg = error.message || 'Internal Server Error';
+    const isAuthError = msg.includes('invalid authentication credentials') || error?.code === 401;
+    return NextResponse.json({ 
+      error: isAuthError 
+        ? 'Sesi otorisasi Google Anda kedaluwarsa atau tidak valid. Silakan scan ulang barcode dari aplikasi Aspend Mobile untuk memperbarui akses.' 
+        : msg,
+      isAuthError 
+    }, { status: isAuthError ? 401 : 500 });
   }
 }
 

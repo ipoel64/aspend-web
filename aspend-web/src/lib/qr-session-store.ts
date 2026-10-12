@@ -8,6 +8,8 @@ export interface QrUserPayload {
   spreadsheetId?: string;
   accessToken?: string;
   refreshToken?: string;
+  serverAuthCode?: string;
+  idToken?: string;
   expiresAt?: number;
 }
 

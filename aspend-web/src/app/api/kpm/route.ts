@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     if (!session || !accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {
       return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
     }
@@ -319,7 +319,7 @@ export async function POST(request: Request) {
     if (!session || !accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const body = await request.json();
@@ -413,7 +413,7 @@ export async function PUT(request: Request) {
     // @ts-expect-error
     const accessToken = session?.accessToken;
     if (!session || !accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const body = await request.json();
@@ -631,7 +631,7 @@ export async function DELETE(request: Request) {
     // @ts-expect-error
     const accessToken = session?.accessToken;
     if (!session || !accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const { searchParams } = new URL(request.url);
@@ -776,7 +776,7 @@ export async function PATCH(request: Request) {
     // @ts-expect-error
     const accessToken = session?.accessToken;
     if (!session || !accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const spreadsheetId = await findAspendSpreadsheet(accessToken);
+    const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) return NextResponse.json({ error: 'Spreadsheet not found' }, { status: 404 });
 
     const { searchParams } = new URL(request.url);

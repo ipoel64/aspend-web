@@ -13,43 +13,59 @@ export async function getDriveClient(accessToken: string) {
 /**
  * Otomatis mencari Spreadsheet "Aspend Database" milik user di Google Drive
  */
-export async function findAspendSpreadsheet(accessToken: string): Promise<string | null> {
-  const drive = await getDriveClient(accessToken);
-  
-  // 1. Coba cari persis nama 'Aspend Database'
-  let response = await drive.files.list({
-    q: "name='Aspend Database' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-    fields: 'files(id, name)',
-    spaces: 'drive',
-  });
-
-  if (response.data.files && response.data.files.length > 0) {
-    return response.data.files[0].id || null;
+export async function findAspendSpreadsheet(accessToken: string, defaultSpreadsheetId?: string): Promise<string | null> {
+  if (defaultSpreadsheetId && defaultSpreadsheetId.trim()) {
+    return defaultSpreadsheetId.trim();
   }
 
-  // 2. Jika tidak ada yang persis, cari yang mengandung 'Aspend'
-  response = await drive.files.list({
-    q: "name contains 'Aspend' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-    fields: 'files(id, name)',
-    spaces: 'drive',
-  });
-
-  if (response.data.files && response.data.files.length > 0) {
-    return response.data.files[0].id || null;
+  if (!accessToken || !accessToken.trim()) {
+    return null;
   }
 
-  // 3. Jika tidak ada, cari yang mengandung 'RHK'
-  response = await drive.files.list({
-    q: "name contains 'RHK' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-    fields: 'files(id, name)',
-    spaces: 'drive',
-  });
+  try {
+    const drive = await getDriveClient(accessToken);
+    
+    // 1. Coba cari persis nama 'Aspend Database'
+    let response = await drive.files.list({
+      q: "name='Aspend Database' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
 
-  if (response.data.files && response.data.files.length > 0) {
-    return response.data.files[0].id || null;
+    if (response.data.files && response.data.files.length > 0) {
+      return response.data.files[0].id || null;
+    }
+
+    // 2. Jika tidak ada yang persis, cari yang mengandung 'Aspend'
+    response = await drive.files.list({
+      q: "name contains 'Aspend' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
+
+    if (response.data.files && response.data.files.length > 0) {
+      return response.data.files[0].id || null;
+    }
+
+    // 3. Jika tidak ada, cari yang mengandung 'RHK'
+    response = await drive.files.list({
+      q: "name contains 'RHK' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
+
+    if (response.data.files && response.data.files.length > 0) {
+      return response.data.files[0].id || null;
+    }
+
+    return null;
+  } catch (err: any) {
+    console.error('findAspendSpreadsheet error:', err?.message || err);
+    if (defaultSpreadsheetId && defaultSpreadsheetId.trim()) {
+      return defaultSpreadsheetId.trim();
+    }
+    throw err;
   }
-
-  return null;
 }
 
 /**

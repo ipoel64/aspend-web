@@ -76,15 +76,45 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               if (rawText && rawText.trim().startsWith('{')) {
                 const body = JSON.parse(rawText.trim());
                 if (body && (body.sessionId === sessionId || body.email)) {
+                  let accessToken = body.accessToken || '';
+                  let refreshToken = body.refreshToken || '';
+                  let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 3600);
+                  const serverAuthCode = body.serverAuthCode || '';
+
+                  if (serverAuthCode && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+                    try {
+                      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({
+                          client_id: process.env.GOOGLE_CLIENT_ID,
+                          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                          code: serverAuthCode,
+                          grant_type: "authorization_code",
+                          redirect_uri: "",
+                        }),
+                      });
+                      if (tokenRes.ok) {
+                        const tokenData = await tokenRes.json();
+                        if (tokenData.access_token) {
+                          accessToken = tokenData.access_token;
+                          if (tokenData.refresh_token) refreshToken = tokenData.refresh_token;
+                          if (tokenData.expires_in) expiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+                        }
+                      }
+                    } catch (_) {}
+                  }
+
                   user = {
                     id: body.email || sessionId,
                     name: body.nama || body.name || 'Pengguna Aspend',
                     email: body.email || '',
                     image: body.image || body.picture || '',
                     spreadsheetId: body.spreadsheetId || '',
-                    accessToken: body.accessToken || '',
-                    refreshToken: body.refreshToken || '',
-                    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                    accessToken,
+                    refreshToken,
+                    serverAuthCode,
+                    expiresAt,
                   };
                 }
               }
@@ -92,6 +122,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           } catch (_) {}
         }
         if (user) {
+          if (user.serverAuthCode && !user.refreshToken && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+            try {
+              const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                  client_id: process.env.GOOGLE_CLIENT_ID,
+                  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                  code: user.serverAuthCode,
+                  grant_type: "authorization_code",
+                  redirect_uri: "",
+                }),
+              });
+              if (tokenRes.ok) {
+                const tokenData = await tokenRes.json();
+                if (tokenData.access_token) {
+                  user.accessToken = tokenData.access_token;
+                  if (tokenData.refresh_token) user.refreshToken = tokenData.refresh_token;
+                  if (tokenData.expires_in) user.expiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+                }
+              }
+            } catch (_) {}
+          }
+
           return {
             id: user.id || sessionId,
             name: user.name,
