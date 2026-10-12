@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -36,6 +37,11 @@ class AuthProvider extends ChangeNotifier {
   SheetsService? get sheetsService => _sheetsService;
   DriveService? get driveService => _driveService;
   bool get isProfileComplete => _isProfileComplete;
+  AuthService get authService => _authService;
+
+  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false}) async {
+    return await _authService.getOAuthCredentials(forceRefresh: forceRefresh);
+  }
 
   Future<bool> tryAutoSignIn() async {
     _setLoading(true);
@@ -95,6 +101,28 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Memastikan token Google Auth selalu segar sebelum operasi API penting (mencegah invalid_token)
+  Future<bool> ensureFreshAuth() async {
+    try {
+      final account = _authService.currentUser;
+      if (account != null) {
+        await account.authentication;
+        final client = await _authService.getAuthClient(forceRefresh: true);
+        if (client != null) {
+          _sheetsService = SheetsService(sheets.SheetsApi(client));
+          _driveService = DriveService(drive.DriveApi(client));
+          if (_setupService != null) {
+            _setupService = SetupService(_sheetsService!, _driveService!);
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('ensureFreshAuth warning: $e');
+    }
+    return false;
+  }
+
   Future<void> signOut() async {
     await _authService.signOut();
     _sheetsService = null;
@@ -139,6 +167,23 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> loadProfile() async {
+    final currentEmail = currentUser?.email ?? '';
+    final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
+    
+    // 1. Immediately load from SharedPreferences if available
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedStr = prefs.getString(cacheKey) ?? prefs.getString('cached_user_profile_');
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        final data = jsonDecode(cachedStr);
+        _userProfile = UserProfile.fromJson(data);
+        notifyListeners();
+        checkProfileComplete();
+      }
+    } catch (e) {
+      debugPrint('Error reading cached user profile: $e');
+    }
+
     if (_sheetsService == null || _spreadsheetId == null) return;
 
     try {
@@ -147,10 +192,29 @@ class AuthProvider extends ChangeNotifier {
         AppConstants.sheetProfile,
       );
       if (rows.isNotEmpty) {
-        _userProfile = UserProfile.fromSheetRow(rows[0]);
-        
-        // Cache signature bytes if file ID is present
-        if (_userProfile!.signatureFileId.isNotEmpty && _driveService != null) {
+        final fromSheet = UserProfile.fromSheetRow(rows[0]);
+        _userProfile = UserProfile(
+          email: fromSheet.email.isNotEmpty ? fromSheet.email : currentEmail,
+          nama: fromSheet.nama.isNotEmpty ? fromSheet.nama : (_userProfile?.nama ?? ''),
+          nip: fromSheet.nip.isNotEmpty ? fromSheet.nip : (_userProfile?.nip ?? ''),
+          jabatan: fromSheet.jabatan.isNotEmpty ? fromSheet.jabatan : (_userProfile?.jabatan ?? 'Pendamping PKH'),
+          kabupatenKota: fromSheet.kabupatenKota.isNotEmpty ? fromSheet.kabupatenKota : (_userProfile?.kabupatenKota ?? ''),
+          signatureFileId: fromSheet.signatureFileId.isNotEmpty ? fromSheet.signatureFileId : (_userProfile?.signatureFileId ?? ''),
+          photoFileId: fromSheet.photoFileId.isNotEmpty ? fromSheet.photoFileId : (_userProfile?.photoFileId ?? ''),
+          logoFileId: fromSheet.logoFileId.isNotEmpty ? fromSheet.logoFileId : (_userProfile?.logoFileId ?? ''),
+          jenisSdm: fromSheet.jenisSdm.isNotEmpty ? fromSheet.jenisSdm : (_userProfile?.jenisSdm ?? 'SDM PKH'),
+          provinsi: fromSheet.provinsi.isNotEmpty ? fromSheet.provinsi : (_userProfile?.provinsi ?? ''),
+          kecamatan: fromSheet.kecamatan.isNotEmpty ? fromSheet.kecamatan : (_userProfile?.kecamatan ?? ''),
+        );
+
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final jsonStr = jsonEncode(_userProfile!.toJson());
+          await prefs.setString(cacheKey, jsonStr);
+          await prefs.setString('cached_user_profile_', jsonStr);
+        } catch (_) {}
+
+        if (_userProfile!.signatureFileId.isNotEmpty && _driveService != null && _signatureBytes == null) {
           try {
             final sig = await _driveService!.downloadFile(_userProfile!.signatureFileId);
             if (sig != null) {
@@ -160,7 +224,8 @@ class AuthProvider extends ChangeNotifier {
             debugPrint('Error caching signature in loadProfile: $e');
           }
         }
-        
+
+        await checkProfileComplete();
         notifyListeners();
       }
     } catch (e) {
@@ -174,31 +239,64 @@ class AuthProvider extends ChangeNotifier {
     required String nip,
     required String jabatan,
     required String kabupatenKota,
+    String? jenisSdm,
+    String? provinsi,
+    String? kecamatan,
   }) async {
-    if (_sheetsService == null ||
-        _spreadsheetId == null ||
-        _userProfile == null)
-      return;
+    final currentEmail = currentUser?.email ?? '';
+    final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
 
-    final updated = _userProfile!.copyWith(
+    final base = _userProfile ?? UserProfile(
+      email: currentEmail,
       nama: nama,
       nip: nip,
       jabatan: jabatan,
       kabupatenKota: kabupatenKota,
+      signatureFileId: '',
+      photoFileId: '',
+      logoFileId: '',
+      jenisSdm: jenisSdm ?? 'SDM PKH',
+      provinsi: provinsi ?? '',
+      kecamatan: kecamatan ?? '',
     );
 
+    final updated = base.copyWith(
+      nama: nama,
+      nip: nip,
+      jabatan: jabatan,
+      kabupatenKota: kabupatenKota,
+      jenisSdm: jenisSdm ?? (base.jenisSdm.isNotEmpty ? base.jenisSdm : 'SDM PKH'),
+      provinsi: provinsi ?? base.provinsi,
+      kecamatan: kecamatan ?? base.kecamatan,
+    );
+
+    _userProfile = updated;
+    notifyListeners();
+
     try {
-      await _sheetsService!.updateRow(
-        _spreadsheetId!,
-        AppConstants.sheetProfile,
-        2, // Row 2, since Row 1 is header
-        updated.toSheetRow(),
-      );
-      _userProfile = updated;
-      await checkProfileComplete();
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = jsonEncode(updated.toJson());
+      await prefs.setString(cacheKey, jsonStr);
+      await prefs.setString('cached_user_profile_', jsonStr);
     } catch (e) {
-      throw Exception('Gagal mengupdate profil: $e');
+      debugPrint('Error caching profile to prefs: $e');
     }
+
+    if (_sheetsService != null && _spreadsheetId != null) {
+      try {
+        await _sheetsService!.updateRow(
+          _spreadsheetId!,
+          AppConstants.sheetProfile,
+          2,
+          updated.toSheetRow(),
+        );
+      } catch (e) {
+        debugPrint('Error updating sheet profile: $e');
+        throw Exception('Gagal mengupdate profil di Google Sheets: $e');
+      }
+    }
+
+    await checkProfileComplete();
   }
 
   Future<void> uploadProfilePhoto(List<int> bytes, String mimeType) async {
@@ -221,8 +319,22 @@ class AuthProvider extends ChangeNotifier {
       );
       await _driveService!.setPublicAccess(fileId);
 
-      // Update sheet
-      final updated = _userProfile!.copyWith(photoFileId: fileId);
+      // Update sheet safely without force-unwrapping _userProfile
+      final currentEmail = currentUser?.email ?? '';
+      final base = _userProfile ?? UserProfile(
+        email: currentEmail,
+        nama: currentUser?.displayName ?? '',
+        nip: '',
+        jabatan: 'Pendamping PKH',
+        kabupatenKota: '',
+        signatureFileId: '',
+        photoFileId: fileId,
+        logoFileId: '',
+        jenisSdm: 'SDM PKH',
+        provinsi: '',
+        kecamatan: '',
+      );
+      final updated = base.copyWith(photoFileId: fileId);
       await _sheetsService!.updateRow(
         _spreadsheetId!,
         AppConstants.sheetProfile,
@@ -230,6 +342,13 @@ class AuthProvider extends ChangeNotifier {
         updated.toSheetRow(),
       );
       _userProfile = updated;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
+        final jsonStr = jsonEncode(updated.toJson());
+        await prefs.setString(cacheKey, jsonStr);
+        await prefs.setString('cached_user_profile_', jsonStr);
+      } catch (_) {}
       notifyListeners();
     } catch (e) {
       throw Exception('Gagal upload foto: $e');
@@ -256,8 +375,22 @@ class AuthProvider extends ChangeNotifier {
       );
       await _driveService!.setPublicAccess(fileId);
 
-      // Update sheet
-      final updated = _userProfile!.copyWith(signatureFileId: fileId);
+      // Update sheet safely without force-unwrapping _userProfile
+      final currentEmail = currentUser?.email ?? '';
+      final base = _userProfile ?? UserProfile(
+        email: currentEmail,
+        nama: currentUser?.displayName ?? '',
+        nip: '',
+        jabatan: 'Pendamping PKH',
+        kabupatenKota: '',
+        signatureFileId: fileId,
+        photoFileId: '',
+        logoFileId: '',
+        jenisSdm: 'SDM PKH',
+        provinsi: '',
+        kecamatan: '',
+      );
+      final updated = base.copyWith(signatureFileId: fileId);
       await _sheetsService!.updateRow(
         _spreadsheetId!,
         AppConstants.sheetProfile,
@@ -266,6 +399,13 @@ class AuthProvider extends ChangeNotifier {
       );
       _userProfile = updated;
       _signatureBytes = Uint8List.fromList(bytes);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
+        final jsonStr = jsonEncode(updated.toJson());
+        await prefs.setString(cacheKey, jsonStr);
+        await prefs.setString('cached_user_profile_', jsonStr);
+      } catch (_) {}
       await checkProfileComplete();
     } catch (e) {
       throw Exception('Gagal upload tanda tangan: $e');
@@ -275,8 +415,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> uploadKopLogo(List<int> bytes, String mimeType) async {
     if (_driveService == null ||
         _sheetsService == null ||
-        _spreadsheetId == null ||
-        _userProfile == null)
+        _spreadsheetId == null)
       return;
 
     try {
@@ -293,8 +432,22 @@ class AuthProvider extends ChangeNotifier {
       );
       await _driveService!.setPublicAccess(fileId);
 
-      // Update sheet
-      final updated = _userProfile!.copyWith(logoFileId: fileId);
+      // Update sheet safely without force-unwrapping _userProfile
+      final currentEmail = currentUser?.email ?? '';
+      final base = _userProfile ?? UserProfile(
+        email: currentEmail,
+        nama: currentUser?.displayName ?? '',
+        nip: '',
+        jabatan: 'Pendamping PKH',
+        kabupatenKota: '',
+        signatureFileId: '',
+        photoFileId: '',
+        logoFileId: fileId,
+        jenisSdm: 'SDM PKH',
+        provinsi: '',
+        kecamatan: '',
+      );
+      final updated = base.copyWith(logoFileId: fileId);
       await _sheetsService!.updateRow(
         _spreadsheetId!,
         AppConstants.sheetProfile,
@@ -302,6 +455,13 @@ class AuthProvider extends ChangeNotifier {
         updated.toSheetRow(),
       );
       _userProfile = updated;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
+        final jsonStr = jsonEncode(updated.toJson());
+        await prefs.setString(cacheKey, jsonStr);
+        await prefs.setString('cached_user_profile_', jsonStr);
+      } catch (_) {}
       notifyListeners();
     } catch (e) {
       throw Exception('Gagal upload logo Kop: $e');
@@ -321,10 +481,12 @@ class AuthProvider extends ChangeNotifier {
     }
     
     // 1. Check text fields & signature
+    final isTksk = _userProfile!.jenisSdm == 'TKSK';
     final baseComplete = _userProfile!.nama.trim().isNotEmpty &&
         _userProfile!.nip.trim().isNotEmpty &&
-        _userProfile!.jabatan.trim().isNotEmpty &&
+        (isTksk || _userProfile!.jabatan.trim().isNotEmpty) &&
         _userProfile!.kabupatenKota.trim().isNotEmpty &&
+        _userProfile!.jenisSdm.trim().isNotEmpty &&
         _userProfile!.signatureFileId.trim().isNotEmpty;
         
     if (!baseComplete) {
@@ -374,3 +536,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 }
+
+
+

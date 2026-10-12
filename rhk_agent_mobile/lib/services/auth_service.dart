@@ -1,6 +1,5 @@
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
-import 'package:googleapis/sheets/v4.dart' as sheets;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 
@@ -44,15 +43,48 @@ class AuthService {
     return await _googleSignIn.isSignedIn();
   }
 
-  Future<auth.AuthClient?> getAuthClient() async {
+  Future<auth.AuthClient?> getAuthClient({bool forceRefresh = false}) async {
     try {
-      // Coba segarkan token terlebih dahulu agar tidak invalid_token (expired)
-      await _googleSignIn.signInSilently();
+      if (forceRefresh || _googleSignIn.currentUser != null) {
+        final account = await _googleSignIn.signInSilently();
+        if (account != null) {
+          // Calling authentication forces native token refresh if expired
+          await account.authentication;
+        }
+      }
       final client = await _googleSignIn.authenticatedClient();
       return client;
     } catch (e) {
       print('Error getting auth client: $e');
       return null;
+    }
+  }
+
+  /// Mengambil kredensial OAuth2 lengkap (termasuk accessToken data yang valid untuk Android)
+  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false}) async {
+    try {
+      final client = await getAuthClient(forceRefresh: forceRefresh);
+      final account = _googleSignIn.currentUser;
+      final auth = await account?.authentication;
+
+      String? accessToken = client?.credentials.accessToken.data;
+      DateTime? expiry = client?.credentials.accessToken.expiry;
+      String? refreshToken = client?.credentials.refreshToken;
+      String? idToken = auth?.idToken;
+      String? serverAuthCode = account?.serverAuthCode ?? auth?.serverAuthCode;
+
+      return {
+        'accessToken': accessToken ?? '',
+        'idToken': idToken ?? '',
+        'serverAuthCode': serverAuthCode ?? '',
+        'refreshToken': refreshToken ?? '',
+        'expiresAt': expiry != null
+            ? (expiry.millisecondsSinceEpoch ~/ 1000)
+            : (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600),
+      };
+    } catch (e) {
+      print('Error getting OAuth credentials: $e');
+      return {};
     }
   }
 }
