@@ -32,6 +32,7 @@ export interface UserProfileData {
   provinsi?: string;
   kecamatan?: string;
   jenisSdm?: string;
+  jabatanAsn?: string;
 }
 
 interface RekapP2K2ViewProps {
@@ -357,16 +358,21 @@ export default function RekapP2K2View({
       const excelRows: any[][] = [];
 
       // Kop & Header Excel
+      const isTksk = (userProfile?.jenisSdm === 'TKSK' || userProfile?.jenisSdm?.toUpperCase().includes('TKSK'));
       excelRows.push(['KEMENTERIAN SOSIAL REPUBLIK INDONESIA']);
-      excelRows.push(['DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL']);
-      excelRows.push(['PROGRAM KELUARGA HARAPAN (PKH)']);
+      if (isTksk) {
+        excelRows.push(['DIREKTORAT JENDERAL PEMBERDAYAAN SOSIAL']);
+      } else {
+        excelRows.push(['DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL']);
+        excelRows.push(['PROGRAM KELUARGA HARAPAN (PKH)']);
+      }
       excelRows.push(['']);
       excelRows.push(['REKAPITULASI PELAKSANAAN PERTEMUAN PENINGKATAN KEMAMPUAN KELUARGA (P2K2 / RHK-2)']);
       excelRows.push([`Tahun Anggaran / Periode: ${selectedYear}`]);
       excelRows.push(['']);
       excelRows.push([`Nama Pendamping: ${userProfile?.nama || '-'}`]);
       excelRows.push([`NIP: ${userProfile?.nip || '-'}`]);
-      excelRows.push([`Jabatan: ${userProfile?.jabatan || 'Pendamping Sosial PKH'}`]);
+      excelRows.push([`Jabatan: ${userProfile?.jabatanAsn || userProfile?.jabatan || 'Pendamping Sosial PKH'}`]);
       excelRows.push([`Wilayah Tugas: ${[
         userProfile?.kecamatan ? `Kec. ${capitalizeEachWord(userProfile.kecamatan)}` : '',
         userProfile?.kabupaten ? capitalizeEachWord(userProfile.kabupaten) : '',
@@ -445,11 +451,13 @@ export default function RekapP2K2View({
       excelRows.push(['']);
       const kabName = userProfile?.kabupaten ? capitalizeEachWord(userProfile.kabupaten) : 'Binjai';
       const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-      excelRows.push(['', '', '', '', '', `${kabName}, ${todayStr}`]);
-      excelRows.push(['', '', '', '', '', userProfile?.jabatan || 'Pendamping Sosial PKH']);
+      const jabatanTtd = userProfile?.jabatanAsn || userProfile?.jabatan || 'Pendamping Sosial PKH';
+      excelRows.push(['', '', '', '', '', `Dibuat di    : ${kabName}`]);
+      excelRows.push(['', '', '', '', '', `Pada tanggal : ${todayStr}`]);
+      excelRows.push(['', '', '', '', '', jabatanTtd]);
       excelRows.push(['']);
       excelRows.push(['']);
-      excelRows.push(['', '', '', '', '', `( ${userProfile?.nama || '-'} )`]);
+      excelRows.push(['', '', '', '', '', userProfile?.nama || '-']);
       excelRows.push(['', '', '', '', '', `NIP. ${userProfile?.nip || '-'}`]);
 
       const ws = XLSX.utils.aoa_to_sheet(excelRows);

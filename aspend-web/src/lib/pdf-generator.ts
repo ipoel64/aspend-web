@@ -209,7 +209,7 @@ function extractSectionBLines(narrative: string): string[] {
  */
 function generateP2K2TableHtml(
   p2k2: any,
-  userProfile: { nama: string; nip: string; jabatan: string; kabupaten: string; provinsi?: string; kecamatan?: string },
+  userProfile: { nama: string; nip: string; jabatan: string; kabupaten: string; provinsi?: string; kecamatan?: string; jenisSdm?: string; jabatanAsn?: string },
   reportData: { ReportId: string; Tanggal: string; JenisRHK: string; IdRHK: string; RencanaAksi: string; Pukul: string; Lokasi?: string; NarasiEdited?: string; NarasiAI?: string },
   validDate: Date,
   bLines: string[],
@@ -662,6 +662,8 @@ export interface GeneratePdfParams {
     provinsi?: string;
     kecamatan?: string;
     signatureFileId?: string;
+    jenisSdm?: string;
+    jabatanAsn?: string;
   };
 }
 
@@ -815,8 +817,12 @@ export async function generateReportPDF(
           </td>
           <td style="text-align: center; vertical-align: middle; border: none; padding: 0 0 0 8pt;">
             <p style="font-size: 13pt; font-weight: bold; margin: 0; line-height: 1.15; font-family: Arial, sans-serif;">KEMENTERIAN SOSIAL REPUBLIK INDONESIA</p>
-            <p style="font-size: 10pt; font-weight: bold; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL</p>
-            <p style="font-size: 9.5pt; font-weight: bold; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN</p>
+            ${(userProfile.jenisSdm === 'TKSK' || userProfile.jenisSdm?.toUpperCase().includes('TKSK')) ? `
+              <p style="font-size: 10pt; font-weight: bold; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">DIREKTORAT JENDERAL PEMBERDAYAAN SOSIAL</p>
+            ` : `
+              <p style="font-size: 10pt; font-weight: bold; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL</p>
+              <p style="font-size: 9.5pt; font-weight: bold; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN</p>
+            `}
             <p style="font-size: 7.5pt; margin: 1.5pt 0 0 0; line-height: 1.15; font-family: Arial, sans-serif;">Jl. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id</p>
           </td>
         </tr>
@@ -861,24 +867,48 @@ export async function generateReportPDF(
         ${narrativeHtml}
       </div>
 
-      <!-- BLOK TANDA TANGAN (SATU KESATUAN - GESER KE KANAN 60%/40%, SPASI NORMAL 16PT) -->
+      <!-- BLOK TANDA TANGAN (SATU KESATUAN - GESER KE KANAN 55%/45%, FORMAT KEMENSOS BARU) -->
       <table style="width: 100%; border-collapse: collapse; border: none; margin-top: 16pt; page-break-inside: avoid;" border="0">
         <tr style="page-break-inside: avoid;">
-          <td style="width: 60%; border: none;"></td>
-          <td style="width: 40%; border: none; font-size: 10pt; text-align: center; font-family: Arial, sans-serif; line-height: 1.2; page-break-inside: avoid;">
-            <p align="center" style="margin: 0; font-size: 10pt; line-height: 1.2; text-align: center;">${capitalizeEachWord(userProfile.kabupaten || 'Binjai')}, ${formatTanggalTtd(validDate)}</p>
-            <p align="center" style="margin: 2pt 0 0 0; font-size: 10pt; line-height: 1.2; text-align: center;">${userProfile.jabatan || 'Penata Layanan Operasional'}</p>
-            
-            <div style="height: 48pt; margin: 3pt 0; text-align: center;">
+          <td style="width: 55%; border: none;"></td>
+          <td style="width: 72pt; border: none; padding: 1pt 0; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">Dibuat di</td>
+          <td style="width: 8pt; border: none; padding: 1pt 0; text-align: center; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">:</td>
+          <td style="border: none; padding: 1pt 0; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">${capitalizeEachWord(userProfile.kabupaten || '-')}</td>
+        </tr>
+        <tr style="page-break-inside: avoid;">
+          <td style="width: 55%; border: none;"></td>
+          <td style="border: none; padding: 1pt 0; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">Pada tanggal</td>
+          <td style="border: none; padding: 1pt 0; text-align: center; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">:</td>
+          <td style="border: none; padding: 1pt 0; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">${formatTanggalTtd(validDate)}</td>
+        </tr>
+        <tr style="page-break-inside: avoid;">
+          <td style="width: 55%; border: none;"></td>
+          <td colspan="3" style="border: none; padding: 3pt 0 1pt 0; vertical-align: top; font-size: 10pt; font-family: Arial, sans-serif; line-height: 1.2;">
+            ${userProfile.jabatanAsn || userProfile.jabatan || 'Pendamping Sosial'}
+          </td>
+        </tr>
+        <tr style="page-break-inside: avoid;">
+          <td style="width: 55%; border: none;"></td>
+          <td colspan="3" style="border: none; padding: 2pt 0; vertical-align: top;">
+            <div style="height: 48pt; margin: 2pt 0;">
               ${signatureBase64 ? `
                 <img src="${signatureBase64}" width="120" height="45" style="max-height: 45pt; max-width: 120pt; object-fit: contain; display: inline-block;" />
               ` : `
                 <div style="height: 45pt;"></div>
               `}
             </div>
-
-            <p align="center" style="margin: 0; font-size: 10pt; font-weight: bold; text-decoration: underline; line-height: 1.2; text-align: center;">${userProfile.nama || '-'}</p>
-            <p align="center" style="margin: 2pt 0 0 0; font-size: 9.5pt; line-height: 1.2; text-align: center;">NIP. ${userProfile.nip || '-'}</p>
+          </td>
+        </tr>
+        <tr style="page-break-inside: avoid;">
+          <td style="width: 55%; border: none;"></td>
+          <td colspan="3" style="border: none; padding: 1pt 0; vertical-align: top; font-size: 10pt; font-weight: bold; text-decoration: underline; font-family: Arial, sans-serif; line-height: 1.2;">
+            ${userProfile.nama || '-'}
+          </td>
+        </tr>
+        <tr style="page-break-inside: avoid;">
+          <td style="width: 55%; border: none;"></td>
+          <td colspan="3" style="border: none; padding: 1pt 0; vertical-align: top; font-size: 9.5pt; font-family: Arial, sans-serif; line-height: 1.2;">
+            NIP. ${userProfile.nip || '-'}
           </td>
         </tr>
       </table>
@@ -1223,17 +1253,20 @@ export async function generateReportPDF(
             justFinishedP2K2Table = true;
           }
 
-          // A. Deteksi Tabel Tanda Tangan: tabel khusus di akhir dengan info NIP
+          // A. Deteksi Tabel Tanda Tangan: tabel khusus di akhir dengan info NIP atau Dibuat di
           const isSigTable = !isP2K2 && elem.table.tableRows.some((r: any) =>
             r.tableCells?.some((c: any) => {
               const text = (c.content?.map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '').join(' ') || '').toLowerCase();
-              return text.includes('nip.') && (
+              return text.includes('dibuat di') || (text.includes('nip.') && (
                 text.includes('penata layanan operasional') ||
+                text.includes('pengelola layanan operasional') ||
+                text.includes('operator layanan operasional') ||
                 text.includes('pendamping pkh') ||
+                text.includes('pendamping sosial') ||
                 text.includes('tksk') ||
                 text.includes('ketua tim') ||
                 text.includes('katim')
-              );
+              ));
             })
           );
 
@@ -1324,37 +1357,40 @@ export async function generateReportPDF(
               }
             }
           } else if (isSigTable) {
-            // TABEL TANDA TANGAN (Hanya format rata tengah pada sel NIP/tanda tangan)
+            // TABEL TANDA TANGAN (Format rata kiri START pada sel isi tanda tangan)
             for (const row of elem.table.tableRows) {
               if (!row.tableCells) continue;
               for (const cell of row.tableCells) {
                 if (!cell.content) continue;
                 const cellText = (cell.content
                   .map((cp: any) => cp.paragraph?.elements?.map((e: any) => e.textRun?.content || '').join('') || '')
-                  .join(' ') || '').toLowerCase();
+                  .join(' ') || '').toLowerCase().trim();
 
-                if (cellText.includes('nip.')) {
-                  const paragraphsInCell = cell.content.filter(
-                    (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
-                  );
-                  for (let pIdx = 0; pIdx < paragraphsInCell.length; pIdx++) {
-                    const pElem = paragraphsInCell[pIdx];
-                    const isLast = pIdx === paragraphsInCell.length - 1;
-                    batchRequests.push({
-                      updateParagraphStyle: {
-                        range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
-                        paragraphStyle: {
-                          keepWithNext: !isLast,
-                          keepLinesTogether: true,
-                          alignment: 'CENTER',
-                          spaceAbove: { magnitude: 1, unit: 'PT' },
-                          spaceBelow: { magnitude: 2, unit: 'PT' },
-                          lineSpacing: 100,
-                        },
-                        fields: 'keepWithNext,keepLinesTogether,alignment,spaceAbove,spaceBelow,lineSpacing',
+                // Lewati sel spacer kolom pertama yang kosong
+                if (!cellText && !cell.content.some((cp: any) => cp.paragraph?.elements?.some((e: any) => e.inlineObjectElement))) {
+                  continue;
+                }
+
+                const paragraphsInCell = cell.content.filter(
+                  (c: any) => c.paragraph && c.startIndex != null && c.endIndex != null && c.startIndex < c.endIndex
+                );
+                for (let pIdx = 0; pIdx < paragraphsInCell.length; pIdx++) {
+                  const pElem = paragraphsInCell[pIdx];
+                  const isLast = pIdx === paragraphsInCell.length - 1;
+                  batchRequests.push({
+                    updateParagraphStyle: {
+                      range: { startIndex: pElem.startIndex, endIndex: pElem.endIndex },
+                      paragraphStyle: {
+                        keepWithNext: !isLast,
+                        keepLinesTogether: true,
+                        alignment: 'START',
+                        spaceAbove: { magnitude: 0.5, unit: 'PT' },
+                        spaceBelow: { magnitude: 1.5, unit: 'PT' },
+                        lineSpacing: 100,
                       },
-                    });
-                  }
+                      fields: 'keepWithNext,keepLinesTogether,alignment,spaceAbove,spaceBelow,lineSpacing',
+                    },
+                  });
                 }
               }
             }

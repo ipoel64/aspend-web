@@ -17,7 +17,8 @@ const PROFILE_HEADERS = [
   'Logo ID',
   'Jenis SDM',
   'Provinsi',
-  'Kecamatan'
+  'Kecamatan',
+  'Jabatan ASN'
 ];
 
 export async function POST(request: Request) {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       nip = '',
       jenisSdm = 'SDM PKH',
       jabatan = 'Pendamping PKH',
+      jabatanAsn = '',
       provinsi = '',
       kabupaten = '',
       kecamatan = '',
@@ -54,11 +56,11 @@ export async function POST(request: Request) {
     // 1. Baca data sheet Profile saat ini
     let profileRows: any[][] = [];
     try {
-      profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A1:K');
+      profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A1:L');
     } catch {
       // Jika tab Profile belum ada, buat tab dan header
       try {
-        await appendSheetData(accessToken as string, spreadsheetId, 'Profile!A1:K1', [PROFILE_HEADERS]);
+        await appendSheetData(accessToken as string, spreadsheetId, 'Profile!A1:L1', [PROFILE_HEADERS]);
       } catch (sheetCreateErr) {
         console.warn('Gagal inisialisasi sheet Profile:', sheetCreateErr);
       }
@@ -92,26 +94,28 @@ export async function POST(request: Request) {
     const finalSigId = signatureFileId || existingRow[5] || '';
     const finalPhotoId = photoFileId || existingRow[6] || '';
     const finalLogoId = logoFileId || existingRow[7] || '';
+    const finalJabatanAsn = jabatanAsn !== undefined ? (jabatanAsn || '').trim() : (existingRow[11] || '').trim();
 
     const updatedRow = [
-      email,                                    // A: Email
-      nama.trim(),                              // B: Nama Lengkap
-      nip.trim(),                               // C: NIP
-      finalJabatan.trim(),                      // D: Jabatan
-      kabupaten.trim(),                         // E: Kabupaten/Kota
-      finalSigId,                               // F: Tanda Tangan ID
-      finalPhotoId,                             // G: Foto Profil ID
-      finalLogoId,                              // H: Logo ID
-      jenisSdm.trim() || 'SDM PKH',             // I: Jenis SDM
-      provinsi.trim(),                          // J: Provinsi
-      kecamatan.trim(),                         // K: Kecamatan
+      email,                                    // A: Email (0)
+      nama.trim(),                              // B: Nama Lengkap (1)
+      nip.trim(),                               // C: NIP (2)
+      finalJabatan.trim(),                      // D: Jabatan (3)
+      kabupaten.trim(),                         // E: Kabupaten/Kota (4)
+      finalSigId,                               // F: Tanda Tangan ID (5)
+      finalPhotoId,                             // G: Foto Profil ID (6)
+      finalLogoId,                              // H: Logo ID (7)
+      jenisSdm.trim() || 'SDM PKH',             // I: Jenis SDM (8)
+      provinsi.trim(),                          // J: Provinsi (9)
+      kecamatan.trim(),                         // K: Kecamatan (10)
+      finalJabatanAsn,                          // L: Jabatan ASN (11)
     ];
 
     if (existingRow.length > 0) {
       await updateSheetRow(
         accessToken as string,
         spreadsheetId,
-        `Profile!A${rowIndex}:K${rowIndex}`,
+        `Profile!A${rowIndex}:L${rowIndex}`,
         [updatedRow]
       );
     } else {
@@ -119,7 +123,7 @@ export async function POST(request: Request) {
       await appendSheetData(
         accessToken as string,
         spreadsheetId,
-        'Profile!A:K',
+        'Profile!A:L',
         [updatedRow]
       );
     }
@@ -133,6 +137,7 @@ export async function POST(request: Request) {
         nip: nip.trim(),
         jenisSdm: jenisSdm.trim() || 'SDM PKH',
         jabatan: finalJabatan.trim(),
+        jabatanAsn: finalJabatanAsn,
         provinsi: provinsi.trim(),
         kabupaten: kabupaten.trim(),
         kecamatan: kecamatan.trim(),

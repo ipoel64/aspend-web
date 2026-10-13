@@ -49,6 +49,7 @@ interface UserProfile {
   email: string;
   nip: string;
   jabatan: string;
+  jabatanAsn?: string;
   kabupaten: string;
   provinsi?: string;
   kecamatan?: string;
@@ -310,6 +311,7 @@ export default function Home() {
     nip: '',
     jenisSdm: 'SDM PKH',
     jabatan: 'Pendamping PKH',
+    jabatanAsn: '',
     provinsi: '',
     kabupaten: '',
     kecamatan: '',
@@ -483,6 +485,7 @@ export default function Home() {
         nip: profile.nip || '',
         jenisSdm: pJenis,
         jabatan: pJenis === 'TKSK' ? '' : (profile.jabatan || 'Pendamping PKH'),
+        jabatanAsn: profile.jabatanAsn || '',
         provinsi: profile.provinsi || '',
         kabupaten: profile.kabupaten || '',
         kecamatan: profile.kecamatan || '',
@@ -595,6 +598,7 @@ export default function Home() {
           nip: profileForm.nip.trim(),
           jenisSdm: profileForm.jenisSdm,
           jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
+          jabatanAsn: (profileForm.jabatanAsn || '').trim(),
           provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
           kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
           kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
@@ -609,6 +613,7 @@ export default function Home() {
           nip: profileForm.nip.trim(),
           jenisSdm: profileForm.jenisSdm,
           jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
+          jabatanAsn: (profileForm.jabatanAsn || '').trim(),
           provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
           kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
           kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
@@ -3383,6 +3388,11 @@ export default function Home() {
                         {profile.jabatan}
                       </span>
                     )}
+                    {profile?.jabatanAsn && (
+                      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                        {profile.jabatanAsn}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 font-mono mt-1">{profile?.email || session?.user?.email}</p>
 
@@ -3393,6 +3403,12 @@ export default function Home() {
                       <span className="text-gray-400 font-medium">NIP</span>
                       <span className="font-semibold text-gray-800 font-mono">{profile?.nip || '-'}</span>
                     </div>
+                    {profile?.jabatanAsn && (
+                      <div className="flex justify-between py-1 border-b border-gray-50">
+                        <span className="text-gray-400 font-medium">Jabatan ASN</span>
+                        <span className="font-semibold text-gray-800">{profile.jabatanAsn}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between py-1 border-b border-gray-50">
                       <span className="text-gray-400 font-medium">Provinsi</span>
                       <span className="font-semibold text-gray-800">{profile?.provinsi || '-'}</span>
@@ -3449,7 +3465,7 @@ export default function Home() {
                     </div>
                     <div>
                       <h3 className="text-base font-bold text-gray-900">Perbarui Data Profil & Wilayah Tugas</h3>
-                      <p className="text-xs text-gray-500">Perubahan akan langsung disimpan ke Google Sheets (Profile!A2:K).</p>
+                      <p className="text-xs text-gray-500">Perubahan akan langsung disimpan ke Google Sheets (Profile!A2:L).</p>
                     </div>
                   </div>
 
@@ -3545,30 +3561,49 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Jabatan (hanya aktif untuk SDM PKH) */}
-                    <div>
-                      <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
-                        Jabatan {profileForm.jenisSdm === 'SDM PKH' && <span className="text-rose-500">*</span>}
-                      </label>
-                      {profileForm.jenisSdm === 'TKSK' ? (
-                        <input
-                          type="text"
-                          disabled
-                          value="-"
-                          className="w-full text-xs font-medium border border-gray-200 rounded-xl p-2.5 bg-gray-100 text-gray-400 cursor-not-allowed"
-                        />
-                      ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Jabatan (hanya aktif untuk SDM PKH) */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
+                          Jabatan {profileForm.jenisSdm === 'SDM PKH' && <span className="text-rose-500">*</span>}
+                        </label>
+                        {profileForm.jenisSdm === 'TKSK' ? (
+                          <input
+                            type="text"
+                            disabled
+                            value="-"
+                            className="w-full text-xs font-medium border border-gray-200 rounded-xl p-2.5 bg-gray-100 text-gray-400 cursor-not-allowed"
+                          />
+                        ) : (
+                          <select
+                            required
+                            value={profileForm.jabatan}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, jabatan: e.target.value }))}
+                            className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none transition-all cursor-pointer"
+                          >
+                            <option value="Pendamping PKH">Pendamping PKH</option>
+                            <option value="Katim Kab/Kota">Katim Kab/Kota</option>
+                            <option value="Katim Provinsi">Katim Provinsi</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Jabatan ASN (3 Opsi: Penata Layanan Operasional, Pengelola Layanan Operasional, Operator Layanan Operasional) */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase text-gray-600 block mb-1">
+                          Jabatan ASN
+                        </label>
                         <select
-                          required
-                          value={profileForm.jabatan}
-                          onChange={(e) => setProfileForm(prev => ({ ...prev, jabatan: e.target.value }))}
+                          value={profileForm.jabatanAsn}
+                          onChange={(e) => setProfileForm(prev => ({ ...prev, jabatanAsn: e.target.value }))}
                           className="w-full text-xs font-medium border border-gray-300 rounded-xl p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-cyan-500 outline-none transition-all cursor-pointer"
                         >
-                          <option value="Pendamping PKH">Pendamping PKH</option>
-                          <option value="Katim Kab/Kota">Katim Kab/Kota</option>
-                          <option value="Katim Provinsi">Katim Provinsi</option>
+                          <option value="">-- Pilih Jabatan ASN --</option>
+                          <option value="Penata Layanan Operasional">Penata Layanan Operasional</option>
+                          <option value="Pengelola Layanan Operasional">Pengelola Layanan Operasional</option>
+                          <option value="Operator Layanan Operasional">Operator Layanan Operasional</option>
                         </select>
-                      )}
+                      </div>
                     </div>
 
                     {/* Wilayah Tugas (Cascading) */}

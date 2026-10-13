@@ -153,6 +153,7 @@ export async function PUT(request: Request) {
       email: session.user?.email || '',
       nip: '',
       jabatan: 'Penata Layanan Operasional',
+      jabatanAsn: '',
       kabupaten: '',
       provinsi: '',
       kecamatan: '',
@@ -162,9 +163,9 @@ export async function PUT(request: Request) {
     };
 
     try {
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:L');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:L');
       }
       if (profileRows && profileRows.length > 0) {
         let matchedRow = profileRows[0];
@@ -179,12 +180,14 @@ export async function PUT(request: Request) {
         let rawJabatan = matchedRow[3] || '';
         if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
         const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+        const jabatanAsn = matchedRow[11] ? String(matchedRow[11]).trim() : '';
 
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
           jabatan,
+          jabatanAsn,
           kabupaten: capitalizeEachWord(matchedRow[4] || ''),
           provinsi: capitalizeEachWord(matchedRow[9] || ''),
           kecamatan: capitalizeEachWord(matchedRow[10] || ''),
@@ -358,6 +361,7 @@ export async function POST(request: Request) {
       email: session.user?.email || '',
       nip: '',
       jabatan: 'Penata Layanan Operasional',
+      jabatanAsn: '',
       kabupaten: '',
       provinsi: '',
       kecamatan: '',
@@ -367,9 +371,9 @@ export async function POST(request: Request) {
     };
 
     try {
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:L');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:L');
       }
       if (profileRows && profileRows.length > 0) {
         let matchedRow = profileRows[0];
@@ -384,12 +388,14 @@ export async function POST(request: Request) {
         let rawJabatan = matchedRow[3] || '';
         if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
         const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+        const jabatanAsn = matchedRow[11] ? String(matchedRow[11]).trim() : '';
 
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
           nama: matchedRow[1] || session.user?.name || '',
           nip: matchedRow[2] || '',
           jabatan,
+          jabatanAsn,
           kabupaten: capitalizeEachWord(matchedRow[4] || ''),
           provinsi: capitalizeEachWord(matchedRow[9] || ''),
           kecamatan: capitalizeEachWord(matchedRow[10] || ''),

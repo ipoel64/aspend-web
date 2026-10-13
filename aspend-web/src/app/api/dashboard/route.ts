@@ -160,6 +160,7 @@ export async function GET(request: Request) {
       nip: '',
       jenisSdm: 'SDM PKH',
       jabatan: 'Pendamping PKH',
+      jabatanAsn: '',
       provinsi: '',
       kabupaten: '',
       kecamatan: '',
@@ -171,10 +172,10 @@ export async function GET(request: Request) {
     };
 
     try {
-      // Coba baca dari sheet Profile dulu (format Aspend Mobile: Email, Nama, NIP, Jabatan, Kab/Kota, SigId, PhotoId, LogoId, JenisSDM, Provinsi, Kecamatan)
-      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:K');
+      // Coba baca dari sheet Profile dulu (format Aspend Mobile: Email, Nama, NIP, Jabatan, Kab/Kota, SigId, PhotoId, LogoId, JenisSDM, Provinsi, Kecamatan, JabatanASN)
+      let profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Profile!A2:L');
       if (!profileRows || profileRows.length === 0) {
-        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:K');
+        profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:L');
       }
       
       if (profileRows && profileRows.length > 0) {
@@ -204,6 +205,7 @@ export async function GET(request: Request) {
         let rawJabatan = matchedRow[3] || '';
         if (rawJabatan === 'Katim Kecamatan') rawJabatan = 'Pendamping PKH';
         const jabatan = jenisSdm === 'TKSK' ? '' : (rawJabatan || 'Pendamping PKH');
+        const jabatanAsn = matchedRow[11] ? String(matchedRow[11]).trim() : '';
 
         userProfile = {
           email: matchedRow[0] || session.user?.email || '',
@@ -211,6 +213,7 @@ export async function GET(request: Request) {
           nip: matchedRow[2] || '',
           jenisSdm,
           jabatan,
+          jabatanAsn,
           provinsi: matchedRow[9] || '',
           kabupaten: matchedRow[4] || '',
           kecamatan: matchedRow[10] || '',
