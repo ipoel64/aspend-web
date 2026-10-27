@@ -319,9 +319,23 @@ export async function GET(request: Request) {
       return timeB - timeA;
     });
 
-    // Statistik
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    const reportsThisMonth = reports.filter(r => r.Tanggal && String(r.Tanggal).startsWith(currentMonth));
+    // Statistik Bulan Ini (Menggunakan parser tanggal yang tahan terhadap semua format tanggal Indonesia/ISO)
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIndex = now.getMonth(); // 0-11
+    const currentMonthIso = `${currentYear}-${String(currentMonthIndex + 1).padStart(2, '0')}`;
+
+    const reportsThisMonth = reports.filter(r => {
+      if (!r.Tanggal) return false;
+      const dStr = String(r.Tanggal).trim();
+      if (dStr.startsWith(currentMonthIso)) return true;
+      const ts = parseRobustDate(dStr, '12:00');
+      if (ts > 0) {
+        const dt = new Date(ts);
+        return dt.getFullYear() === currentYear && dt.getMonth() === currentMonthIndex;
+      }
+      return false;
+    });
     
     const rhkBreakdown: Record<string, number> = {};
     reportsThisMonth.forEach(r => {

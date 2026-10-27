@@ -55,9 +55,11 @@ export async function batchGetSheetData(
     });
     return (response.data.valueRanges || []).map((vr) => vr.values || []);
   } catch (error) {
-    console.error('Error batchGetSheetData Google Sheets:', error);
-    // Kembalikan array kosong untuk masing-masing range agar pemanggil tidak crash
-    return ranges.map(() => []);
+    console.warn('batchGetSheetData gagal (kemungkinan salah satu tab sheet belum ada), fallback ke pembacaan per-sheet:', error);
+    // Fallback: ambil satu per satu dengan Promise.all agar jika 1 tab opsional belum ada, tab utama tetap terbaca!
+    return await Promise.all(
+      ranges.map((r) => getSheetData(accessToken, spreadsheetId, r, valueRenderOption).catch(() => []))
+    );
   }
 }
 

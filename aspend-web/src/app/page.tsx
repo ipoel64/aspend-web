@@ -437,6 +437,16 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "authenticated") {
+      try {
+        const keepSignedIn = localStorage.getItem('aspend_keep_signed_in');
+        const activeTab = sessionStorage.getItem('aspend_active_tab_session');
+        if (keepSignedIn === 'false' && !activeTab) {
+          localStorage.removeItem('aspend_keep_signed_in');
+          signOut({ redirect: true });
+          return;
+        }
+        sessionStorage.setItem('aspend_active_tab_session', '1');
+      } catch (_) {}
       fetchDashboardData();
     }
   }, [status, fetchDashboardData]);
@@ -1719,19 +1729,32 @@ export default function Home() {
     }
   };
 
+  const RHK_MONTHLY_TARGETS = [
+    { key: 'RHK-1', label: 'RHK 1', target: 1 },
+    { key: 'RHK-2', label: 'RHK 2', target: 15 },
+    { key: 'RHK-3', label: 'RHK 3', target: 2 },
+    { key: 'RHK-4', label: 'RHK 4', target: 2 },
+    { key: 'RHK-5', label: 'RHK 5', target: 3 },
+    { key: 'RHK-6', label: 'RHK 6', target: 1 },
+    { key: 'RHK-7', label: 'RHK 7', target: 1 },
+    { key: 'RHK-8', label: 'RHK 8', target: 2 },
+    { key: 'RHK-9', label: 'RHK 9', target: 1 },
+  ];
+
   const getRhkBadgeStyle = (key: string) => {
     const num = key.replace(/\D/g, '');
-    const colors: Record<string, { bg: string; text: string; border: string; numBg: string; numText: string }> = {
-      '1': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', numBg: 'bg-blue-600', numText: 'text-white' },
-      '2': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', numBg: 'bg-purple-600', numText: 'text-white' },
-      '3': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', numBg: 'bg-emerald-600', numText: 'text-white' },
-      '4': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', numBg: 'bg-amber-600', numText: 'text-white' },
-      '5': { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', numBg: 'bg-cyan-600', numText: 'text-white' },
-      '6': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', numBg: 'bg-indigo-600', numText: 'text-white' },
-      '7': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', numBg: 'bg-pink-600', numText: 'text-white' },
-      '8': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', numBg: 'bg-rose-600', numText: 'text-white' },
+    const colors: Record<string, { bg: string; text: string; border: string; numBg: string; numText: string; bar: string }> = {
+      '1': { bg: 'bg-blue-50/85', text: 'text-blue-800', border: 'border-blue-200/80', numBg: 'bg-blue-600', numText: 'text-white', bar: 'from-blue-500 to-blue-600' },
+      '2': { bg: 'bg-purple-50/85', text: 'text-purple-800', border: 'border-purple-200/80', numBg: 'bg-purple-600', numText: 'text-white', bar: 'from-purple-500 to-purple-600' },
+      '3': { bg: 'bg-emerald-50/85', text: 'text-emerald-800', border: 'border-emerald-200/80', numBg: 'bg-emerald-600', numText: 'text-white', bar: 'from-emerald-500 to-emerald-600' },
+      '4': { bg: 'bg-amber-50/85', text: 'text-amber-800', border: 'border-amber-200/80', numBg: 'bg-amber-600', numText: 'text-white', bar: 'from-amber-500 to-amber-600' },
+      '5': { bg: 'bg-cyan-50/85', text: 'text-cyan-800', border: 'border-cyan-200/80', numBg: 'bg-cyan-600', numText: 'text-white', bar: 'from-cyan-500 to-cyan-600' },
+      '6': { bg: 'bg-indigo-50/85', text: 'text-indigo-800', border: 'border-indigo-200/80', numBg: 'bg-indigo-600', numText: 'text-white', bar: 'from-indigo-500 to-indigo-600' },
+      '7': { bg: 'bg-pink-50/85', text: 'text-pink-800', border: 'border-pink-200/80', numBg: 'bg-pink-600', numText: 'text-white', bar: 'from-pink-500 to-pink-600' },
+      '8': { bg: 'bg-rose-50/85', text: 'text-rose-800', border: 'border-rose-200/80', numBg: 'bg-rose-600', numText: 'text-white', bar: 'from-rose-500 to-rose-600' },
+      '9': { bg: 'bg-teal-50/85', text: 'text-teal-800', border: 'border-teal-200/80', numBg: 'bg-teal-600', numText: 'text-white', bar: 'from-teal-500 to-teal-600' },
     };
-    return colors[num] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', numBg: 'bg-gray-700', numText: 'text-white' };
+    return colors[num] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', numBg: 'bg-gray-700', numText: 'text-white', bar: 'from-slate-500 to-slate-600' };
   };
 
   if (status === "loading") {
@@ -1745,15 +1768,17 @@ export default function Home() {
     );
   }
 
-  // Jika belum login, tampilkan Login Screen dengan Barcode Scanner
+  // Jika belum login, tampilkan Login Screen dengan Barcode Scanner (Glassy Style)
   if (status === "unauthenticated") {
     return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 font-body-md transition-colors duration-300 antialiased flex items-center justify-center p-4">
-        <div className="bg-slate-800/90 backdrop-blur-md p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-slate-700/60 flex flex-col items-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
-          <Image src="/logo.png" alt="ASPEND Logo" width={56} height={56} className="rounded-2xl shadow-lg border border-slate-600/50 object-cover mb-4 bg-white" />
+      <main className="min-h-screen bg-slate-950 text-slate-100 font-body-md transition-colors duration-300 antialiased flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="bg-slate-900/75 backdrop-blur-2xl p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/15 flex flex-col items-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl -z-10 translate-x-1/2 -translate-y-1/2"></div>
+          <Image src="/logo.png" alt="ASPEND Logo" width={56} height={56} className="rounded-2xl shadow-lg border border-white/25 object-cover mb-4 bg-white" />
           <h1 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">Masuk ke ASPEND Web</h1>
-          <p className="text-xs text-slate-400 mb-6 text-center">Pindai barcode dari aplikasi HP Anda untuk masuk otomatis.</p>
+          <p className="text-xs text-slate-300 mb-5 text-center">Pindai barcode dari aplikasi HP Anda untuk masuk otomatis.</p>
           
           <QrWebLoginCard />
         </div>
@@ -1806,7 +1831,7 @@ export default function Home() {
   const userAvatarUrl = profile?.photoUrl || session?.user?.image;
 
   return (
-    <div className="flex h-screen bg-surface overflow-hidden text-on-surface font-body-md antialiased selection:bg-primary/20">
+    <div className="flex h-screen glassy-app-shell overflow-hidden text-on-surface font-body-md antialiased selection:bg-primary/20">
       
       {/* ─── Toast Notification ────────────────────────────── */}
       {toast && (
@@ -2492,7 +2517,7 @@ export default function Home() {
 
       {/* ─── SideNavBar: Tetap Muncul & Ringkas di Desktop, Drawer di Mobile ─── */}
       <aside 
-        className={`sidebar bg-primary text-white flex flex-col py-4 px-2.5 shrink-0 border-r border-white/20 transition-all duration-300 ease-in-out select-none ${
+        className={`sidebar glassy-sidebar text-white flex flex-col py-4 px-2.5 shrink-0 border-r border-white/25 transition-all duration-300 ease-in-out select-none ${
           isSidebarOpen
             ? 'fixed left-0 top-0 h-full w-[250px] z-50 translate-x-0 shadow-2xl md:static md:w-[220px] md:h-screen md:z-20 md:shadow-none'
             : 'fixed left-0 top-0 h-full w-[250px] z-50 -translate-x-full md:static md:translate-x-0 md:w-[220px] md:h-screen md:z-20 md:shadow-none'
@@ -2710,8 +2735,8 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* ─── Main Content Area (100% Lebar Layar Penuh) ─────── */}
-      <div className="flex-1 flex flex-col h-full transition-all duration-300 w-full min-w-0 overflow-y-auto bg-[#F5F7FA]">
+      {/* ─── Main Content Area (100% Lebar Layar Penuh - Glassy Theme) ─────── */}
+      <div className="flex-1 flex flex-col h-full transition-all duration-300 w-full min-w-0 overflow-y-auto glassy-content-area">
         
         {/* Tombol Menu Melayang Khusus Mobile (Sidebar Toggle saat Layar Kecil) */}
         {!isSidebarOpen && (
@@ -2765,40 +2790,78 @@ export default function Home() {
                 </button>
               </div>
               
-              <div className="flex flex-row flex-wrap gap-2.5">
+              <div className="flex flex-row flex-wrap items-stretch gap-3">
                 {/* Card Total Laporan */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-xl px-3.5 py-2.5 flex items-center gap-3 min-w-[140px]">
-                  <div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg flex-shrink-0">
+                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-3 flex items-center gap-3.5 min-w-[155px]">
+                  <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
                     <span className="material-symbols-outlined text-xl">summarize</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 text-[9px] uppercase block font-bold">TOTAL LAPORAN</span>
-                    <div className="text-xl text-[#1A1D21] font-black leading-none">{stats.total}</div>
+                    <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">TOTAL LAPORAN</span>
+                    <div className="text-2xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
                   </div>
                 </div>
                 
-                {/* Card Bulan Ini & Badges */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-xl px-3.5 py-2.5 flex flex-row items-center gap-3 min-w-[260px]">
-                  <div className="flex items-center gap-2.5 flex-shrink-0">
-                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg flex-shrink-0">
-                      <span className="material-symbols-outlined text-xl">calendar_today</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400 text-[9px] uppercase block font-bold">BULAN INI</span>
-                      <div className="text-xl text-[#1A1D21] font-black leading-none">{stats.month}</div>
+                {/* Card Bulan Ini & Progress Setiap Target RHK (RHK 1 s/d RHK 9) */}
+                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-2.5 flex flex-col xl:flex-row xl:items-center gap-3.5 min-w-[300px] sm:min-w-[460px] max-w-full">
+                  <div className="flex items-center justify-between xl:justify-start gap-3 flex-shrink-0 xl:pr-3.5 xl:border-r xl:border-slate-200/80">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
+                        <span className="material-symbols-outlined text-xl">calendar_today</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-2xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
+                          <span className="text-[10px] font-bold text-slate-400">/ 28 target</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  {/* RHK Badges Colorful & High Contrast */}
-                  <div className="flex flex-wrap gap-1.5 justify-end ml-auto max-w-[190px]">
-                    {Object.entries(stats.rhkBreakdown).map(([rhkKey, count]) => {
-                      const style = getRhkBadgeStyle(rhkKey);
+                  {/* Progress Setiap Target RHK 1 - 9 */}
+                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 flex-1">
+                    {RHK_MONTHLY_TARGETS.map(({ key, label, target }) => {
+                      const count = stats.rhkBreakdown?.[key] || 0;
+                      const pct = Math.min(100, Math.round((count / target) * 100));
+                      const isDone = count >= target;
+                      const style = getRhkBadgeStyle(key);
                       return (
-                        <div key={rhkKey} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[11px] font-bold shadow-xs ${style.bg} ${style.text} ${style.border}`}>
-                          <span>{rhkKey}</span>
-                          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black leading-none ${style.numBg} ${style.numText}`}>
-                            {count}
-                          </span>
+                        <div
+                          key={key}
+                          title={`${label}: ${count} dari target ${target} laporan bulan ini (${pct}%)`}
+                          className={`flex flex-col justify-between px-2 py-1.5 rounded-xl border transition-all min-w-[68px] ${
+                            isDone
+                              ? 'bg-emerald-50/90 border-emerald-300 shadow-2xs'
+                              : `${style.bg} ${style.border}`
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className={`text-[9.5px] font-extrabold tracking-tight leading-none ${isDone ? 'text-emerald-800' : style.text}`}>
+                              {label}
+                            </span>
+                            {isDone && (
+                              <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: '11px', lineHeight: 1 }}>
+                                check_circle
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-baseline justify-between gap-0.5 mb-1">
+                            <span className={`text-[11px] font-black leading-none ${isDone ? 'text-emerald-700' : 'text-slate-900'}`}>
+                              {count}<span className="text-[9.5px] font-bold text-slate-400">/{target}</span>
+                            </span>
+                            <span className={`text-[8.5px] font-bold leading-none ${isDone ? 'text-emerald-600' : 'text-slate-500'}`}>
+                              {pct}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-black/5">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${
+                                isDone ? 'from-emerald-500 to-teal-500' : style.bar
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
                         </div>
                       );
                     })}

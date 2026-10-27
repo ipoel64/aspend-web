@@ -309,3 +309,75 @@ html.dark #sidebar {
   pointer-events: none;
   z-index: 20;
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GLASSY DASHBOARD V2 THEME (Modern Frosted Glassmorphism)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Ambient Multi-Tone Mesh Wallpaper Background */
+.glassy-app-shell {
+  position: relative;
+  background-color: #dde5f0;
+  background-image:
+    radial-gradient(at 8% 12%, rgba(56, 189, 248, 0.34) 0px, transparent 50%),
+    radial-gradient(at 88% 8%, rgba(251, 146, 60, 0.25) 0px, transparent 48%),
+    radial-gradient(at 52% 48%, rgba(129, 140, 248, 0.22) 0px, transparent 55%),
+    radial-gradient(at 15% 88%, rgba(45, 212, 191, 0.28) 0px, transparent 50%),
+    radial-gradient(at 92% 85%, rgba(167, 139, 250, 0.26) 0px, transparent 50%),
+    linear-gradient(135deg, #e2ebf5 0%, #eef2f8 45%, #e5ecf6 100%);
+  background-attachment: fixed;
+}
+
+.glassy-content-area {
+  background: transparent !important;
+  position: relative;
+}
+
+/* Frosted Glass Sidebar */
+.sidebar.glassy-sidebar {
+  background: linear-gradient(165deg, rgba(15, 23, 42, 0.78) 0%, rgba(14, 116, 144, 0.72) 55%, rgba(15, 118, 110, 0.76) 100%) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 8px 0 32px -4px rgba(15, 23, 42, 0.18), inset -1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Automatic Glassmorphism for Cards inside Glassy Content Area */
+.glassy-content-area .bg-white {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  box-shadow:
+    0 10px 30px -10px rgba(15, 23, 42, 0.08),
+    0 4px 12px -2px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.85) !important;
+}
+
+.glassy-content-area .bg-gray-50,
+.glassy-content-area .bg-slate-50 {
+  background-color: rgba(248, 250, 252, 0.52) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Glass Card Utility Class */
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.62) 100%);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 12px 32px -8px rgba(15, 23, 42, 0.1),
+    0 2px 6px -1px rgba(15, 23, 42, 0.04),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 14px -3px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}

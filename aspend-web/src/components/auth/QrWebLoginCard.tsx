@@ -13,7 +13,24 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
   const [qrPayload, setQrPayload] = useState<string>('');
   const [qrStatus, setQrStatus] = useState<'LOADING' | 'READY' | 'AUTHORIZED' | 'EXPIRED' | 'ERROR'>('LOADING');
   const [statusMessage, setStatusMessage] = useState<string>('Menyiapkan barcode...');
+  const [keepSignedIn, setKeepSignedIn] = useState<boolean>(true);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedPref = localStorage.getItem('aspend_keep_signed_in');
+      if (savedPref !== null) {
+        setKeepSignedIn(savedPref !== 'false');
+      }
+    } catch (_) {}
+  }, []);
+
+  const handleToggleKeepSignedIn = (checked: boolean) => {
+    setKeepSignedIn(checked);
+    try {
+      localStorage.setItem('aspend_keep_signed_in', checked ? 'true' : 'false');
+    } catch (_) {}
+  };
 
   const initQrSession = async () => {
     try {
@@ -81,6 +98,12 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
           if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
           setQrStatus('AUTHORIZED');
           setStatusMessage('✅ Perangkat terhubung! Mengalihkan ke Dashboard...');
+
+          try {
+            const currentKeep = localStorage.getItem('aspend_keep_signed_in') !== 'false';
+            localStorage.setItem('aspend_keep_signed_in', currentKeep ? 'true' : 'false');
+            sessionStorage.setItem('aspend_active_tab_session', '1');
+          } catch (_) {}
 
           // Sign in using next-auth Credentials provider
           const result = await signIn('qr-session', {
@@ -180,6 +203,41 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
           <span className="text-[11px] font-medium text-indigo-900">{statusMessage}</span>
         </div>
       )}
+
+      {/* Pilihan Sesi Login Bergaya WhatsApp Web */}
+      <div className="mt-4 w-full max-w-[300px]">
+        <label className="flex items-start gap-3 p-3 rounded-2xl bg-slate-900/50 hover:bg-slate-900/70 border border-white/10 cursor-pointer transition-all select-none group">
+          <div className="relative flex items-center pt-0.5">
+            <input
+              type="checkbox"
+              checked={keepSignedIn}
+              onChange={(e) => handleToggleKeepSignedIn(e.target.checked)}
+              className="peer sr-only"
+            />
+            <div className="w-5 h-5 rounded-md border-2 border-slate-400 bg-slate-800/80 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all flex items-center justify-center shadow-xs">
+              <svg
+                className={`w-3.5 h-3.5 text-white transition-transform duration-150 ${keepSignedIn ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+          <div className="flex-1 text-left">
+            <span className="text-xs font-bold text-white block leading-snug group-hover:text-emerald-300 transition-colors">
+              Tetap masuk di peramban ini
+            </span>
+            <span className="text-[10.5px] text-slate-400 block mt-0.5 leading-relaxed">
+              {keepSignedIn
+                ? 'Sesi tetap tersimpan meskipun browser ditutup (seperti WhatsApp Web).'
+                : 'Sekali login — otomatis keluar saat tab atau browser ditutup.'}
+            </span>
+          </div>
+        </label>
+      </div>
 
       {/* Guide text */}
       <div className="mt-4 text-center px-2">
