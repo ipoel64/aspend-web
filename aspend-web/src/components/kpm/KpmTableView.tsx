@@ -116,6 +116,12 @@ export default function KpmTableView({
     setIsLoading(true);
     try {
       const res = await fetch('/api/kpm');
+      if (res.status === 401) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aspend-session-expired'));
+        }
+        return;
+      }
       const json = await res.json();
       if (json.data) {
         setDataList(json.data);

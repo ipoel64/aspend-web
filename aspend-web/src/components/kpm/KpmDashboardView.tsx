@@ -78,6 +78,12 @@ export default function KpmDashboardView({
     setErrorMsg(null);
     try {
       const res = await fetch('/api/kpm/dashboard');
+      if (res.status === 401) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aspend-session-expired'));
+        }
+        return;
+      }
       if (!res.ok) {
         throw new Error(`Gagal memuat data (HTTP ${res.status})`);
       }

@@ -59,12 +59,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       name: "QR Code Login",
       credentials: {
         sessionId: { label: "Session ID", type: "text" },
+        userPayload: { label: "User Payload", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.sessionId) return null;
         const sessionId = credentials.sessionId as string;
         let s = getQrSession(sessionId);
-        let user = s?.user;
+        let user: any = s?.user;
+
+        // Prioritaskan userPayload langsung dari client polling (sudah melalui pertukaran serverAuthCode)
+        if (!user && credentials?.userPayload && typeof credentials.userPayload === 'string' && credentials.userPayload.trim().startsWith('{')) {
+          try {
+            const parsedUser = JSON.parse(credentials.userPayload);
+            if (parsedUser && (parsedUser.email || parsedUser.id)) {
+              user = parsedUser;
+            }
+          } catch (_) {}
+        }
+
         if (!user) {
           try {
             const relayRes = await fetch(`https://ntfy.sh/aspend_qr_${encodeURIComponent(sessionId)}/raw?poll=1`, {
@@ -73,15 +85,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             });
             if (relayRes.ok) {
               const rawText = await relayRes.text();
-              if (rawText && rawText.trim().startsWith('{')) {
-                const body = JSON.parse(rawText.trim());
+              if (rawText && rawText.trim()) {
+                const lines = rawText.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{'));
+                let body: any = null;
+                for (const line of lines) {
+                  try {
+                    const parsed = JSON.parse(line);
+                    if (parsed && (parsed.sessionId === sessionId || parsed.email)) {
+                      body = { ...(body || {}), ...parsed };
+                    }
+                  } catch (_) {}
+                }
                 if (body && (body.sessionId === sessionId || body.email)) {
                   let accessToken = body.accessToken || '';
                   let refreshToken = body.refreshToken || '';
                   let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 3600);
                   const serverAuthCode = body.serverAuthCode || '';
 
-                  if (serverAuthCode && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+                  if (serverAuthCode && !refreshToken && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
                     try {
                       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
                         method: "POST",
@@ -168,6 +189,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        delete token.error;
       }
       // Login awal via QR Code Credentials
       if (user) {
@@ -176,20 +198,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.accessToken = (user as any).accessToken;
           token.refreshToken = (user as any).refreshToken;
           token.expiresAt = (user as any).expiresAt;
+          delete token.error;
         }
         if ((user as any).spreadsheetId) {
           (token as any).spreadsheetId = (user as any).spreadsheetId;
         }
       }
 
-      // Jika token belum expired (buffer 5 menit)
+      // Jika token belum expired (buffer 5 menit sebelum benar-benar habis)
       if (token.expiresAt && Date.now() < ((token.expiresAt as number) - 300) * 1000) {
         return token;
       }
 
-      // Jika token sudah kedaluwarsa, refresh otomatis
+      // Jika token sudah mendekati/melewati waktu kedaluwarsa, coba refresh otomatis
       if (token.refreshToken) {
         return await refreshAccessToken(token);
+      }
+
+      // Jika tidak ada refreshToken dan waktu kedaluwarsa sudah terlewati sepenuhnya, tandai sesi berakhir
+      if (token.expiresAt && Date.now() >= (token.expiresAt as number) * 1000) {
+        return {
+          ...token,
+          error: "RefreshAccessTokenError",
+        };
       }
 
       return token;
@@ -199,6 +230,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.accessToken = token.accessToken;
       // @ts-expect-error - session.refreshToken doesn't exist on default Session type
       session.refreshToken = token.refreshToken;
+      if (token.error) {
+        (session as any).error = token.error;
+      }
       if (session.user && token.picture) {
         session.user.image = token.picture as string;
       }

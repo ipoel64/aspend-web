@@ -282,9 +282,19 @@ async function compressFilesInChunks(
  * saat server atau Vercel mengembalikan pesan HTML (413 Payload Too Large, 504 Gateway Timeout, 401, dll.)
  */
 async function safeJsonParse(res: Response): Promise<any> {
+  if (res.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('aspend-session-expired'));
+  }
   const text = await res.text();
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    if (
+      (res.status === 401 || parsed?.sessionExpired || parsed?.error === 'SESSION_EXPIRED') &&
+      typeof window !== 'undefined'
+    ) {
+      window.dispatchEvent(new CustomEvent('aspend-session-expired'));
+    }
+    return parsed;
   } catch {
     if (res.status === 413) {
       throw new Error('Ukuran foto atau data terlalu besar untuk diproses server (HTTP 413 Payload Too Large).');
@@ -293,7 +303,7 @@ async function safeJsonParse(res: Response): Promise<any> {
       throw new Error('Batas waktu proses server habis (HTTP 504 Gateway Timeout). Silakan refresh halaman untuk mengecek status dokumen Anda.');
     }
     if (res.status === 401) {
-      throw new Error('Sesi login telah berakhir (HTTP 401). Silakan login ulang.');
+      throw new Error('Sesi login telah berakhir. Mengalihkan ke halaman login...');
     }
     throw new Error(`Terjadi kendala pada server (Status HTTP ${res.status}). Silakan coba beberapa saat lagi.`);
   }
@@ -400,6 +410,10 @@ export default function Home() {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [sessionCountdown, setSessionCountdown] = useState(3);
+  const [isProfileVerifiedFromServer, setIsProfileVerifiedFromServer] = useState(false);
+  const lastActiveTimeRef = React.useRef<number>(Date.now());
 
   // Toast notification
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -542,30 +556,138 @@ export default function Home() {
     }, 3500);
   }, []);
 
-  const fetchDashboardData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchDashboardData = useCallback(async (isSilentRefresh = false) => {
+    if (!isSilentRefresh) {
+      setIsLoading(true);
+    }
     setError("");
     try {
       const res = await fetch("/api/dashboard");
       const result = await safeJsonParse(res);
       
+      if (res.status === 401 || result?.sessionExpired || result?.error === 'SESSION_EXPIRED') {
+        setIsSessionExpired(true);
+        return;
+      }
+
       if (res.ok && result.success) {
         setReports(result.reports || []);
         setProfile(result.profile || null);
+        setIsProfileVerifiedFromServer(Boolean(result.profileLoaded));
         setStats(result.stats || { total: 0, month: 0, rhkBreakdown: {} });
         setSheetRiwayatPoin(result.riwayatPoinList || []);
-        if (result.reports && result.reports.length > 0) {
+        if (!isSilentRefresh && result.reports && result.reports.length > 0) {
           setSelectedReport(result.reports[0]);
         }
+        // Simpan cache profil lengkap ke localStorage agar tidak pernah hilang saat koneksi tidak stabil
+        if (result.profile?.email && result.profile?.nip && result.profile?.kabupaten) {
+          try {
+            localStorage.setItem(
+              `aspend_cached_profile_${result.profile.email.toLowerCase().trim()}`,
+              JSON.stringify(result.profile)
+            );
+          } catch (_) {}
+        }
       } else {
-        setError(result.message || "Gagal memuat data database otomatis.");
+        if (!isSilentRefresh) {
+          setError(result.message || "Gagal memuat data database otomatis.");
+        }
       }
     } catch (err: any) {
-      setError(err.message || "Terjadi kesalahan koneksi.");
+      if (err?.message?.includes('401') || err?.message?.includes('Sesi login telah berakhir')) {
+        setIsSessionExpired(true);
+        return;
+      }
+      if (!isSilentRefresh) {
+        setError(err.message || "Terjadi kesalahan koneksi.");
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilentRefresh) {
+        setIsLoading(false);
+      }
     }
   }, []);
+
+  // Muat cache profil lokal segera saat sesi aktif (mencegah kedipan data kosong)
+  useEffect(() => {
+    const email = session?.user?.email?.toLowerCase().trim();
+    if (email && !profile) {
+      try {
+        const cached = localStorage.getItem(`aspend_cached_profile_${email}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.email) {
+            setProfile(parsed);
+          }
+        }
+      } catch (_) {}
+    }
+  }, [session?.user?.email, profile]);
+
+  // Pantau status kedaluwarsa sesi dari NextAuth atau event global HTTP 401
+  useEffect(() => {
+    if ((session as any)?.error === 'RefreshAccessTokenError') {
+      setIsSessionExpired(true);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsSessionExpired(true);
+    };
+    window.addEventListener('aspend-session-expired', handleSessionExpired);
+    return () => window.removeEventListener('aspend-session-expired', handleSessionExpired);
+  }, []);
+
+  // Countdown otomatis untuk mengalihkan ke halaman login saat sesi telah berakhir
+  useEffect(() => {
+    if (!isSessionExpired) {
+      setSessionCountdown(3);
+      return;
+    }
+    const timer = setInterval(() => {
+      setSessionCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          signOut({ redirect: true });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isSessionExpired]);
+
+  // Periksa ulang validitas sesi secara otomatis ketika pengguna kembali ke tab browser setelah lama tidak aktif (> 10 menit)
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    const updateActivity = () => {
+      lastActiveTimeRef.current = Date.now();
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        const idleMs = Date.now() - lastActiveTimeRef.current;
+        lastActiveTimeRef.current = Date.now();
+        if (idleMs > 10 * 60 * 1000) {
+          fetchDashboardData(true);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('click', updateActivity, { passive: true });
+    window.addEventListener('keydown', updateActivity, { passive: true });
+
+    return () => {
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+    };
+  }, [status, fetchDashboardData]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -579,7 +701,7 @@ export default function Home() {
         }
         sessionStorage.setItem('aspend_active_tab_session', '1');
       } catch (_) {}
-      fetchDashboardData();
+      fetchDashboardData(false);
     }
   }, [status, fetchDashboardData]);
 
@@ -749,17 +871,29 @@ export default function Home() {
       const result = await safeJsonParse(res);
       if (res.ok && result.success) {
         showToast('Profil Anda berhasil disimpan ke Google Drive!', 'success');
-        setProfile(prev => prev ? {
-          ...prev,
-          nama: profileForm.nama.trim(),
-          nip: profileForm.nip.trim(),
-          jenisSdm: profileForm.jenisSdm,
-          jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
-          jabatanAsn: (profileForm.jabatanAsn || '').trim(),
-          provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
-          kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
-          kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
-        } : null);
+        setIsProfileVerifiedFromServer(true);
+        setProfile(prev => {
+          const updated = prev ? {
+            ...prev,
+            nama: profileForm.nama.trim(),
+            nip: profileForm.nip.trim(),
+            jenisSdm: profileForm.jenisSdm,
+            jabatan: profileForm.jenisSdm === 'TKSK' ? '' : profileForm.jabatan,
+            jabatanAsn: (profileForm.jabatanAsn || '').trim(),
+            provinsi: capitalizeEachWord(profileForm.provinsi.trim()),
+            kabupaten: capitalizeEachWord(profileForm.kabupaten.trim()),
+            kecamatan: capitalizeEachWord(profileForm.kecamatan.trim()),
+          } : null;
+          if (updated?.email) {
+            try {
+              localStorage.setItem(
+                `aspend_cached_profile_${updated.email.toLowerCase().trim()}`,
+                JSON.stringify(updated)
+              );
+            } catch (_) {}
+          }
+          return updated;
+        });
         if (profileForm.jabatan === 'Katim Kab/Kota' || profileForm.jabatan === 'Katim Provinsi') {
           fetchSdmPkhList();
         }
@@ -926,7 +1060,7 @@ export default function Home() {
   };
 
   const isProfileIncomplete = useMemo(() => {
-    if (!profile) return false;
+    if (isLoading || error || isSessionExpired || !isProfileVerifiedFromServer || !profile) return false;
     if (!profile.nama?.trim() || !profile.nip?.trim() || !profile.kabupaten?.trim() || !profile.provinsi?.trim() || !profile.kecamatan?.trim()) {
       return true;
     }
@@ -934,7 +1068,7 @@ export default function Home() {
       return true;
     }
     return false;
-  }, [profile]);
+  }, [profile, isLoading, error, isSessionExpired, isProfileVerifiedFromServer]);
 
   const isKatimSupervisiP2K2 = useMemo(() => {
     return Boolean(
@@ -4892,6 +5026,33 @@ export default function Home() {
             });
           }}
         />
+
+        {/* Modal Otomatis Sesi Login Berakhir (Mencegah Kebingungan Data Kosong / Profil Belum Lengkap) */}
+        {isSessionExpired && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl p-6 sm:p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-3xl shadow-inner">
+                🔐
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Sesi Login Telah Berakhir
+              </h3>
+              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                Demi keamanan akun dan sinkronisasi Google Drive Anda, sesi telah berakhir karena tidak ada aktivitas dalam waktu tertentu.
+              </p>
+              <div className="mt-4 py-2.5 px-4 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs font-semibold text-indigo-800">
+                Mengalihkan ke halaman masuk dalam <span className="font-extrabold text-indigo-600">{sessionCountdown}</span> detik...
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut({ redirect: true })}
+                className="mt-5 w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-bold shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
+              >
+                Login Ulang Sekarang
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

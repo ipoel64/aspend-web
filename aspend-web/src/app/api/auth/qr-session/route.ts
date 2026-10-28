@@ -83,10 +83,19 @@ export async function GET(request: Request) {
         });
         if (relayRes.ok) {
           const rawText = await relayRes.text();
-          if (rawText && rawText.trim().startsWith('{')) {
-            const body = JSON.parse(rawText.trim());
-            if (body && (body.sessionId === sessionId || body.email)) {
-              const userPayload = await processQrPayload(body, sessionId);
+          if (rawText && rawText.trim()) {
+            const lines = rawText.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{'));
+            let mergedBody: any = null;
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed && (parsed.sessionId === sessionId || parsed.email)) {
+                  mergedBody = { ...(mergedBody || {}), ...parsed };
+                }
+              } catch (_) {}
+            }
+            if (mergedBody) {
+              const userPayload = await processQrPayload(mergedBody, sessionId);
               authorizeQrSession(sessionId, userPayload);
               session = getQrSession(sessionId)!;
             }

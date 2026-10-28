@@ -1,6 +1,37 @@
 import { google } from 'googleapis';
 
 /**
+ * Deteksi apakah error dari Google API disebabkan oleh token kedaluwarsa / tidak valid (HTTP 401)
+ */
+export function isGoogleAuthError(error: any): boolean {
+  if (!error) return false;
+  const status = Number(error.status || error.code || error?.response?.status || 0);
+  const msg = String(
+    error.message ||
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error_description ||
+      ''
+  ).toLowerCase();
+  return (
+    status === 401 ||
+    msg.includes('invalid credentials') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('invalid_grant') ||
+    msg.includes('session_expired') ||
+    msg.includes('request had invalid authentication credentials')
+  );
+}
+
+function createAuthExpiredError(): Error & { status?: number; code?: number } {
+  const err: Error & { status?: number; code?: number } = new Error(
+    'SESSION_EXPIRED: Sesi login Google Anda telah berakhir. Silakan login kembali.'
+  );
+  err.status = 401;
+  err.code = 401;
+  return err;
+}
+
+/**
  * Mendapatkan instance Google Sheets API yang sudah terautentikasi dengan token user
  * @param accessToken Token akses OAuth2 dari session NextAuth
  */
@@ -30,6 +61,9 @@ export async function getSheetData(
     });
     return response.data.values || [];
   } catch (error) {
+    if (isGoogleAuthError(error)) {
+      throw createAuthExpiredError();
+    }
     console.error('Error membaca Google Sheets:', error);
     throw new Error('Gagal membaca data dari Google Sheets.');
   }
@@ -55,10 +89,18 @@ export async function batchGetSheetData(
     });
     return (response.data.valueRanges || []).map((vr) => vr.values || []);
   } catch (error) {
+    if (isGoogleAuthError(error)) {
+      throw createAuthExpiredError();
+    }
     console.warn('batchGetSheetData gagal (kemungkinan salah satu tab sheet belum ada), fallback ke pembacaan per-sheet:', error);
     // Fallback: ambil satu per satu dengan Promise.all agar jika 1 tab opsional belum ada, tab utama tetap terbaca!
     return await Promise.all(
-      ranges.map((r) => getSheetData(accessToken, spreadsheetId, r, valueRenderOption).catch(() => []))
+      ranges.map((r) =>
+        getSheetData(accessToken, spreadsheetId, r, valueRenderOption).catch((err) => {
+          if (isGoogleAuthError(err)) throw err;
+          return [];
+        })
+      )
     );
   }
 }
@@ -79,6 +121,9 @@ export async function appendSheetData(accessToken: string, spreadsheetId: string
     });
     return response.data;
   } catch (error) {
+    if (isGoogleAuthError(error)) {
+      throw createAuthExpiredError();
+    }
     console.error('Error menulis ke Google Sheets:', error);
     throw new Error('Gagal menyimpan data ke Google Sheets.');
   }

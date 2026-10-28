@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findAspendSpreadsheet } from '@/lib/google-drive';
-import { getSheetData } from '@/lib/google-sheets';
+import { getSheetData, isGoogleAuthError } from '@/lib/google-sheets';
 import { MASTER_RHK_DATA, getMasterRHKData } from '@/lib/master-rhk';
 
 function extractDriveId(str: string) {
@@ -81,8 +81,12 @@ export async function GET(request: Request) {
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({
+        error: 'SESSION_EXPIRED',
+        sessionExpired: true,
+        message: 'Sesi login Anda telah berakhir karena tidak ada aktivitas dalam waktu tertentu. Silakan masuk kembali.'
+      }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -125,7 +129,8 @@ export async function GET(request: Request) {
           }
         }
       }
-    } catch {
+    } catch (err) {
+      if (isGoogleAuthError(err)) throw err;
       // Tab Premium mungkin belum ada
     }
 
@@ -149,7 +154,8 @@ export async function GET(request: Request) {
             }
           }
         }
-      } catch {
+      } catch (err) {
+        if (isGoogleAuthError(err)) throw err;
         // Tab PremiumUsers mungkin belum ada
       }
     }
@@ -170,6 +176,7 @@ export async function GET(request: Request) {
       signatureUrl: '',
       isPremium: isPremiumUser
     };
+    let profileLoaded = false;
 
     try {
       // Coba baca dari sheet Profile dulu (format Aspend Mobile: Email, Nama, NIP, Jabatan, Kab/Kota, SigId, PhotoId, LogoId, JenisSDM, Provinsi, Kecamatan, JabatanASN)
@@ -177,6 +184,7 @@ export async function GET(request: Request) {
       if (!profileRows || profileRows.length === 0) {
         profileRows = await getSheetData(accessToken as string, spreadsheetId, 'Users!A2:L');
       }
+      profileLoaded = true;
       
       if (profileRows && profileRows.length > 0) {
         // Ambil baris pertama atau cari yang cocok dengan email
@@ -225,6 +233,7 @@ export async function GET(request: Request) {
         };
       }
     } catch (err) {
+      if (isGoogleAuthError(err)) throw err;
       console.warn('Gagal membaca sheet Users/Profile:', err);
     }
 
@@ -246,7 +255,8 @@ export async function GET(request: Request) {
           rencana: row[2] || ''
         }));
       }
-    } catch {
+    } catch (err) {
+      if (isGoogleAuthError(err)) throw err;
       // Menggunakan fallback MASTER_RHK_DATA standar
     }
 
@@ -255,6 +265,7 @@ export async function GET(request: Request) {
     try {
       rawReports = await getSheetData(accessToken as string, spreadsheetId, 'Laporan_Log!A2:Q');
     } catch (err) {
+      if (isGoogleAuthError(err)) throw err;
       console.warn('Gagal membaca sheet Laporan_Log:', err);
     }
 
@@ -359,7 +370,8 @@ export async function GET(request: Request) {
     let riwayatPoinRaw: any[][] = [];
     try {
       riwayatPoinRaw = await getSheetData(accessToken as string, spreadsheetId, 'Riwayat_Poin!A2:C');
-    } catch {
+    } catch (err) {
+      if (isGoogleAuthError(err)) throw err;
       // Sheet Riwayat_Poin mungkin belum dibuat atau kosong
     }
 
@@ -375,6 +387,7 @@ export async function GET(request: Request) {
       success: true,
       spreadsheetId,
       profile: userProfile,
+      profileLoaded,
       reports,
       riwayatPoinList,
       rhkList,
@@ -382,6 +395,13 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error('Error di /api/dashboard:', error);
+    if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
+      return NextResponse.json({
+        error: 'SESSION_EXPIRED',
+        sessionExpired: true,
+        message: 'Sesi login Anda telah berakhir karena tidak ada aktivitas dalam waktu tertentu. Silakan masuk kembali.'
+      }, { status: 401 });
+    }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

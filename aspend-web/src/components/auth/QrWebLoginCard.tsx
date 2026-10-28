@@ -105,9 +105,10 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
             sessionStorage.setItem('aspend_active_tab_session', '1');
           } catch (_) {}
 
-          // Sign in using next-auth Credentials provider
+          // Sign in using next-auth Credentials provider (kirim userPayload langsung agar tidak gagal di multi-instance serverless)
           const result = await signIn('qr-session', {
             sessionId: sessionId,
+            userPayload: data.user ? JSON.stringify(data.user) : '',
             redirect: false,
           });
 

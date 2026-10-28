@@ -10,6 +10,7 @@ import {
   findRowByKey,
   batchUpdateSheetValues,
   getSheetsClient,
+  isGoogleAuthError,
 } from '@/lib/google-sheets';
 import {
   KPM_SHEET_KELUARGA,
@@ -48,8 +49,8 @@ export async function GET(request: Request) {
     const session = await auth();
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
     }
     const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {
@@ -62,9 +63,18 @@ export async function GET(request: Request) {
     const status = searchParams.get('status');
 
     let [keluargaRows, rawAnggota, rawAset] = await Promise.all([
-      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch(() => []),
-      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A2:N`).catch(() => []),
-      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ASET}!A2:M`).catch(() => []),
+      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_KELUARGA}!A2:AB`).catch((err) => {
+        if (isGoogleAuthError(err)) throw err;
+        return [];
+      }),
+      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ANGGOTA}!A2:N`).catch((err) => {
+        if (isGoogleAuthError(err)) throw err;
+        return [];
+      }),
+      getSheetData(accessToken, spreadsheetId, `${KPM_SHEET_ASET}!A2:M`).catch((err) => {
+        if (isGoogleAuthError(err)) throw err;
+        return [];
+      }),
     ]);
 
     const allAnggota = rawAnggota.filter((r) => r.length > 0).map(parseAnggotaRow);
@@ -305,8 +315,11 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ data, total: data.length });
-  } catch (error) {
+  } catch (error: any) {
     console.error('KPM GET error:', error);
+    if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
+      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

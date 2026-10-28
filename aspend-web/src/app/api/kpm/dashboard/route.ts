@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findAspendSpreadsheet } from '@/lib/google-drive';
-import { batchGetSheetData } from '@/lib/google-sheets';
+import { batchGetSheetData, isGoogleAuthError } from '@/lib/google-sheets';
 import {
   KPM_SHEET_KELUARGA,
   KPM_SHEET_ANGGOTA,
@@ -26,8 +26,8 @@ export async function GET(request: Request) {
     const session = await auth();
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
     }
     const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {
@@ -298,8 +298,11 @@ export async function GET(request: Request) {
       markers,
       recentKpm,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('KPM Dashboard GET error:', error);
+    if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
+      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
