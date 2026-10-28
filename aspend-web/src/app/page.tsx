@@ -2529,7 +2529,7 @@ export default function Home() {
             <Image src="/logo.png" alt="ASPEND Logo" width={30} height={30} className="rounded-xl shadow-md border border-white/20 object-cover bg-white shrink-0" />
             <div className="min-w-0">
               <span className="font-['Outfit'] font-bold text-base text-white tracking-wide block leading-tight truncate">ASPEND</span>
-              <span className="text-[9px] text-white/80 font-medium tracking-wide uppercase truncate block">Pendamping PKH</span>
+              <span className="text-[9px] text-white/80 font-medium tracking-wide uppercase truncate block">Asisten Pendamping</span>
             </div>
           </div>
           <button
@@ -2776,43 +2776,52 @@ export default function Home() {
               </div>
             )}
             
-            {/* Header Title & Stats */}
-            <div className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-bold text-[#1A1D21] mb-0.5 font-['Outfit']">Dashboard Laporan RHK</h2>
-                <p className="text-xs text-gray-500 mb-2">Kelola dan tinjau laporan pendampingan sosial secara real-time.</p>
-                <button 
-                  onClick={handleOpenCreateReport}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md hover:scale-[1.02] transition-all flex items-center gap-1.5 font-bold text-xs cursor-pointer border border-teal-500 w-fit"
-                >
-                  <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                  Buat Laporan RHK
-                </button>
-              </div>
-              
-              <div className="flex flex-row flex-wrap items-stretch gap-3">
-                {/* Card Total Laporan */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-3 flex items-center gap-3.5 min-w-[155px]">
-                  <div className="p-2.5 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
-                    <span className="material-symbols-outlined text-xl">summarize</span>
+            {/* Header Title & Stats (2-Row Compact & Balanced Layout) */}
+            <div className="mb-3 flex flex-col gap-2.5">
+              {/* Baris Atas: Judul di Kiri & Kartu Total Laporan di Kanan */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D21] leading-tight font-['Outfit']">
+                    Dashboard Laporan RHK
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Kelola dan tinjau laporan pendampingan sosial secara real-time.
+                  </p>
+                </div>
+
+                {/* Card Total Laporan (Sejajar di Kanan Atas) */}
+                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-2.5 flex items-center gap-3.5 min-w-[175px] shrink-0 self-start sm:self-center">
+                  <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
+                    <span className="material-symbols-outlined text-lg">summarize</span>
                   </div>
                   <div>
                     <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">TOTAL LAPORAN</span>
-                    <div className="text-2xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
+                    <div className="text-xl sm:text-2xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
                   </div>
                 </div>
-                
+              </div>
+
+              {/* Baris Bawah: Tombol Buat Laporan RHK di Kiri & Kartu Bulan Ini + Target RHK 1-9 Merentang Penuh di Kanan */}
+              <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+                <button 
+                  onClick={handleOpenCreateReport}
+                  className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl shadow-sm hover:shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 font-bold text-xs cursor-pointer border border-teal-500 shrink-0 w-full lg:w-auto"
+                >
+                  <span className="material-symbols-outlined text-[17px]">add_circle</span>
+                  <span>Buat Laporan RHK</span>
+                </button>
+
                 {/* Card Bulan Ini & Progress Setiap Target RHK (RHK 1 s/d RHK 9) */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-2.5 flex flex-col xl:flex-row xl:items-center gap-3.5 min-w-[300px] sm:min-w-[460px] max-w-full">
-                  <div className="flex items-center justify-between xl:justify-start gap-3 flex-shrink-0 xl:pr-3.5 xl:border-r xl:border-slate-200/80">
+                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3.5 py-2 flex flex-col xl:flex-row xl:items-center gap-3 flex-1 min-w-0">
+                  <div className="flex items-center justify-between xl:justify-start gap-2.5 flex-shrink-0 xl:pr-3 xl:border-r xl:border-slate-200/80">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
-                        <span className="material-symbols-outlined text-xl">calendar_today</span>
+                      <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
+                        <span className="material-symbols-outlined text-lg">calendar_today</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
+                        <span className="text-slate-500 text-[9px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
                         <div className="flex items-baseline gap-1 mt-0.5">
-                          <span className="text-2xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
+                          <span className="text-xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
                           <span className="text-[10px] font-bold text-slate-400">/ 28 target</span>
                         </div>
                       </div>
@@ -2820,7 +2829,7 @@ export default function Home() {
                   </div>
                   
                   {/* Progress Setiap Target RHK 1 - 9 */}
-                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 flex-1">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 flex-1 min-w-0">
                     {RHK_MONTHLY_TARGETS.map(({ key, label, target }) => {
                       const count = stats.rhkBreakdown?.[key] || 0;
                       const pct = Math.min(100, Math.round((count / target) * 100));
@@ -2830,18 +2839,18 @@ export default function Home() {
                         <div
                           key={key}
                           title={`${label}: ${count} dari target ${target} laporan bulan ini (${pct}%)`}
-                          className={`flex flex-col justify-between px-2 py-1.5 rounded-xl border transition-all min-w-[68px] ${
+                          className={`flex flex-col justify-between px-2 py-1.5 rounded-xl border transition-all min-w-0 ${
                             isDone
                               ? 'bg-emerald-50/90 border-emerald-300 shadow-2xs'
                               : `${style.bg} ${style.border}`
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className={`text-[9.5px] font-extrabold tracking-tight leading-none ${isDone ? 'text-emerald-800' : style.text}`}>
+                          <div className="flex items-center justify-between gap-0.5 mb-1">
+                            <span className={`text-[9.5px] font-extrabold tracking-tight leading-none truncate ${isDone ? 'text-emerald-800' : style.text}`}>
                               {label}
                             </span>
                             {isDone && (
-                              <span className="material-symbols-outlined text-emerald-600" style={{ fontSize: '11px', lineHeight: 1 }}>
+                              <span className="material-symbols-outlined text-emerald-600 shrink-0" style={{ fontSize: '11px', lineHeight: 1 }}>
                                 check_circle
                               </span>
                             )}
