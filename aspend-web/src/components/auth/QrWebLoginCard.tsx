@@ -232,7 +232,7 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
             </span>
             <span className="text-[10.5px] text-slate-400 block mt-0.5 leading-relaxed">
               {keepSignedIn
-                ? 'Sesi tetap tersimpan meskipun browser ditutup (seperti WhatsApp Web).'
+                ? 'Sesi tetap tersimpan meskipun browser ditutup.'
                 : 'Sekali login — otomatis keluar saat tab atau browser ditutup.'}
             </span>
           </div>
