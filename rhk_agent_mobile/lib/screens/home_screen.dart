@@ -9,6 +9,7 @@ import 'dashboard/dashboard_screen.dart';
 import 'report/create_report_screen.dart';
 import 'settings/settings_screen.dart';
 import 'pengaduan/pengaduan_list_screen.dart';
+import '../services/notification_service.dart';
 
 /// Home Screen — Bottom Navigation Hub
 class HomeScreen extends StatefulWidget {
@@ -25,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationService().requestPermissions();
+    });
   }
 
   @override

@@ -1,4 +1,4 @@
-﻿class UserProfile {
+class UserProfile {
   final String email;
   final String nama;
   final String nip;
@@ -10,6 +10,7 @@
   final String jenisSdm;
   final String provinsi;
   final String kecamatan;
+  final String jabatanAsn;
 
   UserProfile({
     required this.email,
@@ -23,6 +24,7 @@
     required this.jenisSdm,
     this.provinsi = '',
     this.kecamatan = '',
+    this.jabatanAsn = '',
   });
 
   factory UserProfile.fromSheetRow(List<Object?> row) {
@@ -45,6 +47,7 @@
       jenisSdm: safeString(8),
       provinsi: safeString(9),
       kecamatan: safeString(10),
+      jabatanAsn: safeString(11),
     );
   }
 
@@ -61,6 +64,7 @@
       jenisSdm,
       provinsi,
       kecamatan,
+      jabatanAsn,
     ];
   }
 
@@ -76,6 +80,7 @@
     String? jenisSdm,
     String? provinsi,
     String? kecamatan,
+    String? jabatanAsn,
   }) {
     return UserProfile(
       email: email ?? this.email,
@@ -89,6 +94,7 @@
       jenisSdm: jenisSdm ?? this.jenisSdm,
       provinsi: provinsi ?? this.provinsi,
       kecamatan: kecamatan ?? this.kecamatan,
+      jabatanAsn: jabatanAsn ?? this.jabatanAsn,
     );
   }
 
@@ -105,6 +111,7 @@
       'jenisSdm': jenisSdm,
       'provinsi': provinsi,
       'kecamatan': kecamatan,
+      'jabatanAsn': jabatanAsn,
     };
   }
 
@@ -121,6 +128,7 @@
       jenisSdm: json['jenisSdm']?.toString() ?? 'SDM PKH',
       provinsi: json['provinsi']?.toString() ?? '',
       kecamatan: json['kecamatan']?.toString() ?? '',
+      jabatanAsn: json['jabatanAsn']?.toString() ?? '',
     );
   }
 }

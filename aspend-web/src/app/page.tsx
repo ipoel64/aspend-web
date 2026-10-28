@@ -523,6 +523,7 @@ export default function Home() {
   const [submitReportStatusText, setSubmitReportStatusText] = useState('');
   const [editPhotoStatusText, setEditPhotoStatusText] = useState('');
   const [previewPhotoModalUrl, setPreviewPhotoModalUrl] = useState<string | null>(null);
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
 
   const getNarrativeProgressStatus = (percent: number) => {
     if (percent >= 100) return 'Narasi laporan berhasil disusun!';
@@ -538,6 +539,49 @@ export default function Home() {
   const [poinHistory, setPoinHistory] = useState<string[]>([]);
   const [showPoinHistoryModal, setShowPoinHistoryModal] = useState(false);
 
+  const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  }, []);
+
+  // Auto-save draf form RHK agar teks narasi dan form tidak pernah hilang saat sesi habis
+  useEffect(() => {
+    if (activePage === 'form' && (createForm.poinKegiatan || generatedNarrative || createForm.rencanaAksi)) {
+      try {
+        const draft = {
+          createForm,
+          generatedNarrative,
+          extractedLocation,
+          timestamp: Date.now(),
+        };
+        localStorage.setItem('aspend_draft_rhk', JSON.stringify(draft));
+      } catch (_) {}
+    }
+  }, [activePage, createForm, generatedNarrative, extractedLocation]);
+
+  // Pulihkan draf otomatis saat membuka menu form RHK
+  useEffect(() => {
+    if (activePage === 'form' && !hasRestoredDraft) {
+      try {
+        const saved = localStorage.getItem('aspend_draft_rhk');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.createForm && (parsed.createForm.poinKegiatan || parsed.generatedNarrative)) {
+            if (!createForm.poinKegiatan && !generatedNarrative) {
+              setCreateForm(prev => ({ ...prev, ...parsed.createForm }));
+              if (parsed.generatedNarrative) setGeneratedNarrative(parsed.generatedNarrative);
+              if (parsed.extractedLocation) setExtractedLocation(parsed.extractedLocation);
+              setHasRestoredDraft(true);
+              showToast('Draf laporan Anda sebelumnya telah dipulihkan otomatis!', 'info');
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  }, [activePage, hasRestoredDraft, createForm.poinKegiatan, generatedNarrative, showToast]);
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJenis, setFilterJenis] = useState("");
@@ -548,13 +592,6 @@ export default function Home() {
   // Pagination State (Default 10 baris)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
-
-  const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToast({ text, type });
-    setTimeout(() => {
-      setToast(null);
-    }, 3500);
-  }, []);
 
   const fetchDashboardData = useCallback(async (isSilentRefresh = false) => {
     if (!isSilentRefresh) {
@@ -1929,6 +1966,12 @@ export default function Home() {
           } catch {}
         }
 
+        // Bersihkan draf lokal setelah berhasil disimpan
+        try {
+          localStorage.removeItem('aspend_draft_rhk');
+          setHasRestoredDraft(false);
+        } catch (_) {}
+
         // Segarkan data dashboard
         await fetchDashboardData();
 
@@ -1975,7 +2018,28 @@ export default function Home() {
         throw new Error(reportResult.error || 'Gagal menyimpan laporan.');
       }
     } catch (err: any) {
-      showToast(err.message || 'Terjadi kesalahan saat menyimpan laporan.', 'error');
+      // Amankan teks draf narasi ke localStorage agar tidak hilang
+      try {
+        localStorage.setItem('aspend_draft_rhk', JSON.stringify({
+          createForm,
+          generatedNarrative,
+          extractedLocation,
+          timestamp: Date.now(),
+        }));
+      } catch (_) {}
+
+      const msg = String(err?.message || '').toLowerCase();
+      const isAuth =
+        msg.includes('invalid authentication credentials') ||
+        msg.includes('401') ||
+        msg.includes('sesi') ||
+        msg.includes('session_expired');
+
+      if (isAuth) {
+        setIsSessionExpired(true);
+      } else {
+        showToast(err.message || 'Terjadi kesalahan saat menyimpan laporan.', 'error');
+      }
     } finally {
       setIsSubmittingReport(false);
       setSubmitReportStatusText('');
@@ -5035,20 +5099,31 @@ export default function Home() {
                 🔐
               </div>
               <h3 className="text-xl font-extrabold text-slate-900">
-                Sesi Login Telah Berakhir
+                Sesi Otorisasi Google Berakhir
               </h3>
               <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Demi keamanan akun dan sinkronisasi Google Drive Anda, sesi telah berakhir karena tidak ada aktivitas dalam waktu tertentu.
+                Demi keamanan akun dan privasi Google Drive Anda, token otorisasi berlaku selama 1 jam.
               </p>
+
+              {activePage === 'form' && (
+                <div className="mt-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-left flex items-start gap-2.5">
+                  <span className="text-emerald-600 text-base leading-none mt-0.5">✓</span>
+                  <div className="text-xs text-emerald-800">
+                    <span className="font-bold block">Draf Laporan Anda Aman!</span>
+                    Teks narasi AI, rencana aksi, dan rincian kegiatan telah disimpan otomatis. Anda tidak perlu mengetik ulang saat scan barcode kembali.
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 py-2.5 px-4 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs font-semibold text-indigo-800">
-                Mengalihkan ke halaman masuk dalam <span className="font-extrabold text-indigo-600">{sessionCountdown}</span> detik...
+                Mengalihkan ke halaman barcode dalam <span className="font-extrabold text-indigo-600">{sessionCountdown}</span> detik...
               </div>
               <button
                 type="button"
                 onClick={() => signOut({ redirect: true })}
                 className="mt-5 w-full py-3.5 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-bold shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
               >
-                Login Ulang Sekarang
+                Scan Barcode Ulang Sekarang
               </button>
             </div>
           </div>

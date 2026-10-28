@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _nipController = TextEditingController();
   final _jabatanController = TextEditingController(text: 'Pendamping PKH');
   final _jenisSdmController = TextEditingController(text: 'SDM PKH');
+  final _jabatanAsnController = TextEditingController();
   
   String _selectedProvinsi = '';
   String _selectedKabupaten = '';
@@ -162,6 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _jabatanController.text = profile.jabatan.isNotEmpty
           ? profile.jabatan
           : (_jenisSdmController.text == 'TKSK' ? '' : 'Pendamping PKH');
+      _jabatanAsnController.text = profile.jabatanAsn;
       _selectedProvinsi = profile.provinsi;
       _selectedKabupaten = profile.kabupatenKota;
       _selectedKecamatan = profile.kecamatan;
@@ -189,6 +191,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       _jabatanController.text = loadedJabatan.isNotEmpty ? loadedJabatan : 'Pendamping PKH';
     }
+    if (_jabatanAsnController.text.isEmpty && profile.jabatanAsn.isNotEmpty) {
+      _jabatanAsnController.text = profile.jabatanAsn;
+    }
     if (_selectedProvinsi.isEmpty && profile.provinsi.isNotEmpty) {
       _selectedProvinsi = profile.provinsi;
       if (_provinces.isNotEmpty) _fetchRegenciesForProvinsi(_selectedProvinsi);
@@ -208,6 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nipController.dispose();
     _jabatanController.dispose();
     _jenisSdmController.dispose();
+    _jabatanAsnController.dispose();
     _apiKeyController.dispose();
     super.dispose();
   }
@@ -544,6 +550,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildFormField('Nama Lengkap', _namaController, Icons.person_rounded),
           const SizedBox(height: 12),
           _buildFormField('NIP', _nipController, Icons.badge_rounded),
+          const SizedBox(height: 12),
+          _buildFormField(
+            'Jabatan ASN',
+            _jabatanAsnController,
+            Icons.workspace_premium_rounded,
+            options: const [
+              'Penata Layanan Operasional',
+              'Pengelola Layanan Operasional',
+              'Operator Layanan Operasional',
+            ],
+            onChanged: (val) => setState(() {}),
+          ),
           const SizedBox(height: 12),
           _buildFormField(
             'Jenis SDM',
@@ -1289,6 +1307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final provinsi = formatTitleCase(_selectedProvinsi.trim());
     final kabupatenKota = formatTitleCase(_selectedKabupaten.trim());
     final kecamatan = formatTitleCase(_selectedKecamatan.trim());
+    final jabatanAsn = _jabatanAsnController.text.trim();
 
     if (nama.isEmpty || nip.isEmpty || kabupatenKota.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1310,6 +1329,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         jenisSdm: jenisSdm,
         provinsi: provinsi,
         kecamatan: kecamatan,
+        jabatanAsn: jabatanAsn,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1377,6 +1397,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         jenisSdm: _jenisSdmController.text.trim().isNotEmpty ? _jenisSdmController.text.trim() : 'SDM PKH',
         provinsi: _selectedProvinsi.trim(),
         kecamatan: _selectedKecamatan.trim(),
+        jabatanAsn: _jabatanAsnController.text.trim(),
       );
     }
   }
@@ -1857,6 +1878,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeColor: AppColors.navy,
             onChanged: (val) async {
               setState(() => _notificationEnabled = val);
+              if (val) {
+                await NotificationService().requestPermissions();
+              }
               await NotificationService().scheduleDailyNotification(enabled: val);
             },
           ),
@@ -1891,6 +1915,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
+                  final granted = await NotificationService().requestPermissions();
+                  if (granted == false) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Izin notifikasi belum diizinkan di pengaturan HP Anda.'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                    return;
+                  }
                   await NotificationService().showTestNotification();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

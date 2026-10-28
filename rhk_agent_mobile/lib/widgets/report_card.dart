@@ -21,7 +21,6 @@ class ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isCompleted = report.status.trim().toLowerCase() == 'selesai';
     final isDraft = report.status.trim().toLowerCase() == 'draft';
 

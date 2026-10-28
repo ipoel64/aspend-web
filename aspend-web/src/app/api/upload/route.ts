@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getOrCreateFolder, uploadFileToDrive } from '@/lib/google-drive';
+import { isGoogleAuthError } from '@/lib/google-sheets';
 import crypto from 'crypto';
 
 export const maxDuration = 60;
@@ -62,8 +63,12 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({
+        error: 'SESSION_EXPIRED',
+        sessionExpired: true,
+        message: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.'
+      }, { status: 401 });
     }
     const files = formData.getAll('files') as File[];
     const folderName = (formData.get('folderName') as string) || 'RHK-agent_FotoKegiatan';
@@ -111,6 +116,13 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Error uploading file to Drive:', error);
-    return NextResponse.json({ error: error.message || 'Gagal mengunggah file ke Google Drive.' }, { status: 500 });
+    const isAuth = isGoogleAuthError(error);
+    return NextResponse.json({
+      error: isAuth
+        ? 'Sesi otorisasi Google Anda telah berakhir (1 jam). Silakan tautkan ulang barcode dari aplikasi HP untuk melanjutkan.'
+        : (error.message || 'Gagal mengunggah file ke Google Drive.'),
+      sessionExpired: isAuth,
+      isAuthError: isAuth
+    }, { status: isAuth ? 401 : 500 });
   }
 }

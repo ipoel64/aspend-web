@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findAspendSpreadsheet, getDriveClient } from '@/lib/google-drive';
-import { getSheetData, deleteSheetRow, updateSheetRow, appendSheetData } from '@/lib/google-sheets';
+import { getSheetData, deleteSheetRow, updateSheetRow, appendSheetData, isGoogleAuthError } from '@/lib/google-sheets';
 import { generateReportPDF } from '@/lib/pdf-generator';
 import { capitalizeEachWord } from '@/lib/format-utils';
 
@@ -24,8 +24,12 @@ export async function DELETE(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({
+        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        sessionExpired: true,
+        isAuthError: true
+      }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -94,8 +98,12 @@ export async function PUT(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({
+        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        sessionExpired: true,
+        isAuthError: true
+      }, { status: 401 });
     }
 
     const payload = await request.json();
@@ -307,8 +315,12 @@ export async function POST(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+      return NextResponse.json({
+        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        sessionExpired: true,
+        isAuthError: true
+      }, { status: 401 });
     }
 
     const payload = await request.json();
@@ -509,11 +521,12 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Error POST /api/reports:', error);
     const msg = error.message || 'Internal Server Error';
-    const isAuthError = msg.includes('invalid authentication credentials') || error?.code === 401;
+    const isAuthError = isGoogleAuthError(error) || msg.toLowerCase().includes('invalid authentication credentials') || error?.code === 401;
     return NextResponse.json({ 
       error: isAuthError 
-        ? 'Sesi otorisasi Google Anda kedaluwarsa atau tidak valid. Silakan scan ulang barcode dari aplikasi Aspend Mobile untuk memperbarui akses.' 
+        ? 'Sesi otorisasi Google Anda telah berakhir (1 jam). Silakan tautkan ulang barcode dari aplikasi HP untuk melanjutkan.' 
         : msg,
+      sessionExpired: isAuthError,
       isAuthError 
     }, { status: isAuthError ? 401 : 500 });
   }

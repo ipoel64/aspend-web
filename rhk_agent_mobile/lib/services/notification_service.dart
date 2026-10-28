@@ -69,6 +69,20 @@ class NotificationService {
     await scheduleDailyNotification();
   }
 
+  /// Request runtime permissions for Android 13+ (POST_NOTIFICATIONS) and Android 12+ (EXACT_ALARM)
+  Future<bool?> requestPermissions() async {
+    final androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImplementation != null) {
+      final granted = await androidImplementation.requestNotificationsPermission();
+      try {
+        await androidImplementation.requestExactAlarmsPermission();
+      } catch (_) {}
+      return granted;
+    }
+    return null;
+  }
+
   Future<void> showTestNotification() async {
     const androidDetails = AndroidNotificationDetails(
       'daily_reminder_channel_v3',

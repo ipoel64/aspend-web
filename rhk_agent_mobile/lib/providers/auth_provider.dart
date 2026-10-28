@@ -205,6 +205,7 @@ class AuthProvider extends ChangeNotifier {
           jenisSdm: fromSheet.jenisSdm.isNotEmpty ? fromSheet.jenisSdm : (_userProfile?.jenisSdm ?? 'SDM PKH'),
           provinsi: fromSheet.provinsi.isNotEmpty ? fromSheet.provinsi : (_userProfile?.provinsi ?? ''),
           kecamatan: fromSheet.kecamatan.isNotEmpty ? fromSheet.kecamatan : (_userProfile?.kecamatan ?? ''),
+          jabatanAsn: fromSheet.jabatanAsn.isNotEmpty ? fromSheet.jabatanAsn : (_userProfile?.jabatanAsn ?? ''),
         );
 
         try {
@@ -242,6 +243,7 @@ class AuthProvider extends ChangeNotifier {
     String? jenisSdm,
     String? provinsi,
     String? kecamatan,
+    String? jabatanAsn,
   }) async {
     final currentEmail = currentUser?.email ?? '';
     final cacheKey = 'cached_user_profile_${currentEmail.isNotEmpty ? currentEmail : "default"}';
@@ -258,6 +260,7 @@ class AuthProvider extends ChangeNotifier {
       jenisSdm: jenisSdm ?? 'SDM PKH',
       provinsi: provinsi ?? '',
       kecamatan: kecamatan ?? '',
+      jabatanAsn: jabatanAsn ?? '',
     );
 
     final updated = base.copyWith(
@@ -268,6 +271,7 @@ class AuthProvider extends ChangeNotifier {
       jenisSdm: jenisSdm ?? (base.jenisSdm.isNotEmpty ? base.jenisSdm : 'SDM PKH'),
       provinsi: provinsi ?? base.provinsi,
       kecamatan: kecamatan ?? base.kecamatan,
+      jabatanAsn: jabatanAsn ?? base.jabatanAsn,
     );
 
     _userProfile = updated;

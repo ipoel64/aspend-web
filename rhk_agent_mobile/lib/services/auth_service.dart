@@ -6,6 +6,7 @@ import 'package:googleapis_auth/googleapis_auth.dart' as auth;
 class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: '347823247350-cgre13fmjqu5rkuvs3ffqm3238u23shh.apps.googleusercontent.com',
+    forceCodeForRefreshToken: true,
     scopes: [
       'email',
       'profile',
