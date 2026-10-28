@@ -12,6 +12,30 @@ import '../models/pengaduan.dart';
 import '../models/nota_dinas.dart';
 import '../utils/string_utils.dart';
 
+class _EncodeRgbaParams {
+  final Uint8List rgbaBytes;
+  final int width;
+  final int height;
+  final int quality;
+
+  const _EncodeRgbaParams({
+    required this.rgbaBytes,
+    required this.width,
+    required this.height,
+    required this.quality,
+  });
+}
+
+Uint8List _encodeRgbaToJpgIsolate(_EncodeRgbaParams params) {
+  final imgImage = img.Image.fromBytes(
+    width: params.width,
+    height: params.height,
+    bytes: params.rgbaBytes.buffer,
+    order: img.ChannelOrder.rgba,
+  );
+  return Uint8List.fromList(img.encodeJpg(imgImage, quality: params.quality));
+}
+
 class PdfService {
   /// Checks if the given bytes represent a PNG image (magic bytes: 0x89 P N G).
   bool _isPng(List<int> bytes) {
@@ -87,21 +111,24 @@ class PdfService {
       originalImage.dispose();
       picture.dispose();
 
-      // Export as raw RGBA, then encode to JPEG via package:image.
-      // This avoids the massive memory usage of PNG encoding and gives us
-      // quality control for optimal PDF file size.
+      // Export as raw RGBA, then encode to JPEG via background isolate (compute)
+      // so main UI thread never freezes even when processing 100 photos.
       final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
       
       if (byteData != null) {
-        final img.Image imgImage = img.Image.fromBytes(
-          width: image.width,
-          height: image.height,
-          bytes: byteData.buffer,
-          order: img.ChannelOrder.rgba,
+        final int imgW = image.width;
+        final int imgH = image.height;
+        final rgbaUint8 = byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+        final jpegBytes = await compute(
+          _encodeRgbaToJpgIsolate,
+          _EncodeRgbaParams(
+            rgbaBytes: rgbaUint8,
+            width: imgW,
+            height: imgH,
+            quality: quality,
+          ),
         );
-        
-        final jpegBytes = Uint8List.fromList(img.encodeJpg(imgImage, quality: quality));
-        debugPrint('resizeImage: ${origWidth}x$origHeight (${inputBytes.length ~/ 1024}KB) → ${image.width}x${image.height} (${jpegBytes.length ~/ 1024}KB JPEG)');
+        debugPrint('resizeImage: ${origWidth}x$origHeight (${inputBytes.length ~/ 1024}KB) → ${imgW}x$imgH (${jpegBytes.length ~/ 1024}KB JPEG)');
         return jpegBytes;
       }
     } catch (e) {
@@ -286,8 +313,12 @@ class PdfService {
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text('KEMENTERIAN SOSIAL REPUBLIK INDONESIA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    if (userProfile.jenisSdm == 'TKSK') ...[
+                      pw.Text('DIREKTORAT JENDERAL PEMBERDAYAAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    ] else ...[
+                      pw.Text('DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    ],
                     pw.Text('Jl. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id', style: pw.TextStyle(fontSize: 7.5)),
                   ],
                 ),
@@ -1105,21 +1136,32 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
               pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('${userProfile.kabupatenKota.isEmpty ? "Dibuat di" : formatTitleCase(userProfile.kabupatenKota)}, ${DateFormat('d MMMM yyyy', 'id_ID').format(_safeParseDate(report.tanggal))}', style: const pw.TextStyle(fontSize: 10.5)),
-                  pw.SizedBox(height: 4),
-                  pw.Text(userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial', style: const pw.TextStyle(fontSize: 10.5)),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Dibuat di', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${userProfile.kabupatenKota.isEmpty ? "-" : formatTitleCase(userProfile.kabupatenKota)}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Pada tanggal', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${DateFormat('d MMMM yyyy', 'id_ID').format(_safeParseDate(report.tanggal))}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
                   pw.SizedBox(height: 2),
+                  pw.Text(
+                    userProfile.jabatanAsn.isNotEmpty
+                        ? userProfile.jabatanAsn
+                        : (userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial'),
+                    style: const pw.TextStyle(fontSize: 10.5),
+                  ),
                   if (processedSignature != null)
                     pw.Image(pw.MemoryImage(processedSignature), width: 135, height: 75)
                   else
                     pw.SizedBox(height: 75),
                   pw.Text(userProfile.nama, style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
                   pw.Text('NIP. ${userProfile.nip}', style: const pw.TextStyle(fontSize: 9.5)),
-                ]
-              )
-            ]
+                ],
+              ),
+            ],
           )
         ],
       )
@@ -1479,8 +1521,12 @@ class PdfService {
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text('KEMENTERIAN SOSIAL REPUBLIK INDONESIA', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text('DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    if (userProfile.jenisSdm == 'TKSK') ...[
+                      pw.Text('DIREKTORAT JENDERAL PEMBERDAYAAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    ] else ...[
+                      pw.Text('DIREKTORAT JENDERAL PERLINDUNGAN DAN JAMINAN SOSIAL', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('DIREKTORAT PERLINDUNGAN SOSIAL NON KEBENCANAAN', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+                    ],
                     pw.Text('Jl. Salemba Raya No. 28 Jakarta Pusat 10430 Telp. (021) 3103591 http://www.kemsos.go.id', style: pw.TextStyle(fontSize: 7.5)),
                   ],
                 ),
@@ -1577,22 +1623,32 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
               pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('Pembuat Laporan,', style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('${userProfile.kabupatenKota.isEmpty ? "Dibuat di" : formatTitleCase(userProfile.kabupatenKota)}, ${DateFormat('d MMMM yyyy', 'id_ID').format(_safeParseDate(pengaduan.createdAt))}', style: const pw.TextStyle(fontSize: 10.5)),
-                  pw.Text(userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial', style: const pw.TextStyle(fontSize: 10.5)),
-                  pw.SizedBox(height: 8),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Dibuat di', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${userProfile.kabupatenKota.isEmpty ? "-" : formatTitleCase(userProfile.kabupatenKota)}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Pada tanggal', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${DateFormat('d MMMM yyyy', 'id_ID').format(_safeParseDate(pengaduan.createdAt))}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    userProfile.jabatanAsn.isNotEmpty
+                        ? userProfile.jabatanAsn
+                        : (userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial'),
+                    style: const pw.TextStyle(fontSize: 10.5),
+                  ),
                   if (processedSignature != null)
                     pw.Image(pw.MemoryImage(processedSignature), width: 100, height: 60)
                   else
                     pw.SizedBox(height: 60),
-                  pw.SizedBox(height: 8),
                   pw.Text(userProfile.nama, style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
                   pw.Text('NIP. ${userProfile.nip}', style: const pw.TextStyle(fontSize: 9.5)),
-                ]
-              )
-            ]
+                ],
+              ),
+            ],
           )
         ],
       )
@@ -1771,20 +1827,32 @@ class PdfService {
             mainAxisAlignment: pw.MainAxisAlignment.end,
             children: [
               pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial', style: const pw.TextStyle(fontSize: 10.5)),
-                  pw.SizedBox(height: 8),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Dibuat di', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${userProfile.kabupatenKota.isEmpty ? "-" : formatTitleCase(userProfile.kabupatenKota)}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
+                  pw.Row(children: [
+                    pw.SizedBox(width: 75, child: pw.Text('Pada tanggal', style: const pw.TextStyle(fontSize: 10.5))),
+                    pw.Text(': ${DateFormat('d MMMM yyyy', 'id_ID').format(_safeParseDate(notaDinas.tanggal))}', style: const pw.TextStyle(fontSize: 10.5)),
+                  ]),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    userProfile.jabatanAsn.isNotEmpty
+                        ? userProfile.jabatanAsn
+                        : (userProfile.jabatan.isNotEmpty ? userProfile.jabatan : 'Pendamping Sosial'),
+                    style: const pw.TextStyle(fontSize: 10.5),
+                  ),
                   if (processedSignature != null)
                     pw.Image(pw.MemoryImage(processedSignature), width: 100, height: 60)
                   else
                     pw.SizedBox(height: 60),
-                  pw.SizedBox(height: 8),
                   pw.Text(userProfile.nama, style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
                   pw.Text('NIP. ${userProfile.nip}', style: const pw.TextStyle(fontSize: 9.5)),
-                ]
-              )
-            ]
+                ],
+              ),
+            ],
           )
         ],
       )

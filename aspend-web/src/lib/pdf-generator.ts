@@ -144,10 +144,14 @@ interface LoadedDriveImage {
 /**
  * Mengunduh file dari Drive dan mengubahnya menjadi Base64 Data URL beserta ukuran terpasang (fitted dimensions)
  */
-async function getDriveImage(accessToken: string, fileId: string): Promise<LoadedDriveImage | null> {
+async function getDriveImage(
+  accessToken: string,
+  fileId: string,
+  existingDriveClient?: Awaited<ReturnType<typeof getDriveClient>>
+): Promise<LoadedDriveImage | null> {
   if (!fileId || fileId.length < 5) return null;
   try {
-    const drive = await getDriveClient(accessToken);
+    const drive = existingDriveClient || (await getDriveClient(accessToken));
     const res = await drive.files.get(
       { fileId, alt: 'media' },
       { responseType: 'arraybuffer' }
@@ -702,19 +706,27 @@ export async function generateReportPDF(
   // 1. Muat Logo KEMENSOS Resmi PNG Base64
   const kemensosLogoBase64 = getKemensosLogoBase64();
 
+  const sharedDriveClient = await getDriveClient(accessToken);
+
   // 2. Muat Tanda Tangan User jika ada
   let signatureBase64: string | null = null;
   if (userProfile.signatureFileId) {
-    const sigRes = await getDriveImage(accessToken, userProfile.signatureFileId);
+    const sigRes = await getDriveImage(accessToken, userProfile.signatureFileId, sharedDriveClient);
     if (sigRes) signatureBase64 = sigRes.base64;
   }
 
-  // 3. Muat Foto Bukti Dukung beserta Dimensi yang Terukur
+  // 3. Muat Foto Bukti Dukung secara Paralel Terkontrol (hingga 100 foto tetap cepat & urut)
   const fotoList: LoadedDriveImage[] = [];
   if (reportData.FotoIds && reportData.FotoIds.length > 0) {
-    for (const fotoId of reportData.FotoIds) {
-      const imgRes = await getDriveImage(accessToken, fotoId);
-      if (imgRes) fotoList.push(imgRes);
+    const CONCURRENCY = 15;
+    for (let i = 0; i < reportData.FotoIds.length; i += CONCURRENCY) {
+      const chunk = reportData.FotoIds.slice(i, i + CONCURRENCY);
+      const chunkResults = await Promise.all(
+        chunk.map((fotoId) => getDriveImage(accessToken, fotoId, sharedDriveClient))
+      );
+      for (const imgRes of chunkResults) {
+        if (imgRes) fotoList.push(imgRes);
+      }
     }
   }
 

@@ -306,8 +306,9 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
                   showProgress: true,
                 ),
               if (formProvider.isGeneratingPdf)
-                const LoadingOverlay(
-                  message: '📄 Membuat PDF...\nMenyimpan ke Google Drive',
+                LoadingOverlay(
+                  message: formProvider.progressMessage ??
+                      '📄 Membuat PDF...\nMenyimpan ke Google Drive',
                 ),
             ],
           );

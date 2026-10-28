@@ -144,16 +144,17 @@ function toISODate(dateStr: string): string {
 
 /**
  * Kompresi gambar client-side menggunakan HTML5 Canvas
- * Mengubah resolusi maksimal ke 1200x1200px dan mengompres ke JPEG 0.8
- * Mengurangi ukuran file dari 5-10MB menjadi ~150-250KB tanpa kehilangan ketajaman visual untuk PDF
+ * Menandai file yang sudah terkompresi (__compressed = true) agar tidak pernah dikompresi dua kali.
  */
-async function compressImageFile(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<File> {
+async function compressImageFile(file: File, maxWidth = 1080, maxHeight = 1080, quality = 0.75): Promise<File> {
   if (typeof window === 'undefined') return file;
+  if ((file as any).__compressed) return file;
   if (!file.type || !file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
     return file;
   }
-  // Jika ukuran file sudah sangat kecil (< 150KB), tidak perlu kompresi ulang
-  if (file.size < 150 * 1024) {
+  // Jika ukuran file sudah sangat kecil (< 140KB), tandai dan tidak perlu kompresi ulang
+  if (file.size < 140 * 1024) {
+    (file as any).__compressed = true;
     return file;
   }
 
@@ -190,7 +191,11 @@ async function compressImageFile(file: File, maxWidth = 1200, maxHeight = 1200, 
 
           canvas.toBlob(
             (blob) => {
+              // Bebaskan memori canvas segera setelah selesai
+              canvas.width = 0;
+              canvas.height = 0;
               if (!blob || blob.size >= file.size) {
+                (file as any).__compressed = true;
                 resolve(file);
               } else {
                 const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
@@ -198,6 +203,7 @@ async function compressImageFile(file: File, maxWidth = 1200, maxHeight = 1200, 
                   type: 'image/jpeg',
                   lastModified: Date.now(),
                 });
+                (compressedFile as any).__compressed = true;
                 resolve(compressedFile);
               }
             },
@@ -222,6 +228,55 @@ async function compressImageFile(file: File, maxWidth = 1200, maxHeight = 1200, 
 }
 
 /**
+ * Memproses kompresi banyak foto (hingga 100 foto) secara bertahap (chunk 6 foto)
+ * dengan jeda microtask antar-chunk agar UI browser tidak pernah membeku (freeze).
+ */
+async function compressFilesInChunks(
+  files: File[],
+  existingCount = 0,
+  onProgress?: (done: number, total: number) => void
+): Promise<{ file: File; previewUrl: string }[]> {
+  const totalPhotosAfterAdd = existingCount + files.length;
+  // Adaptif: jika total foto banyak (> 25 foto), gunakan resolusi 960px & quality 0.72 (~65-90KB/foto)
+  // agar cepat diunggah dan payload Google Docs PDF tetap ringan meskipun 100 foto.
+  const maxDim = totalPhotosAfterAdd > 25 ? 960 : 1080;
+  const quality = totalPhotosAfterAdd > 25 ? 0.72 : 0.76;
+
+  const CHUNK_SIZE = 6;
+  const results: { file: File; previewUrl: string }[] = [];
+
+  for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+    const chunk = files.slice(i, i + CHUNK_SIZE);
+    const compressedChunk = await Promise.all(
+      chunk.map(async (file) => {
+        try {
+          const compressed = await compressImageFile(file, maxDim, maxDim, quality);
+          return {
+            file: compressed,
+            previewUrl: URL.createObjectURL(compressed),
+          };
+        } catch {
+          return {
+            file,
+            previewUrl: URL.createObjectURL(file),
+          };
+        }
+      })
+    );
+    results.push(...compressedChunk);
+    if (onProgress) {
+      onProgress(Math.min(i + chunk.length, files.length), files.length);
+    }
+    // Beri ruang bagi main thread browser untuk merender UI
+    if (i + CHUNK_SIZE < files.length) {
+      await new Promise((r) => setTimeout(r, 12));
+    }
+  }
+
+  return results;
+}
+
+/**
  * Parsing respon HTTP ke JSON secara aman.
  * Menghindari error runtime "JSON.parse: unexpected character at line 1 column 1"
  * saat server atau Vercel mengembalikan pesan HTML (413 Payload Too Large, 504 Gateway Timeout, 401, dll.)
@@ -242,6 +297,80 @@ async function safeJsonParse(res: Response): Promise<any> {
     }
     throw new Error(`Terjadi kendala pada server (Status HTTP ${res.status}). Silakan coba beberapa saat lagi.`);
   }
+}
+
+/**
+ * Mengunggah daftar foto ke Google Drive secara paralel terkontrol (Batch 6 file x 3 worker paralel)
+ * dengan caching folderId dari batch pertama dan menjaga urutan asli foto 1..100.
+ */
+async function uploadPhotosInParallelBatches(
+  files: File[],
+  folderName: string,
+  onProgress?: (uploadedCount: number, totalCount: number) => void
+): Promise<string[]> {
+  if (files.length === 0) return [];
+
+  const BATCH_SIZE = 6;
+  const batches: { index: number; items: File[] }[] = [];
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    batches.push({
+      index: batches.length,
+      items: files.slice(i, i + BATCH_SIZE),
+    });
+  }
+
+  const batchResults: string[][] = new Array(batches.length);
+  let completedFiles = 0;
+  let cachedFolderId = '';
+
+  const uploadSingleBatch = async (batch: { index: number; items: File[] }) => {
+    const formData = new FormData();
+    formData.append('folderName', folderName);
+    if (cachedFolderId) {
+      formData.append('folderId', cachedFolderId);
+    }
+    for (const file of batch.items) {
+      const readyFile = await compressImageFile(file, 960, 960, 0.72);
+      formData.append('files', readyFile);
+    }
+
+    const upRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const upResult = await safeJsonParse(upRes);
+    if (!upRes.ok || !upResult.success) {
+      throw new Error(upResult.error || 'Gagal mengunggah foto bukti dukung ke Google Drive.');
+    }
+    if (upResult.folderId && !cachedFolderId) {
+      cachedFolderId = upResult.folderId;
+    }
+    const ids = Array.isArray(upResult.files) ? upResult.files.map((f: any) => f.id) : [];
+    batchResults[batch.index] = ids;
+    completedFiles += batch.items.length;
+    if (onProgress) {
+      onProgress(Math.min(completedFiles, files.length), files.length);
+    }
+  };
+
+  // Jalankan batch pertama untuk menginisialisasi/mendapatkan folderId di Google Drive
+  await uploadSingleBatch(batches[0]);
+
+  // Jalankan sisa batch dengan 3 worker paralel
+  if (batches.length > 1) {
+    const remaining = batches.slice(1);
+    const MAX_CONCURRENT_BATCHES = 3;
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(MAX_CONCURRENT_BATCHES, remaining.length) }, async () => {
+      while (cursor < remaining.length) {
+        const currentIndex = cursor++;
+        await uploadSingleBatch(remaining[currentIndex]);
+      }
+    });
+    await Promise.all(workers);
+  }
+
+  return batchResults.flat();
 }
 
 export default function Home() {
@@ -371,11 +500,14 @@ export default function Home() {
     p2k2Provinsi: ''
   });
   const [createPhotos, setCreatePhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [photoSelectStatusText, setPhotoSelectStatusText] = useState('');
   const [generatedNarrative, setGeneratedNarrative] = useState('');
   const [extractedLocation, setExtractedLocation] = useState('');
   const [isGeneratingNarrative, setIsGeneratingNarrative] = useState(false);
   const [narrativeProgress, setNarrativeProgress] = useState(5);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [submitReportStatusText, setSubmitReportStatusText] = useState('');
+  const [editPhotoStatusText, setEditPhotoStatusText] = useState('');
   const [previewPhotoModalUrl, setPreviewPhotoModalUrl] = useState<string | null>(null);
 
   const getNarrativeProgressStatus = (percent: number) => {
@@ -1128,16 +1260,21 @@ export default function Home() {
   const handleAddEditPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const selected = Array.from(files);
+    const totalCurrent = editExistingPhotos.length + editNewPhotos.length;
+    const remainingSlots = Math.max(0, 100 - totalCurrent);
+    if (remainingSlots <= 0) {
+      showToast('Batas maksimal 100 foto tercapai.', 'info');
+      e.target.value = '';
+      return;
+    }
+    const selected = Array.from(files).slice(0, remainingSlots);
+    e.target.value = '';
     try {
-      const compressedItems = await Promise.all(
-        selected.map(async (file) => {
-          const compressed = await compressImageFile(file, 1200, 1200, 0.8);
-          return {
-            file: compressed,
-            previewUrl: URL.createObjectURL(compressed)
-          };
-        })
+      setEditPhotoStatusText(`Memproses foto (0/${selected.length})...`);
+      const compressedItems = await compressFilesInChunks(
+        selected,
+        totalCurrent,
+        (done, total) => setEditPhotoStatusText(`Memproses foto (${done}/${total})...`)
       );
       setEditNewPhotos(prev => [...prev, ...compressedItems]);
     } catch {
@@ -1146,8 +1283,9 @@ export default function Home() {
         previewUrl: URL.createObjectURL(file)
       }));
       setEditNewPhotos(prev => [...prev, ...fallbackItems]);
+    } finally {
+      setEditPhotoStatusText('');
     }
-    e.target.value = '';
   };
 
   const handleRemoveExistingPhoto = (indexToRemove: number) => {
@@ -1172,32 +1310,20 @@ export default function Home() {
     try {
       let finalFotoIds = [...editExistingPhotos];
 
-      // Unggah foto baru ke Google Drive jika ada (batching per 3 foto dan kompresi untuk menghindari 413)
+      // Unggah foto baru ke Google Drive secara paralel terkontrol (mendukung hingga 100 foto dengan cepat)
       if (editNewPhotos.length > 0) {
         setIsUploadingEditPhoto(true);
-        const BATCH_SIZE = 3;
-        for (let i = 0; i < editNewPhotos.length; i += BATCH_SIZE) {
-          const batch = editNewPhotos.slice(i, i + BATCH_SIZE);
-          const formData = new FormData();
-          formData.append('folderName', 'RHK-agent_FotoKegiatan');
-          for (const item of batch) {
-            const compressed = await compressImageFile(item.file, 1200, 1200, 0.8);
-            formData.append('files', compressed);
-          }
-
-          const uploadRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          const uploadData = await safeJsonParse(uploadRes);
-          if (uploadRes.ok && uploadData.files && uploadData.files.length > 0) {
-            const newIds = uploadData.files.map((f: any) => f.id);
-            finalFotoIds = [...finalFotoIds, ...newIds];
-          } else {
-            throw new Error(uploadData.error || 'Gagal mengunggah foto baru ke Google Drive.');
-          }
-        }
+        setEditPhotoStatusText(`Mengunggah foto (0/${editNewPhotos.length})...`);
+        const newIds = await uploadPhotosInParallelBatches(
+          editNewPhotos.map((item) => item.file),
+          'RHK-agent_FotoKegiatan',
+          (uploaded, total) => setEditPhotoStatusText(`Mengunggah foto (${uploaded}/${total})...`)
+        );
+        finalFotoIds = [...finalFotoIds, ...newIds];
       }
+
+      setIsUploadingEditPhoto(false);
+      setEditPhotoStatusText('Menyusun dokumen PDF resmi...');
 
       const res = await fetch('/api/reports', {
         method: 'PUT',
@@ -1268,6 +1394,7 @@ export default function Home() {
     } finally {
       setIsSavingEdit(false);
       setIsUploadingEditPhoto(false);
+      setEditPhotoStatusText('');
     }
   };
 
@@ -1284,18 +1411,17 @@ export default function Home() {
     const remainingSlots = 100 - createPhotos.length;
     if (remainingSlots <= 0) {
       showToast('Batas maksimal 100 foto tercapai.', 'info');
+      e.target.value = '';
       return;
     }
     const selected = files.slice(0, remainingSlots);
+    e.target.value = '';
     try {
-      const compressedItems = await Promise.all(
-        selected.map(async (file) => {
-          const compressed = await compressImageFile(file, 1200, 1200, 0.8);
-          return {
-            file: compressed,
-            previewUrl: URL.createObjectURL(compressed)
-          };
-        })
+      setPhotoSelectStatusText(`Memproses foto (0/${selected.length})...`);
+      const compressedItems = await compressFilesInChunks(
+        selected,
+        createPhotos.length,
+        (done, total) => setPhotoSelectStatusText(`Memproses foto (${done}/${total})...`)
       );
       setCreatePhotos(prev => [...prev, ...compressedItems]);
     } catch {
@@ -1304,8 +1430,9 @@ export default function Home() {
         previewUrl: URL.createObjectURL(file)
       }));
       setCreatePhotos(prev => [...prev, ...fallbackItems]);
+    } finally {
+      setPhotoSelectStatusText('');
     }
-    e.target.value = '';
   };
 
   const handleRemoveCreatePhoto = (index: number) => {
@@ -1577,32 +1704,18 @@ export default function Home() {
 
     setIsSubmittingReport(true);
     try {
-      // 1. Unggah foto bukti dukung ke Google Drive folder RHK-agent_FotoKegiatan
+      // 1. Unggah foto bukti dukung secara paralel terkontrol ke Google Drive folder RHK-agent_FotoKegiatan
       let uploadedFotoIds: string[] = [];
       if (createPhotos.length > 0) {
-        const BATCH_SIZE = 3;
-        for (let i = 0; i < createPhotos.length; i += BATCH_SIZE) {
-          const batch = createPhotos.slice(i, i + BATCH_SIZE);
-          const formData = new FormData();
-          formData.append('folderName', 'RHK-agent_FotoKegiatan');
-          for (const p of batch) {
-            const compressed = await compressImageFile(p.file, 1200, 1200, 0.8);
-            formData.append('files', compressed);
-          }
-
-          const upRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-          const upResult = await safeJsonParse(upRes);
-          if (!upRes.ok || !upResult.success) {
-            throw new Error(upResult.error || 'Gagal mengunggah foto bukti dukung ke Google Drive.');
-          }
-          if (upResult.files && Array.isArray(upResult.files)) {
-            uploadedFotoIds.push(...upResult.files.map((f: any) => f.id));
-          }
-        }
+        setSubmitReportStatusText(`Mengunggah foto ke Drive (0/${createPhotos.length})...`);
+        uploadedFotoIds = await uploadPhotosInParallelBatches(
+          createPhotos.map((p) => p.file),
+          'RHK-agent_FotoKegiatan',
+          (uploaded, total) => setSubmitReportStatusText(`Mengunggah foto ke Drive (${uploaded}/${total})...`)
+        );
       }
+
+      setSubmitReportStatusText('Menyusun dokumen PDF & menyimpan ke Drive...');
 
       // 2. Data P2K2 jika relevan
       const isCurrentRhkP2K2 = isP2K2(createForm.idRHK, profile?.jenisSdm) || isP2K2(createForm.jenisRHK, profile?.jenisSdm) || isP2K2(createForm.rencanaAksi, profile?.jenisSdm);
@@ -1714,7 +1827,12 @@ export default function Home() {
           p2k2Kabupaten: '',
           p2k2Provinsi: ''
         });
-        setCreatePhotos([]);
+        setCreatePhotos((prev) => {
+          prev.forEach((p) => {
+            if (p.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(p.previewUrl);
+          });
+          return [];
+        });
         setGeneratedNarrative('');
         setExtractedLocation('');
 
@@ -1726,6 +1844,7 @@ export default function Home() {
       showToast(err.message || 'Terjadi kesalahan saat menyimpan laporan.', 'error');
     } finally {
       setIsSubmittingReport(false);
+      setSubmitReportStatusText('');
     }
   };
 
@@ -2084,7 +2203,12 @@ export default function Home() {
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-gray-700 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[15px] text-cyan-600">photo_library</span>
-                    Foto Bukti Dukung ({editExistingPhotos.length + editNewPhotos.length})
+                    Foto Bukti Dukung ({editExistingPhotos.length + editNewPhotos.length} / 100)
+                    {editPhotoStatusText && !isSavingEdit && (
+                      <span className="text-[10px] font-semibold text-cyan-600 animate-pulse ml-1">
+                        • {editPhotoStatusText}
+                      </span>
+                    )}
                   </label>
                   <label className="px-2.5 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 rounded-lg text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">add_photo_alternate</span>
@@ -2191,7 +2315,7 @@ export default function Home() {
                   {isSavingEdit ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>{isUploadingEditPhoto ? 'Mengunggah Foto...' : 'Menyimpan...'}</span>
+                      <span>{editPhotoStatusText || (isUploadingEditPhoto ? 'Mengunggah Foto...' : 'Menyimpan...')}</span>
                     </>
                   ) : (
                     <>
@@ -4537,6 +4661,11 @@ export default function Home() {
                   <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
                     <span className="p-1.5 bg-purple-50 text-purple-600 rounded-lg material-symbols-outlined text-lg">add_photo_alternate</span>
                     Foto Bukti Dukung <span className="text-rose-500">*</span>
+                    {photoSelectStatusText && (
+                      <span className="text-xs font-semibold text-cyan-600 animate-pulse ml-1">
+                        • {photoSelectStatusText}
+                      </span>
+                    )}
                   </h3>
                   <span className="text-xs font-bold text-gray-400">
                     {createPhotos.length} / 100 foto
@@ -4555,8 +4684,10 @@ export default function Home() {
                   <div className="w-12 h-12 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                     <span className="material-symbols-outlined text-2xl">cloud_upload</span>
                   </div>
-                  <span className="text-xs font-bold text-gray-800">Klik untuk memilih foto bukti dukung</span>
-                  <span className="text-[10px] text-gray-400 mt-0.5">Mendukung banyak file sekaligus (JPG, PNG, WebP)</span>
+                  <span className="text-xs font-bold text-gray-800">
+                    {photoSelectStatusText || 'Klik untuk memilih foto bukti dukung'}
+                  </span>
+                  <span className="text-[10px] text-gray-400 mt-0.5">Mendukung banyak file sekaligus hingga 100 foto (JPG, PNG, WebP)</span>
                 </label>
 
                 {/* Previews Grid */}
@@ -4595,7 +4726,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={handleGenerateNarrative}
-                  disabled={isGeneratingNarrative || isSubmittingReport}
+                  disabled={isGeneratingNarrative || isSubmittingReport || Boolean(photoSelectStatusText)}
                   className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
                 >
                   {isGeneratingNarrative ? (
@@ -4667,13 +4798,13 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={handleSubmitReport}
-                      disabled={isSubmittingReport || !generatedNarrative.trim()}
+                      disabled={isSubmittingReport || !generatedNarrative.trim() || Boolean(photoSelectStatusText)}
                       className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
                     >
                       {isSubmittingReport ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Membuat Dokumen PDF & Menyimpan ke Drive...</span>
+                          <span>{submitReportStatusText || 'Membuat Dokumen PDF & Menyimpan ke Drive...'}</span>
                         </>
                       ) : (
                         <>

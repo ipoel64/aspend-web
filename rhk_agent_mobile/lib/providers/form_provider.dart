@@ -20,6 +20,18 @@ class FormProvider extends ChangeNotifier {
   bool _isGeneratingNarrative = false;
   bool _isGeneratingPdf = false;
   String? _errorMessage;
+  String? _progressMessage;
+
+  // Cache foto terkompresi di memori agar saat membuat PDF tidak perlu mengunduh ulang 100 foto dari Drive
+  final Map<String, Uint8List> _cachedPhotoBytes = {};
+
+  void _cacheUploadedPhoto(String fileId, Uint8List bytes) {
+    if (fileId.isEmpty) return;
+    if (_cachedPhotoBytes.length >= 120) {
+      _cachedPhotoBytes.remove(_cachedPhotoBytes.keys.first);
+    }
+    _cachedPhotoBytes[fileId] = bytes;
+  }
 
   void updateAuth(AuthProvider auth) {
     _auth = auth;
@@ -31,6 +43,67 @@ class FormProvider extends ChangeNotifier {
   bool get isGeneratingNarrative => _isGeneratingNarrative;
   bool get isGeneratingPdf => _isGeneratingPdf;
   String? get errorMessage => _errorMessage;
+  String? get progressMessage => _progressMessage;
+
+  /// Mengompres dan mengunggah banyak foto (hingga 100 foto) secara paralel terkontrol (6 foto sekaligus)
+  /// sambil menjaga urutan asli foto dan memperbarui progress real-time.
+  Future<List<String>> _uploadPhotosInBatches({
+    required AuthProvider auth,
+    required String folderId,
+    required List<XFile> photos,
+    required String filePrefix,
+  }) async {
+    if (photos.isEmpty) return [];
+
+    final List<String> orderedIds = List.filled(photos.length, '');
+    int completedCount = 0;
+    const int batchSize = 6;
+    final int targetWidth = photos.length > 25 ? 760 : 800;
+    final int quality = photos.length > 25 ? 68 : 72;
+
+    _progressMessage = 'Mengunggah foto (0/${photos.length})...';
+    notifyListeners();
+
+    for (int start = 0; start < photos.length; start += batchSize) {
+      final int end = (start + batchSize < photos.length) ? start + batchSize : photos.length;
+      final List<Future<void>> batchFutures = [];
+
+      for (int i = start; i < end; i++) {
+        final int index = i;
+        batchFutures.add(() async {
+          final rawBytes = await photos[index].readAsBytes();
+          final bytes = await _pdfService.resizeImage(
+            rawBytes,
+            targetWidth: targetWidth,
+            quality: quality,
+          );
+          final fileName = '${filePrefix}_${index + 1}.jpg';
+
+          final fileId = await auth.driveService!.uploadFile(
+            folderId,
+            fileName,
+            bytes,
+            'image/jpeg',
+            onAuthExpired: () async {
+              await auth.ensureFreshAuth();
+            },
+          );
+          // Set izin akses publik secara asinkron tanpa memblokir antrean upload
+          auth.driveService!.setPublicAccess(fileId).catchError((_) {});
+          orderedIds[index] = fileId;
+          _cacheUploadedPhoto(fileId, bytes);
+
+          completedCount++;
+          _progressMessage = 'Mengunggah foto ($completedCount/${photos.length})...';
+          notifyListeners();
+        }());
+      }
+
+      await Future.wait(batchFutures);
+    }
+
+    return orderedIds.where((id) => id.isNotEmpty).toList();
+  }
 
   // 1. Submit Form & Upload Photos
   Future<String?> submitReport({
@@ -57,6 +130,7 @@ class FormProvider extends ChangeNotifier {
 
     _isSubmitting = true;
     _errorMessage = null;
+    _progressMessage = 'Menyiapkan penyimpanan Drive...';
     notifyListeners();
 
     try {
@@ -68,30 +142,19 @@ class FormProvider extends ChangeNotifier {
       final timeStr = DateFormat('HHmmss').format(now);
       final reportId = 'RPT-$dateStr-$timeStr';
 
-      // 2. Upload photos
+      // 2. Upload photos in parallel batches (up to 100 photos fast & ordered)
       final folderId = await auth.driveService!.getOrCreateFolder(
         AppConstants.driveFolderBukti,
       );
-      List<String> photoIds = [];
+      final List<String> photoIds = await _uploadPhotosInBatches(
+        auth: auth,
+        folderId: folderId,
+        photos: photos,
+        filePrefix: '${reportId}_foto',
+      );
 
-      for (int i = 0; i < photos.length; i++) {
-        final rawBytes = await photos[i].readAsBytes();
-        // Resize and compress to JPEG (max 800px width) in background isolate before upload
-        final bytes = await _pdfService.resizeImage(rawBytes, targetWidth: 800);
-        final fileName = '${reportId}_foto${i + 1}.jpg';
-
-        final fileId = await auth.driveService!.uploadFile(
-          folderId,
-          fileName,
-          bytes,
-          'image/jpeg',
-          onAuthExpired: () async {
-            await auth.ensureFreshAuth();
-          },
-        );
-        await auth.driveService!.setPublicAccess(fileId);
-        photoIds.add(fileId);
-      }
+      _progressMessage = 'Menyimpan data laporan...';
+      notifyListeners();
 
       // 3. Create Report object
       final report = Report(
@@ -122,11 +185,13 @@ class FormProvider extends ChangeNotifier {
       );
 
       _isSubmitting = false;
+      _progressMessage = null;
       notifyListeners();
       return reportId;
     } catch (e) {
       _errorMessage = 'Gagal menyimpan laporan: $e';
       _isSubmitting = false;
+      _progressMessage = null;
       notifyListeners();
       return null;
     }
@@ -159,6 +224,7 @@ class FormProvider extends ChangeNotifier {
 
     _isSubmitting = true;
     _errorMessage = null;
+    _progressMessage = 'Memuat data laporan...';
     notifyListeners();
 
     try {
@@ -183,49 +249,37 @@ class FormProvider extends ChangeNotifier {
       if (oldRowData == null) throw Exception('Laporan tidak ditemukan');
       final oldReport = Report.fromSheetRow(oldRowData);
 
-      // 2. Upload new photos
-      final folderId = await auth.driveService!.getOrCreateFolder(
-        AppConstants.driveFolderBukti,
-      );
+      // 2. Upload new photos in parallel batches
       List<String> photoIds = List.from(existingPhotoIds);
-
-      for (int i = 0; i < newPhotos.length; i++) {
-        final rawBytes = await newPhotos[i].readAsBytes();
-        // Resize and compress to JPEG (max 800px width) in background isolate before upload
-        final bytes = await _pdfService.resizeImage(rawBytes, targetWidth: 800);
-        final fileName = '${reportId}_foto_edit_${DateTime.now().millisecondsSinceEpoch}_${i + 1}.jpg';
-
-        final fileId = await auth.driveService!.uploadFile(
-          folderId,
-          fileName,
-          bytes,
-          'image/jpeg',
-          onAuthExpired: () async {
-            await auth.ensureFreshAuth();
-          },
+      if (newPhotos.isNotEmpty) {
+        final folderId = await auth.driveService!.getOrCreateFolder(
+          AppConstants.driveFolderBukti,
         );
-        await auth.driveService!.setPublicAccess(fileId);
-        photoIds.add(fileId);
+        final uploadedNewIds = await _uploadPhotosInBatches(
+          auth: auth,
+          folderId: folderId,
+          photos: newPhotos,
+          filePrefix: '${reportId}_foto_edit_${DateTime.now().millisecondsSinceEpoch}',
+        );
+        photoIds.addAll(uploadedNewIds);
       }
 
-      // Delete old photos that were removed from existingPhotoIds
-      for (var oldId in oldReport.fotoIds) {
-        if (!existingPhotoIds.contains(oldId)) {
-          try {
-            await auth.driveService!.deleteFile(oldId);
-          } catch (e) {
-            debugPrint('Gagal menghapus foto lama: $e');
-          }
-        }
+      _progressMessage = 'Menyimpan perubahan...';
+      notifyListeners();
+
+      // Delete old photos that were removed from existingPhotoIds (non-blocking in parallel)
+      final removedOldIds = oldReport.fotoIds
+          .where((oldId) => !existingPhotoIds.contains(oldId))
+          .toList();
+      if (removedOldIds.isNotEmpty) {
+        Future.wait(
+          removedOldIds.map((oldId) => auth.driveService!.deleteFile(oldId).catchError((_) {})),
+        ).catchError((_) => <void>[]);
       }
 
       // Delete old PDF file if it exists, so we don't leak files in Drive
       if (oldReport.pdfFileId.isNotEmpty) {
-        try {
-          await auth.driveService!.deleteFile(oldReport.pdfFileId);
-        } catch (e) {
-          debugPrint('Gagal menghapus PDF lama: $e');
-        }
+        auth.driveService!.deleteFile(oldReport.pdfFileId).catchError((_) {});
       }
 
       // Create updated Report object
@@ -258,11 +312,13 @@ class FormProvider extends ChangeNotifier {
       );
 
       _isSubmitting = false;
+      _progressMessage = null;
       notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = 'Gagal memperbarui laporan: $e';
       _isSubmitting = false;
+      _progressMessage = null;
       notifyListeners();
       return false;
     }
@@ -567,6 +623,7 @@ class FormProvider extends ChangeNotifier {
 
     _isGeneratingPdf = true;
     _errorMessage = null;
+    _progressMessage = 'Menyiapkan data dokumen PDF...';
     notifyListeners();
 
     try {
@@ -602,7 +659,7 @@ class FormProvider extends ChangeNotifier {
         throw Exception('Profil pengguna belum tersedia');
       }
 
-      // Download signature, and photos (logo is loaded locally in pdf_service)
+      // Download signature (logo is loaded locally in pdf_service)
       List<int>? logoBytes; // Kept for method compatibility
 
       List<int>? signatureBytes = auth.signatureBytes;
@@ -612,21 +669,56 @@ class FormProvider extends ChangeNotifier {
         );
       }
 
-      // Download & compress photos ONE AT A TIME to prevent OOM.
-      // Each raw download is immediately compressed in a worker isolate,
-      // then the raw bytes are released before downloading the next photo.
-      List<Uint8List> photosBytes = [];
-      for (int i = 0; i < report.fotoIds.length; i++) {
+      // Gunakan foto dari _cachedPhotoBytes secara instan tanpa perlu mengunduh ulang dari Google Drive!
+      // Hanya foto lama yang belum ada di cache yang diunduh secara paralel terkontrol (batch 6).
+      final int totalPhotos = report.fotoIds.length;
+      final List<Uint8List?> orderedPhotoBytes = List.filled(totalPhotos, null);
+      final List<int> missingIndices = [];
+
+      for (int i = 0; i < totalPhotos; i++) {
         final photoId = report.fotoIds[i];
-        Uint8List? rawBytes = await auth.driveService!.downloadFile(photoId);
-        if (rawBytes != null) {
-          debugPrint('PDF foto ${i + 1}/${report.fotoIds.length}: raw ${rawBytes.length ~/ 1024}KB');
-          final compressed = await _pdfService.compressForPdf(rawBytes);
-          debugPrint('PDF foto ${i + 1}/${report.fotoIds.length}: compressed ${compressed.length ~/ 1024}KB');
-          photosBytes.add(compressed);
-          rawBytes = null; // Release raw bytes immediately
+        final cached = _cachedPhotoBytes[photoId];
+        if (cached != null) {
+          orderedPhotoBytes[i] = cached;
+        } else {
+          missingIndices.add(i);
         }
       }
+
+      if (missingIndices.isNotEmpty) {
+        int downloadedMissing = 0;
+        const int batchSize = 6;
+        _progressMessage = 'Menyiapkan foto dokumentasi (${totalPhotos - missingIndices.length}/$totalPhotos)...';
+        notifyListeners();
+
+        for (int start = 0; start < missingIndices.length; start += batchSize) {
+          final int end = (start + batchSize < missingIndices.length)
+              ? start + batchSize
+              : missingIndices.length;
+          final chunkIndices = missingIndices.sublist(start, end);
+
+          await Future.wait(chunkIndices.map((idx) async {
+            final photoId = report.fotoIds[idx];
+            Uint8List? rawBytes = await auth.driveService!.downloadFile(photoId);
+            if (rawBytes != null) {
+              final compressed = await _pdfService.compressForPdf(rawBytes);
+              rawBytes = null;
+              orderedPhotoBytes[idx] = compressed;
+              _cacheUploadedPhoto(photoId, compressed);
+            }
+            downloadedMissing++;
+            final readyTotal = (totalPhotos - missingIndices.length) + downloadedMissing;
+            _progressMessage = 'Menyiapkan foto dokumentasi ($readyTotal/$totalPhotos)...';
+            notifyListeners();
+          }));
+        }
+      }
+
+      final List<Uint8List> photosBytes =
+          orderedPhotoBytes.whereType<Uint8List>().toList();
+
+      _progressMessage = 'Menyusun halaman PDF (${photosBytes.length} foto)...';
+      notifyListeners();
 
       // Generate PDF locally
       final pdfBytes = await _pdfService.createReportPdf(
@@ -636,6 +728,9 @@ class FormProvider extends ChangeNotifier {
         signatureBytes: signatureBytes,
         photosBytes: photosBytes,
       );
+
+      _progressMessage = 'Mengunggah PDF ke Google Drive...';
+      notifyListeners();
 
       // Upload PDF to Drive
       final folderId = await auth.driveService!.getOrCreateFolder(
@@ -677,7 +772,7 @@ class FormProvider extends ChangeNotifier {
           await auth.ensureFreshAuth();
         },
       );
-      await auth.driveService!.setPublicAccess(pdfFileId);
+      auth.driveService!.setPublicAccess(pdfFileId).catchError((_) {});
 
       // Update sheet with PDF ID and Selesai status
       final updatedReport = report.copyWith(
@@ -692,6 +787,7 @@ class FormProvider extends ChangeNotifier {
       );
 
       _isGeneratingPdf = false;
+      _progressMessage = null;
       notifyListeners();
 
       // Tambahkan hitungan limit
@@ -704,8 +800,235 @@ class FormProvider extends ChangeNotifier {
     } catch (e) {
       _errorMessage = 'Gagal membuat PDF: $e';
       _isGeneratingPdf = false;
+      _progressMessage = null;
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Eksekusi kilat: kompres foto 1x & buat PDF secara lokal, lalu upload foto & PDF secara paralel terkontrol (batch 6),
+  /// serta simpan 1 kali append ke Google Sheets (mendukung hingga 100 foto tanpa membebani jaringan/memori).
+  Future<String?> submitAndGeneratePdfDirectly({
+    required AuthProvider auth,
+    required String jenisRHK,
+    required String idRHK,
+    required String rencanaAksi,
+    required String tanggal,
+    required String pukul,
+    required String poinKegiatan,
+    required String narrative,
+    required List<XFile> photos,
+    P2K2Data? p2k2Data,
+    String? physicalLokasi,
+    bool showTanggalInPdf = true,
+    bool showPukulInPdf = true,
+  }) async {
+    if (auth.sheetsService == null ||
+        auth.driveService == null ||
+        auth.spreadsheetId == null) {
+      _errorMessage = 'Sistem belum siap';
+      notifyListeners();
+      return null;
+    }
+
+    // 1. Cek limitasi pengguna gratis (3x sehari)
+    final hasReachedLimit = await SubscriptionService.instance.hasReachedDailyPdfLimit();
+    if (hasReachedLimit) {
+      _errorMessage = 'LIMIT_REACHED';
+      notifyListeners();
+      return null;
+    }
+
+    _isSubmitting = true;
+    _isGeneratingPdf = true;
+    _errorMessage = null;
+    _progressMessage = 'Memproses foto (0/${photos.length})...';
+    notifyListeners();
+
+    try {
+      await auth.ensureFreshAuth();
+
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyyMMdd').format(now);
+      final timeStr = DateFormat('HHmmss').format(now);
+      final reportId = 'RPT-$dateStr-$timeStr';
+
+      // 2. Kompresi foto sekali saja (hasil resize langsung dipakai untuk Drive dan PDF)
+      final int targetWidth = photos.length > 25 ? 760 : 800;
+      final int quality = photos.length > 25 ? 68 : 72;
+      final List<Uint8List> resizedPhotos = List.filled(photos.length, Uint8List(0));
+      int compressedCount = 0;
+      const int compressBatchSize = 6;
+
+      for (int start = 0; start < photos.length; start += compressBatchSize) {
+        final int end = (start + compressBatchSize < photos.length)
+            ? start + compressBatchSize
+            : photos.length;
+        final List<Future<void>> chunk = [];
+        for (int i = start; i < end; i++) {
+          final int idx = i;
+          chunk.add(() async {
+            final rawBytes = await photos[idx].readAsBytes();
+            final resized = await _pdfService.resizeImage(
+              rawBytes,
+              targetWidth: targetWidth,
+              quality: quality,
+            );
+            resizedPhotos[idx] = resized;
+            compressedCount++;
+            _progressMessage = 'Memproses foto ($compressedCount/${photos.length})...';
+            notifyListeners();
+          }());
+        }
+        await Future.wait(chunk);
+      }
+
+      // 3. Ambil tanda tangan pengguna (gunakan cache jika ada)
+      List<int>? signatureBytes = auth.signatureBytes;
+      if (signatureBytes == null && auth.userProfile != null && auth.userProfile!.signatureFileId.isNotEmpty) {
+        try {
+          signatureBytes = await auth.driveService!.downloadFile(auth.userProfile!.signatureFileId);
+        } catch (e) {
+          debugPrint('Gagal download tanda tangan: $e');
+        }
+      }
+
+      if (auth.userProfile == null) {
+        throw Exception('Profil pengguna belum tersedia');
+      }
+
+      // 4. Susun entitas Report awal untuk digenerate ke PDF secara lokal instan
+      final initialReport = Report(
+        id: reportId,
+        tanggal: tanggal,
+        jenisRHK: jenisRHK,
+        idRHK: idRHK,
+        rencanaAksi: rencanaAksi,
+        pukul: pukul,
+        poinKegiatan: poinKegiatan,
+        narasiAI: narrative,
+        narasiEdited: narrative,
+        status: 'Selesai',
+        pdfFileId: '',
+        fotoIds: const [],
+        p2k2Data: p2k2Data,
+        physicalLokasi: physicalLokasi ?? (p2k2Data?.tempatPelaksanaan ?? ''),
+        createdAt: now.toIso8601String(),
+        showTanggalInPdf: showTanggalInPdf,
+        showPukulInPdf: showPukulInPdf,
+      );
+
+      _progressMessage = 'Menyusun dokumen PDF...';
+      notifyListeners();
+
+      // 5. Buat PDF secara lokal
+      final pdfBytes = await _pdfService.createReportPdf(
+        report: initialReport,
+        userProfile: auth.userProfile!,
+        signatureBytes: signatureBytes,
+        photosBytes: resizedPhotos,
+      );
+
+      // 6. Dapatkan Folder Drive Bukti & Output secara paralel
+      final folders = await Future.wait([
+        auth.driveService!.getOrCreateFolder(AppConstants.driveFolderBukti),
+        auth.driveService!.getOrCreateFolder(AppConstants.driveFolderOutput),
+      ]);
+      final buktiFolderId = folders[0];
+      final outputFolderId = folders[1];
+
+      // 7. Upload foto dalam batch paralel terkontrol (6 sekaligus) & PDF bersamaan
+      final List<String> photoIds = List.filled(resizedPhotos.length, '');
+      int uploadedCount = 0;
+      const int uploadBatchSize = 6;
+
+      Future<void> uploadAllPhotosBatched() async {
+        for (int start = 0; start < resizedPhotos.length; start += uploadBatchSize) {
+          final int end = (start + uploadBatchSize < resizedPhotos.length)
+              ? start + uploadBatchSize
+              : resizedPhotos.length;
+          final List<Future<void>> batchFutures = [];
+          for (int i = start; i < end; i++) {
+            final int idx = i;
+            batchFutures.add(() async {
+              final fileName = '${reportId}_foto${idx + 1}.jpg';
+              final fId = await auth.driveService!.uploadFile(
+                buktiFolderId,
+                fileName,
+                resizedPhotos[idx],
+                'image/jpeg',
+                onAuthExpired: () async => await auth.ensureFreshAuth(),
+              );
+              auth.driveService!.setPublicAccess(fId).catchError((_) {});
+              photoIds[idx] = fId;
+              _cacheUploadedPhoto(fId, resizedPhotos[idx]);
+              uploadedCount++;
+              _progressMessage = 'Mengunggah foto ($uploadedCount/${resizedPhotos.length})...';
+              notifyListeners();
+            }());
+          }
+          await Future.wait(batchFutures);
+        }
+      }
+
+      String fileDateStr;
+      try {
+        final parsed = DateTime.tryParse(tanggal) ?? DateTime.now();
+        fileDateStr = DateFormat('yyyyMMdd').format(parsed);
+      } catch (_) {
+        fileDateStr = DateFormat('yyyyMMdd').format(DateTime.now());
+      }
+      final timeFormatted = pukul.isNotEmpty ? pukul.replaceAll(':', '.') : '00.00';
+      final cleanRencana = rencanaAksi.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      final pdfFileName = '$fileDateStr - $timeFormatted - $idRHK - $cleanRencana.pdf';
+
+      final pdfUploadFuture = auth.driveService!.uploadFile(
+        outputFolderId,
+        pdfFileName,
+        pdfBytes,
+        'application/pdf',
+        onAuthExpired: () async => await auth.ensureFreshAuth(),
+      ).then((fId) {
+        auth.driveService!.setPublicAccess(fId).catchError((_) {});
+        return fId;
+      });
+
+      final uploadResults = await Future.wait([
+        uploadAllPhotosBatched(),
+        pdfUploadFuture,
+      ]);
+
+      final pdfFileId = uploadResults[1] as String;
+
+      // 8. Simpan laporan final ke Google Sheets dengan 1 kali append
+      final finalReport = initialReport.copyWith(
+        pdfFileId: pdfFileId,
+        fotoIds: photoIds.where((id) => id.isNotEmpty).toList(),
+      );
+
+      await auth.sheetsService!.appendRow(
+        auth.spreadsheetId!,
+        AppConstants.sheetLaporanLog,
+        finalReport.toSheetRow(),
+      );
+
+      _isSubmitting = false;
+      _isGeneratingPdf = false;
+      _progressMessage = null;
+      notifyListeners();
+
+      // Tambahkan hitungan limit & periksa iklan
+      await SubscriptionService.instance.incrementDailyPdfCount();
+      AdService.instance.onPdfSaved();
+
+      return reportId;
+    } catch (e) {
+      _errorMessage = 'Gagal memproses dan menyimpan laporan: $e';
+      _isSubmitting = false;
+      _isGeneratingPdf = false;
+      _progressMessage = null;
+      notifyListeners();
+      return null;
     }
   }
 }

@@ -950,7 +950,10 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
               // Loading overlay
               if (formProvider.isSubmitting)
-                LoadingOverlay(message: _editingReport != null ? 'Memperbarui laporan...' : 'Menyimpan laporan...'),
+                LoadingOverlay(
+                  message: formProvider.progressMessage ??
+                      (_editingReport != null ? 'Memperbarui laporan...' : 'Menyimpan laporan...'),
+                ),
               if (formProvider.isGeneratingNarrative)
                 const LoadingOverlay(
                   message: 'Asisten Pendamping sedang membuat narasi...\nProses ini memerlukan beberapa detik',
@@ -2079,13 +2082,22 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
     final picker = ImagePicker();
     if (source == ImageSource.gallery) {
-      final images = await picker.pickMultiImage();
+      final images = await picker.pickMultiImage(
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 82,
+      );
       setState(() {
         final remaining = 100 - totalPhotos;
         _selectedPhotos.addAll(images.take(remaining));
       });
     } else {
-      final image = await picker.pickImage(source: source);
+      final image = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 82,
+      );
       if (image != null) {
         setState(() {
           _selectedPhotos.add(image);

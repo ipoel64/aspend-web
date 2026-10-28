@@ -67,19 +67,19 @@ export async function POST(request: Request) {
     }
     const files = formData.getAll('files') as File[];
     const folderName = (formData.get('folderName') as string) || 'RHK-agent_FotoKegiatan';
+    const providedFolderId = (formData.get('folderId') as string) || '';
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: 'Tidak ada file yang diunggah.' }, { status: 400 });
     }
 
-    // Dapatkan folder tujuan di Google Drive
-    const targetFolderId = await getOrCreateFolder(accessToken as string, folderName);
+    // Gunakan folderId yang sudah di-cache oleh client, atau buat/cari folder tujuan di Google Drive
+    const targetFolderId = providedFolderId || (await getOrCreateFolder(accessToken as string, folderName));
 
-    const uploadedResults = [];
-
-    for (const file of files) {
+    // Unggah seluruh file dalam batch secara paralel dengan urutan tetap terjaga
+    const uploadPromises = files.map(async (file, idx) => {
       const buffer = Buffer.from(await file.arrayBuffer());
-      const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const fileName = `${Date.now()}_${idx}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       const mimeType = file.type || 'image/jpeg';
 
       const uploadResult = await uploadFileToDrive(
@@ -91,16 +91,21 @@ export async function POST(request: Request) {
       );
 
       if (uploadResult?.id) {
-        uploadedResults.push({
+        return {
           id: uploadResult.id,
           name: fileName,
           webViewLink: uploadResult.webViewLink,
-        });
+        };
       }
-    }
+      return null;
+    });
+
+    const rawResults = await Promise.all(uploadPromises);
+    const uploadedResults = rawResults.filter((item): item is NonNullable<typeof item> => item !== null);
 
     return NextResponse.json({
       success: true,
+      folderId: targetFolderId,
       message: `${uploadedResults.length} foto berhasil diunggah ke Google Drive.`,
       files: uploadedResults,
     });
