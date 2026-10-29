@@ -634,7 +634,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? const Color(0xFF064E3B).withOpacity(0.35)
                       : const Color(0xFFECFDF5);
                   borderColor = isDark
-                      ? Colors.emerald.withOpacity(0.5)
+                      ? const Color(0xFF10B981).withOpacity(0.5)
                       : const Color(0xFF6EE7B7);
                 } else {
                   cardBg = isDark
@@ -698,7 +698,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   color: isSelected
                                       ? color
                                       : (isDone
-                                          ? (isDark ? Colors.emeraldAccent : const Color(0xFF065F46))
+                                          ? (isDark ? const Color(0xFF34D399) : const Color(0xFF065F46))
                                           : (isDark ? Colors.white : color)),
                                 ),
                               ),
@@ -733,7 +733,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         fontSize: 12,
                                         fontWeight: FontWeight.w900,
                                         color: isDone
-                                            ? (isDark ? Colors.emeraldAccent : const Color(0xFF047857))
+                                            ? (isDark ? const Color(0xFF34D399) : const Color(0xFF047857))
                                             : (isDark ? Colors.white : Colors.black87),
                                       ),
                                     ),
@@ -754,7 +754,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   color: isDone
-                                      ? (isDark ? Colors.emeraldAccent : const Color(0xFF059669))
+                                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
                                       : (isDark ? Colors.grey[400] : Colors.grey[600]),
                                 ),
                               ),

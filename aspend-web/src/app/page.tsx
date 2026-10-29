@@ -3033,14 +3033,6 @@ export default function Home() {
                 <span className="uppercase text-primary font-bold text-xs">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
               )}
             </div>
-            {isPremiumAccount && (
-              <span
-                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border border-white flex items-center justify-center text-[9px] text-amber-950 font-black shadow-xs"
-                title="Akun ASPEND Premium Aktif"
-              >
-                ★
-              </span>
-            )}
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
             <div className="flex items-center gap-1">
@@ -3111,19 +3103,6 @@ export default function Home() {
           >
             <span className="material-symbols-outlined text-[19px]">description</span>
             <span className="truncate">Nota Dinas</span>
-          </button>
-          
-          <button 
-            onClick={() => {
-              setActivePage('profile');
-              if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
-            }}
-            className={`w-full text-left nav-item flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-200 text-xs font-medium ${
-              activePage === 'profile' ? 'text-white bg-white/25 shadow-sm font-bold' : 'text-white/90 hover:text-white hover:bg-white/10'
-            } cursor-pointer`}
-          >
-            <span className="material-symbols-outlined text-[19px]">account_circle</span>
-            <span className="truncate">Profil Pengguna</span>
           </button>
 
           {/* ── Divider ── */}
@@ -4047,21 +4026,8 @@ export default function Home() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-center gap-1.5">
-                    <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
-                    {isPremiumAccount && (
-                      <span className="material-symbols-outlined text-amber-500 text-[18px]" title="Akun ASPEND Premium">
-                        workspace_premium
-                      </span>
-                    )}
-                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
                   <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
-                    {isPremiumAccount && (
-                      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shadow-2xs">
-                        <span className="material-symbols-outlined text-[13px] text-amber-600">workspace_premium</span>
-                        ASPEND Premium
-                      </span>
-                    )}
                     <span className="text-xs font-bold text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
                       {profile?.jenisSdm || 'SDM PKH'}
                     </span>

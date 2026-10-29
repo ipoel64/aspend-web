@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/constants.dart';
+import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import 'qr_web_login_screen.dart';
 
@@ -18,7 +18,6 @@ class LinkedDevicesScreen extends StatefulWidget {
 class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _activeSessions = [];
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -29,7 +28,6 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
   Future<void> _loadActiveSessions() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     final auth = context.read<AuthProvider>();
@@ -44,24 +42,23 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
     }
 
     try {
-      final rows = await auth.sheetsService!.getRows(
+      final rows = await auth.sheetsService!.getAllRows(
         auth.spreadsheetId!,
         'Web_Sessions',
       );
 
       final List<Map<String, dynamic>> sessions = [];
-      if (rows != null && rows.isNotEmpty) {
+      if (rows.isNotEmpty) {
         for (int i = 0; i < rows.length; i++) {
           final row = rows[i];
-          if (row.length > 4 && row[4] == 'AUTHORIZED') {
-            final sessionId = row[0].toString();
-            final email = row.length > 1 ? row[1].toString() : '';
-            final nama = row.length > 2 ? row[2].toString() : '';
-            final createdAtStr = row.length > 5 ? row[5].toString() : '';
-            final deviceInfo = row.length > 6 ? row[6].toString() : 'Browser Web (Desktop)';
+          if (row.length > 4 && row[4]?.toString().toUpperCase() == 'AUTHORIZED') {
+            final sessionId = row[0]?.toString() ?? '';
+            final email = row.length > 1 ? row[1]?.toString() ?? '' : '';
+            final nama = row.length > 2 ? row[2]?.toString() ?? '' : '';
+            final createdAtStr = row.length > 5 ? row[5]?.toString() ?? '' : '';
+            final deviceInfo = row.length > 6 ? row[6]?.toString() ?? 'Browser Web (Desktop)' : 'Browser Web (Desktop)';
 
             sessions.add({
-              'rowIndex': i,
               'sessionId': sessionId,
               'email': email,
               'nama': nama,
@@ -134,7 +131,6 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
 
     final auth = context.read<AuthProvider>();
     final sessionId = session['sessionId'] as String;
-    final rowIndex = session['rowIndex'] as int;
 
     // Show loading indicator
     showDialog(
@@ -147,12 +143,19 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       // 1. Update row in Google Sheets
       if (auth.sheetsService != null && auth.spreadsheetId != null) {
         try {
-          final currentRow = await auth.sheetsService!.getRowByIndex(
+          final rowIndex = await auth.sheetsService!.findRowByValue(
             auth.spreadsheetId!,
             'Web_Sessions',
-            rowIndex,
+            0,
+            sessionId,
           );
-          if (currentRow != null) {
+          final currentRow = await auth.sheetsService!.getRowByValue(
+            auth.spreadsheetId!,
+            'Web_Sessions',
+            0,
+            sessionId,
+          );
+          if (currentRow != null && rowIndex > 0) {
             final updatedRow = List<dynamic>.from(currentRow);
             if (updatedRow.length > 4) {
               updatedRow[4] = 'LOGGED_OUT';
@@ -172,7 +175,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       // 2. Broadcast logout via Cloud Relay ntfy.sh
       try {
         await http.post(
-          Uri.parse('https://ntfy.sh/aspend_qr_${encodeURIComponent(sessionId)}'),
+          Uri.parse('https://ntfy.sh/aspend_qr_${Uri.encodeComponent(sessionId)}'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'action': 'LOGOUT',
@@ -255,14 +258,21 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       // 1. Update all active rows in Google Sheets
       if (auth.sheetsService != null && auth.spreadsheetId != null) {
         for (var sess in _activeSessions) {
-          final rIndex = sess['rowIndex'] as int;
+          final sId = sess['sessionId'] as String;
           try {
-            final currentRow = await auth.sheetsService!.getRowByIndex(
+            final rowIndex = await auth.sheetsService!.findRowByValue(
               auth.spreadsheetId!,
               'Web_Sessions',
-              rIndex,
+              0,
+              sId,
             );
-            if (currentRow != null) {
+            final currentRow = await auth.sheetsService!.getRowByValue(
+              auth.spreadsheetId!,
+              'Web_Sessions',
+              0,
+              sId,
+            );
+            if (currentRow != null && rowIndex > 0) {
               final updatedRow = List<dynamic>.from(currentRow);
               if (updatedRow.length > 4) {
                 updatedRow[4] = 'LOGGED_OUT';
@@ -270,7 +280,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
               await auth.sheetsService!.updateRow(
                 auth.spreadsheetId!,
                 'Web_Sessions',
-                rIndex,
+                rowIndex,
                 updatedRow,
               );
             }
@@ -283,10 +293,10 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
         final sId = sess['sessionId'] as String;
         try {
           http.post(
-            Uri.parse('https://ntfy.sh/aspend_qr_${encodeURIComponent(sId)}'),
+            Uri.parse('https://ntfy.sh/aspend_qr_${Uri.encodeComponent(sId)}'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'action': 'LOGOUT', 'sessionId': sId, 'status': 'LOGGED_OUT'}),
-          ).timeout(const Duration(seconds: 3)).catchError((_) {});
+          ).timeout(const Duration(seconds: 3)).then((_) {}, onError: (_) {});
         } catch (_) {}
       }
 
@@ -299,7 +309,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
             Uri.parse('https://ntfy.sh/$userTopic'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'action': 'LOGOUT_ALL', 'email': email}),
-          ).timeout(const Duration(seconds: 3)).catchError((_) {});
+          ).timeout(const Duration(seconds: 3)).then((_) {}, onError: (_) {});
         } catch (_) {}
       }
 
