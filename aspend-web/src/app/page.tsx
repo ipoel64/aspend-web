@@ -588,6 +588,15 @@ export default function Home() {
   const [filterAksi, setFilterAksi] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [selectedRhkTarget, setSelectedRhkTarget] = useState<string | null>(null);
+
+  // Daily Limit Modal State (Batas akun reguler 2x sehari vs Premium tak terbatas)
+  const [isDailyLimitModalOpen, setIsDailyLimitModalOpen] = useState(false);
+  const [dailyLimit, setDailyLimit] = useState<{ maxFree: number; todayCount: number; isReached: boolean }>({
+    maxFree: 2,
+    todayCount: 0,
+    isReached: false,
+  });
 
   // Pagination State (Default 10 baris)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -613,6 +622,9 @@ export default function Home() {
         setIsProfileVerifiedFromServer(Boolean(result.profileLoaded));
         setStats(result.stats || { total: 0, month: 0, rhkBreakdown: {} });
         setSheetRiwayatPoin(result.riwayatPoinList || []);
+        if (result.dailyLimit) {
+          setDailyLimit(result.dailyLimit);
+        }
         if (!isSilentRefresh && result.reports && result.reports.length > 0) {
           setSelectedReport(result.reports[0]);
         }
@@ -668,6 +680,55 @@ export default function Home() {
     }
   }, [session]);
 
+  // Pantau sinyal logout jarak jauh dari Aspend Mobile via Cloud Relay
+  useEffect(() => {
+    if (status !== 'authenticated' || !session) return;
+    const sessId = (session as any)?.sessionId;
+    const email = session.user?.email;
+    if (!sessId && !email) return;
+
+    const sources: EventSource[] = [];
+
+    if (sessId && typeof window !== 'undefined' && 'EventSource' in window) {
+      try {
+        const esSession = new EventSource(`https://ntfy.sh/aspend_qr_${encodeURIComponent(sessId)}/sse`);
+        esSession.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && (data.action === 'LOGOUT' || data.status === 'LOGGED_OUT')) {
+              esSession.close();
+              signOut({ callbackUrl: '/' });
+            }
+          } catch (_) {}
+        };
+        sources.push(esSession);
+      } catch (_) {}
+    }
+
+    if (email && typeof window !== 'undefined' && 'EventSource' in window) {
+      try {
+        const userTopic = `aspend_user_${email.replaceAll('@', '_').replaceAll('.', '_')}`;
+        const esUser = new EventSource(`https://ntfy.sh/${encodeURIComponent(userTopic)}/sse`);
+        esUser.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && (data.action === 'LOGOUT_ALL' || data.action === 'LOGOUT')) {
+              esUser.close();
+              signOut({ callbackUrl: '/' });
+            }
+          } catch (_) {}
+        };
+        sources.push(esUser);
+      } catch (_) {}
+    }
+
+    return () => {
+      sources.forEach(s => {
+        try { s.close(); } catch (_) {}
+      });
+    };
+  }, [status, session]);
+
   useEffect(() => {
     const handleSessionExpired = () => {
       setIsSessionExpired(true);
@@ -679,7 +740,7 @@ export default function Home() {
   // Countdown otomatis untuk mengalihkan ke halaman login saat sesi telah berakhir
   useEffect(() => {
     if (!isSessionExpired) {
-      setSessionCountdown(3);
+      setSessionCountdown(10);
       return;
     }
     const timer = setInterval(() => {
@@ -695,7 +756,7 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [isSessionExpired]);
 
-  // Periksa ulang validitas sesi secara otomatis ketika pengguna kembali ke tab browser setelah lama tidak aktif (> 10 menit)
+  // Periksa ulang validitas sesi secara otomatis ketika pengguna kembali ke tab browser setelah lama tidak aktif
   useEffect(() => {
     if (status !== 'authenticated') return;
 
@@ -707,7 +768,8 @@ export default function Home() {
       if (document.visibilityState === 'visible') {
         const idleMs = Date.now() - lastActiveTimeRef.current;
         lastActiveTimeRef.current = Date.now();
-        if (idleMs > 10 * 60 * 1000) {
+        // Lakukan penyegaran data berkala di latar belakang jika lebih dari 30 menit
+        if (idleMs > 30 * 60 * 1000) {
           fetchDashboardData(true);
         }
       }
@@ -745,7 +807,7 @@ export default function Home() {
   // Reset current page whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterJenis, filterAksi, filterMonth, filterDate, pageSize]);
+  }, [searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget, pageSize]);
 
   // Load provinces on mount
   useEffect(() => {
@@ -1242,6 +1304,29 @@ export default function Home() {
     return Array.from(set);
   }, [reports, filterJenis, profile?.jenisSdm]);
 
+  // Status Premium & Batasan Kuota Harian (2x sehari untuk akun gratis/reguler)
+  const isPremiumAccount = Boolean(profile?.isPremium || (session?.user as any)?.isPremium);
+
+  const reportsCreatedToday = useMemo(() => {
+    const todayIso = new Date().toISOString().substring(0, 10);
+    return reports.filter(r => {
+      if (!r.Tanggal) return false;
+      const t = String(r.Tanggal).trim();
+      if (t.startsWith(todayIso)) return true;
+      const ts = parseRobustDate(t, '12:00');
+      if (ts > 0) {
+        const dt = new Date(ts);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}` === todayIso;
+      }
+      return false;
+    }).length;
+  }, [reports]);
+
+  const isDailyLimitReached = !isPremiumAccount && (dailyLimit.isReached || reportsCreatedToday >= 2);
+
   // Filtered reports
   const filteredReports = useMemo(() => {
     const list = reports.filter(r => {
@@ -1265,6 +1350,32 @@ export default function Home() {
         const iso = toISODate(r.Tanggal);
         if (!iso || iso !== filterDate) return false;
       }
+      if (selectedRhkTarget) {
+        const targetNum = selectedRhkTarget.replace(/\D/g, '');
+        const itemRhk = (r.IdRHK || r.JenisRHK || '').toUpperCase();
+        const itemNum = itemRhk.replace(/\D/g, '');
+        if (itemNum !== targetNum) return false;
+
+        // Kartu target RHK 1-9 mewakili capaian Bulan Ini
+        const now = new Date();
+        const curY = now.getFullYear();
+        const curM = now.getMonth();
+        const curMonthIso = `${curY}-${String(curM + 1).padStart(2, '0')}`;
+        let matchesMonth = false;
+        if (r.Tanggal) {
+          const tStr = String(r.Tanggal).trim();
+          if (tStr.startsWith(curMonthIso)) {
+            matchesMonth = true;
+          } else {
+            const ts = parseRobustDate(tStr, '12:00');
+            if (ts > 0) {
+              const dt = new Date(ts);
+              matchesMonth = dt.getFullYear() === curY && dt.getMonth() === curM;
+            }
+          }
+        }
+        if (!matchesMonth) return false;
+      }
       return true;
     });
 
@@ -1277,9 +1388,9 @@ export default function Home() {
       if (timeB === 0) timeB = new Date(b.CreatedAt || 0).getTime();
       return timeB - timeA;
     });
-  }, [reports, searchTerm, filterJenis, filterAksi, filterMonth, filterDate]);
+  }, [reports, searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget]);
 
-  const isFiltered = Boolean(searchTerm || filterJenis || filterAksi || filterMonth || filterDate);
+  const isFiltered = Boolean(searchTerm || filterJenis || filterAksi || filterMonth || filterDate || selectedRhkTarget);
 
   // Pagination Calculations
   const totalFiltered = filteredReports.length;
@@ -1301,6 +1412,7 @@ export default function Home() {
     setFilterAksi("");
     setFilterMonth("");
     setFilterDate("");
+    setSelectedRhkTarget(null);
     setCurrentPage(1);
   };
 
@@ -1571,7 +1683,10 @@ export default function Home() {
 
   // ─── Akses Form Buat Laporan RHK ──────────────────────
   const handleOpenCreateReport = () => {
-    // Saat ini siapa saja boleh mengakses fitur Buat Laporan RHK (akses premium diabaikan sementara)
+    if (isDailyLimitReached) {
+      setIsDailyLimitModalOpen(true);
+      return;
+    }
     setActivePage('form');
   };
 
@@ -1856,6 +1971,11 @@ export default function Home() {
 
   // ─── Simpan & Buat PDF ────────────────────────────────
   const handleSubmitReport = async () => {
+    if (isDailyLimitReached) {
+      setIsDailyLimitModalOpen(true);
+      showToast('Batas kuota harian tercapai (maksimal 2 laporan per hari untuk akun reguler). Silakan upgrade ke Premium di aplikasi mobile.', 'error');
+      return;
+    }
     if (!createForm.jenisRHK || !createForm.rencanaAksi) {
       showToast('Pilih Jenis RHK dan Rencana Aksi.', 'error');
       return;
@@ -2015,6 +2135,11 @@ export default function Home() {
 
         setActivePage('dashboard');
       } else {
+        if (reportResult?.isLimitReached || reportRes.status === 403) {
+          setIsDailyLimitModalOpen(true);
+          showToast(reportResult.error || 'Batas kuota harian tercapai (maksimal 2 laporan per hari untuk akun reguler).', 'error');
+          return;
+        }
         throw new Error(reportResult.error || 'Gagal menyimpan laporan.');
       }
     } catch (err: any) {
@@ -3127,10 +3252,15 @@ export default function Home() {
               <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
                 <button 
                   onClick={handleOpenCreateReport}
-                  className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-xl shadow-sm hover:shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 font-bold text-xs cursor-pointer border border-teal-500 shrink-0 w-full lg:w-auto"
+                  className="px-4 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl shadow-sm hover:shadow-md hover:scale-[1.01] transition-all flex items-center justify-center gap-1.5 font-bold text-xs cursor-pointer border border-teal-500 shrink-0 w-full lg:w-auto"
                 >
                   <span className="material-symbols-outlined text-[17px]">add_circle</span>
                   <span>Buat Laporan RHK</span>
+                  {!isPremiumAccount && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-extrabold tracking-tight">
+                      {reportsCreatedToday}/2
+                    </span>
+                  )}
                 </button>
 
                 {/* Card Bulan Ini & Progress Setiap Target RHK (RHK 1 s/d RHK 9) */}
@@ -3150,50 +3280,70 @@ export default function Home() {
                     </div>
                   </div>
                   
-                  {/* Progress Setiap Target RHK 1 - 9 */}
+                  {/* Progress Setiap Target RHK 1 - 9 (Interaktif: Klik untuk Filter Laporan) */}
                   <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 flex-1 min-w-0">
                     {RHK_MONTHLY_TARGETS.map(({ key, label, target }) => {
                       const count = stats.rhkBreakdown?.[key] || 0;
                       const pct = Math.min(100, Math.round((count / target) * 100));
                       const isDone = count >= target;
+                      const isSelected = selectedRhkTarget === key;
                       const style = getRhkBadgeStyle(key);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={key}
-                          title={`${label}: ${count} dari target ${target} laporan bulan ini (${pct}%)`}
-                          className={`flex flex-col justify-between px-2 py-1.5 rounded-xl border transition-all min-w-0 ${
-                            isDone
-                              ? 'bg-emerald-50/90 border-emerald-300 shadow-2xs'
-                              : `${style.bg} ${style.border}`
+                          onClick={() => {
+                            setSelectedRhkTarget(prev => (prev === key ? null : key));
+                            const tableElem = document.getElementById('laporan-section');
+                            if (tableElem) {
+                              tableElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }}
+                          title={`Klik untuk filter: ${label} (${count}/${target} laporan bulan ini)`}
+                          className={`flex flex-col justify-between px-2 py-1.5 rounded-xl border transition-all min-w-0 cursor-pointer text-left relative overflow-hidden ${
+                            isSelected
+                              ? 'ring-2 ring-indigo-500 ring-offset-2 border-indigo-500 bg-indigo-50/90 shadow-md scale-[1.02]'
+                              : isDone
+                              ? 'bg-emerald-50/90 border-emerald-300 shadow-2xs hover:border-emerald-400 hover:shadow-xs hover:scale-[1.01]'
+                              : `${style.bg} ${style.border} hover:border-slate-400 hover:shadow-xs hover:scale-[1.01]`
                           }`}
                         >
                           <div className="flex items-center justify-between gap-0.5 mb-1">
-                            <span className={`text-[9.5px] font-extrabold tracking-tight leading-none truncate ${isDone ? 'text-emerald-800' : style.text}`}>
+                            <span className={`text-[9.5px] font-extrabold tracking-tight leading-none truncate ${isSelected ? 'text-indigo-900 font-black' : isDone ? 'text-emerald-800' : style.text}`}>
                               {label}
                             </span>
-                            {isDone && (
+                            {isSelected ? (
+                              <span className="material-symbols-outlined text-indigo-600 shrink-0 font-bold" style={{ fontSize: '11px', lineHeight: 1 }}>
+                                filter_alt
+                              </span>
+                            ) : isDone ? (
                               <span className="material-symbols-outlined text-emerald-600 shrink-0" style={{ fontSize: '11px', lineHeight: 1 }}>
                                 check_circle
                               </span>
-                            )}
+                            ) : null}
                           </div>
                           <div className="flex items-baseline justify-between gap-0.5 mb-1">
-                            <span className={`text-[11px] font-black leading-none ${isDone ? 'text-emerald-700' : 'text-slate-900'}`}>
+                            <span className={`text-[11px] font-black leading-none ${isSelected ? 'text-indigo-950' : isDone ? 'text-emerald-700' : 'text-slate-900'}`}>
                               {count}<span className="text-[9.5px] font-bold text-slate-400">/{target}</span>
                             </span>
-                            <span className={`text-[8.5px] font-bold leading-none ${isDone ? 'text-emerald-600' : 'text-slate-500'}`}>
+                            <span className={`text-[8.5px] font-bold leading-none ${isSelected ? 'text-indigo-700 font-extrabold' : isDone ? 'text-emerald-600' : 'text-slate-500'}`}>
                               {pct}%
                             </span>
                           </div>
                           <div className="w-full h-1.5 bg-white/80 rounded-full overflow-hidden border border-black/5">
                             <div
                               className={`h-full rounded-full transition-all duration-500 bg-gradient-to-r ${
-                                isDone ? 'from-emerald-500 to-teal-500' : style.bar
+                                isSelected ? 'from-indigo-500 to-blue-500' : isDone ? 'from-emerald-500 to-teal-500' : style.bar
                               }`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                        </div>
+                          {isSelected && (
+                            <span className="text-[7.5px] font-extrabold uppercase text-indigo-700 tracking-wider mt-1 text-center block leading-none">
+                              Filter Aktif ✓
+                            </span>
+                          )}
+                        </button>
                       );
                     })}
                   </div>
@@ -3202,7 +3352,7 @@ export default function Home() {
             </div>
 
             {/* Filter Bar & Main Card */}
-            <div className="bg-white shadow-sm border border-gray-200 rounded-xl flex flex-col overflow-hidden">
+            <div id="laporan-section" className="bg-white shadow-sm border border-gray-200 rounded-xl flex flex-col overflow-hidden">
               {/* Filter Bar */}
               <div className="p-2.5 border-b border-gray-200 bg-gray-50 flex flex-wrap gap-2 items-center">
                 <div className="w-[140px] md:w-[170px] relative shrink-0">
@@ -3250,6 +3400,22 @@ export default function Home() {
                   onChange={(e) => setFilterDate(e.target.value)}
                   className="shrink-0 w-[120px] px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none bg-white text-gray-700" 
                 />
+
+                {/* Filter Target RHK Aktif */}
+                {selectedRhkTarget && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold shadow-xs">
+                    <span className="material-symbols-outlined text-[15px] text-indigo-600">tune</span>
+                    <span>Target: <strong>{selectedRhkTarget} (Bulan Ini)</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRhkTarget(null)}
+                      className="ml-1 p-0.5 hover:bg-indigo-200 rounded-full text-indigo-600 hover:text-indigo-900 transition-colors cursor-pointer"
+                      title="Batalkan filter target"
+                    >
+                      <span className="material-symbols-outlined text-[13px] block">close</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Badge informasi hasil filter menarik dan jelas di tengah */}
                 {isFiltered && (
@@ -4241,7 +4407,25 @@ export default function Home() {
             {/* Header Form */}
             <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-[#1A1D21] font-['Outfit']">Buat Laporan RHK</h2>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-2xl font-bold text-[#1A1D21] font-['Outfit']">Buat Laporan RHK</h2>
+                  {isPremiumAccount ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold shadow-2xs">
+                      <span className="material-symbols-outlined text-[15px] text-amber-500">workspace_premium</span>
+                      ASPEND Premium Aktif
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-2xs">
+                      <span className="material-symbols-outlined text-[15px] text-indigo-600">event_note</span>
+                      Kuota Hari Ini: <strong className={reportsCreatedToday >= 2 ? "text-rose-600 font-extrabold" : "text-emerald-600 font-extrabold"}>{reportsCreatedToday}</strong>/2 Laporan Gratis
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {isPremiumAccount
+                    ? 'Akun ASPEND Premium Anda aktif. Anda bebas membuat laporan tanpa batasan kuota harian.'
+                    : 'Akun reguler dibatasi maksimal 2 laporan baru per hari. Upgrade ke Premium di aplikasi mobile untuk pembuatan laporan tanpa batas.'}
+                </p>
               </div>
               <button 
                 onClick={() => setActivePage('dashboard')}
@@ -4997,12 +5181,21 @@ export default function Home() {
                       type="button"
                       onClick={handleSubmitReport}
                       disabled={isSubmittingReport || !generatedNarrative.trim() || Boolean(photoSelectStatusText)}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                      className={`w-full sm:w-auto px-6 py-2.5 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95 ${
+                        isDailyLimitReached
+                          ? 'bg-gradient-to-r from-rose-500 to-amber-600 hover:from-rose-600 hover:to-amber-700'
+                          : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                      }`}
                     >
                       {isSubmittingReport ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                           <span>{submitReportStatusText || 'Membuat Dokumen PDF & Menyimpan ke Drive...'}</span>
+                        </>
+                      ) : isDailyLimitReached ? (
+                        <>
+                          <span className="material-symbols-outlined text-lg">lock</span>
+                          <span>Batas Kuota Tercapai (2/2)</span>
                         </>
                       ) : (
                         <>
@@ -5091,6 +5284,43 @@ export default function Home() {
           }}
         />
 
+        {/* Modal Kuota Harian Akun Reguler (Maksimal 2x Sehari) */}
+        {isDailyLimitModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl p-6 sm:p-8 text-center relative overflow-hidden">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-3xl shadow-inner text-amber-600">
+                <span className="material-symbols-outlined text-3xl text-amber-500">workspace_premium</span>
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Batas Kuota Harian Tercapai
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 mt-2.5 leading-relaxed">
+                Pada akun <strong>ASPEND Gratis (Reguler)</strong>, pembuatan laporan RHK baru dibatasi maksimal <strong>2 kali dalam sehari</strong> (Hari ini Anda telah membuat <strong>{reportsCreatedToday}</strong> laporan).
+              </p>
+
+              <div className="mt-4 p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 text-left">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs mb-1">
+                  <span className="material-symbols-outlined text-sm text-amber-600">auto_awesome</span>
+                  Sinkronisasi ASPEND Premium
+                </div>
+                <p className="text-[11.5px] text-amber-800 leading-relaxed">
+                  Jika Anda telah mengaktifkan <strong>ASPEND Premium</strong> pada aplikasi <strong>Aspend Mobile</strong>, status premium Anda otomatis tersinkronisasi saat login barcode dan Anda dapat membuat laporan tanpa batasan kuota harian.
+                </p>
+              </div>
+
+              <div className="mt-5 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDailyLimitModalOpen(false)}
+                  className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal Otomatis Sesi Login Berakhir (Mencegah Kebingungan Data Kosong / Profil Belum Lengkap) */}
         {isSessionExpired && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
@@ -5102,7 +5332,7 @@ export default function Home() {
                 Sesi Otorisasi Google Berakhir
               </h3>
               <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Demi keamanan akun dan privasi Google Drive Anda, token otorisasi berlaku selama 1 jam.
+                Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan akun dan privasi Google Drive Anda, silakan hubungkan ulang akun dengan scan barcode dari aplikasi Aspend Mobile.
               </p>
 
               {activePage === 'form' && (

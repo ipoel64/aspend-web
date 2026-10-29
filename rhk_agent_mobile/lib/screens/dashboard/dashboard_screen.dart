@@ -14,6 +14,7 @@ import '../../widgets/report_card.dart';
 import '../settings/settings_screen.dart';
 import '../jarvis/jarvis_assistant_screen.dart';
 import '../auth/qr_web_login_screen.dart';
+import '../auth/linked_devices_screen.dart';
 
 /// Dashboard Screen — Statistik + Riwayat Laporan + Filter
 class DashboardScreen extends StatefulWidget {
@@ -165,18 +166,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ],
                             ),
                           ),
-                          // Scan QR Tautkan Perangkat Web Button
+                          // Scan QR / Perangkat Web Tertaut Button
                           IconButton(
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const QrWebLoginScreen(),
+                                  builder: (_) => const LinkedDevicesScreen(),
                                 ),
                               );
                             },
                             icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 24),
-                            tooltip: 'Tautkan Perangkat Web',
+                            tooltip: 'Perangkat Web Tertaut',
                           ),
                         ],
                       ),
@@ -476,6 +477,320 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  int _getRhkTarget(String key, String jenisSdm) {
+    if (jenisSdm == 'TKSK') return 1;
+    final num = key.replaceAll(RegExp(r'\D'), '');
+    switch (num) {
+      case '1': return 1;
+      case '2': return 15;
+      case '3': return 2;
+      case '4': return 2;
+      case '5': return 3;
+      case '6': return 1;
+      case '7': return 1;
+      case '8': return 2;
+      case '9': return 1;
+      default: return 1;
+    }
+  }
+
+  Color _getRhkColor(String key) {
+    final num = key.replaceAll(RegExp(r'\D'), '');
+    switch (num) {
+      case '1': return const Color(0xFF2563EB); // Blue
+      case '2': return const Color(0xFF9333EA); // Purple
+      case '3': return const Color(0xFF059669); // Emerald
+      case '4': return const Color(0xFFD97706); // Amber
+      case '5': return const Color(0xFF0891B2); // Cyan
+      case '6': return const Color(0xFF4F46E5); // Indigo
+      case '7': return const Color(0xFFDB2777); // Pink
+      case '8': return const Color(0xFFE11D48); // Rose
+      case '9': return const Color(0xFF0D9488); // Teal
+      default: return const Color(0xFF475569);  // Slate
+    }
+  }
+
+  Widget _buildRhkTargetProgressSection(ReportProvider rp, String jenisSdm) {
+    final counts = rp.stats.rhkCountsMonth;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Ambil daftar RHK sesuai jenis SDM (RHK-1 s/d RHK-9 untuk PKH, RHK-1 s/d RHK-6 untuk TKSK)
+    final uniqueJenis = getUniqueJenisRHK(jenisSdm);
+    final rhkKeys = uniqueJenis.map((e) => e['id'] ?? '').where((id) => id.isNotEmpty).toList();
+
+    int totalTarget = 0;
+    int totalCount = 0;
+    for (var k in rhkKeys) {
+      totalTarget += _getRhkTarget(k, jenisSdm);
+      totalCount += counts[k] ?? 0;
+    }
+    final totalPct = totalTarget > 0 ? ((totalCount / totalTarget) * 100).clamp(0, 100).round() : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header Ringkasan Target Bulan Ini
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.track_changes_rounded,
+                  size: 16,
+                  color: isDark ? const Color(0xFF38BDF8) : AppColors.teal,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Target RHK Bulan Ini',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : AppColors.navyDark,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: totalCount >= totalTarget
+                        ? Colors.green.withOpacity(0.15)
+                        : (isDark ? Colors.white10 : Colors.grey.withOpacity(0.12)),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: totalCount >= totalTarget
+                          ? Colors.green.withOpacity(0.4)
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    '$totalCount / $totalTarget ($totalPct%)',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: totalCount >= totalTarget
+                          ? (isDark ? Colors.greenAccent : Colors.green.shade800)
+                          : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_filterJenis != null)
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _filterJenis = null;
+                    _filterRencanaAksi = null;
+                  });
+                  context.read<ReportProvider>().setFilterJenis(null);
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Filter: $_filterJenis',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.teal,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.close_rounded, size: 12, color: AppColors.teal),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // Grid 3 Kolom Responsif Kartu Target RHK
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cardWidth = (constraints.maxWidth - 12) / 3;
+            return Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: rhkKeys.map((key) {
+                final target = _getRhkTarget(key, jenisSdm);
+                final count = counts[key] ?? 0;
+                final pct = target > 0 ? ((count / target) * 100).clamp(0, 100).round() : 0;
+                final isDone = count >= target;
+                final isSelected = _filterJenis == key;
+                final color = _getRhkColor(key);
+
+                Color cardBg;
+                Color borderColor;
+                if (isSelected) {
+                  cardBg = color.withOpacity(isDark ? 0.25 : 0.12);
+                  borderColor = color;
+                } else if (isDone) {
+                  cardBg = isDark
+                      ? const Color(0xFF064E3B).withOpacity(0.35)
+                      : const Color(0xFFECFDF5);
+                  borderColor = isDark
+                      ? Colors.emerald.withOpacity(0.5)
+                      : const Color(0xFF6EE7B7);
+                } else {
+                  cardBg = isDark
+                      ? AppColors.bgDark
+                      : color.withOpacity(0.04);
+                  borderColor = isDark
+                      ? Colors.white12
+                      : color.withOpacity(0.2);
+                }
+
+                return Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (_filterJenis == key) {
+                          _filterJenis = null;
+                          _filterRencanaAksi = null;
+                        } else {
+                          _filterJenis = key;
+                          _filterRencanaAksi = null;
+                        }
+                      });
+                      context.read<ReportProvider>().setFilterJenis(_filterJenis);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: cardWidth,
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: borderColor,
+                          width: isSelected ? 2.0 : (isDone ? 1.2 : 0.8),
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: color.withOpacity(0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Baris Atas: Label RHK & Ikon Checklist/Filter
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                key.replaceAll('-', ' '),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelected
+                                      ? color
+                                      : (isDone
+                                          ? (isDark ? Colors.emeraldAccent : const Color(0xFF065F46))
+                                          : (isDark ? Colors.white : color)),
+                                ),
+                              ),
+                              if (isDone)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 12,
+                                  color: Color(0xFF10B981),
+                                )
+                              else if (isSelected)
+                                Icon(
+                                  Icons.filter_alt_rounded,
+                                  size: 11,
+                                  color: color,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+
+                          // Baris Tengah: Jumlah Capaian / Target & Persentase
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              RichText(
+                                text: TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '$count',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w900,
+                                        color: isDone
+                                            ? (isDark ? Colors.emeraldAccent : const Color(0xFF047857))
+                                            : (isDark ? Colors.white : Colors.black87),
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: '/$target',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.grey[500] : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                '$pct%',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDone
+                                      ? (isDark ? Colors.emeraldAccent : const Color(0xFF059669))
+                                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Baris Bawah: Mini Linear Progress Bar
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: SizedBox(
+                              height: 3.5,
+                              child: LinearProgressIndicator(
+                                value: (pct / 100).clamp(0.0, 1.0),
+                                backgroundColor: isDark
+                                    ? Colors.white10
+                                    : Colors.black.withOpacity(0.06),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isDone ? const Color(0xFF10B981) : color,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildFilterSection() {
     final auth = context.read<AuthProvider>();
     final jenisSdm = auth.userProfile?.jenisSdm ?? 'SDM PKH';
@@ -496,115 +811,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Column(
         children: [
-          // RHK Counts Summary
+          // Progress Setiap Target RHK (Sesuai Ketentuan Aspend Web & Fungsi Filter Interaktif)
           Consumer<ReportProvider>(
             builder: (context, rp, child) {
-              final counts = rp.stats.rhkCountsMonth;
-              if (counts.isEmpty) {
-                return Container(
-                  width: double.infinity,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text('Belum ada RHK bulan ini', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                  ),
-                );
-              }
-              
-              // Sort by RHK name
-              final keys = counts.keys.toList()..sort();
-              
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark ? AppColors.bgDark : AppColors.bgLight,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: keys.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final key = entry.value;
-                        
-                        // Pick a distinct color based on index
-                        final colors = [
-                          Colors.teal,
-                          Colors.deepOrange,
-                          Colors.indigo,
-                          Colors.pink,
-                          Colors.green,
-                          Colors.purple,
-                          Colors.blue,
-                          Colors.brown,
-                        ];
-                        final color = colors[index % colors.length];
-                        
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).cardTheme.color ?? Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: color.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                key,
-                                style: TextStyle(
-                                  fontSize: 9, 
-                                  fontWeight: FontWeight.w700, 
-                                  color: color,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: color.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: Text(
-                                  '${counts[key]}',
-                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  Positioned(
-                    left: 14,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      color: Theme.of(context).cardTheme.color ?? Colors.white,
-                      child: Text(
-                        'Rekap Jumlah RHK Bulan ini',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
+              return _buildRhkTargetProgressSection(rp, jenisSdm);
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           // Filter row
           Row(
             children: [

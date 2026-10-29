@@ -2,10 +2,34 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import '../models/p2k2_data.dart';
 import '../utils/string_utils.dart';
 
 class AiService {
+  /// Membuat HTTP Client yang tahan terhadap clock skew / ketidaksesuaian jam perangkat.
+  /// Kasus CERTIFICATE_VERIFY_FAILED: certificate is not yet valid(handshake.cc:298)
+  /// terjadi jika jam/tanggal HP pengguna diatur mundur (atau baterai habis dan reset),
+  /// sehingga sertifikat SSL Cloudflare/OpenRouter yang sah dianggap "belum aktif/berlaku".
+  http.Client _createHttpClient() {
+    try {
+      final ioHttpClient = HttpClient()
+        ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+          final h = host.toLowerCase();
+          if (h == 'openrouter.ai' ||
+              h.endsWith('.openrouter.ai') ||
+              h == 'api.groq.com' ||
+              h.endsWith('.groq.com')) {
+            return true;
+          }
+          return false;
+        };
+      return IOClient(ioHttpClient);
+    } catch (_) {
+      return http.Client();
+    }
+  }
+
   Future<String> generateNarrative({
     required String provider,
     required String apiKey,
@@ -50,20 +74,25 @@ class AiService {
       'max_tokens': 2000,
     };
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
-    );
+    final client = _createHttpClient();
+    try {
+      final response = await client.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices'][0]['message']['content'];
-    } else {
-      throw Exception('Groq API Error: ${response.statusCode} - ${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'];
+      } else {
+        throw Exception('Groq API Error: ${response.statusCode} - ${response.body}');
+      }
+    } finally {
+      client.close();
     }
   }
 
@@ -100,7 +129,7 @@ class AiService {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       http.Client? client;
       try {
-        client = http.Client();
+        client = _createHttpClient();
         final response = await client.post(
           url,
           headers: {
@@ -192,7 +221,7 @@ class AiService {
       })
       ..body = jsonEncode(body);
 
-    final client = http.Client();
+    final client = _createHttpClient();
     try {
       final response = await client.send(request);
       if (response.statusCode != 200) {
@@ -266,7 +295,7 @@ class AiService {
           })
           ..body = jsonEncode(body);
 
-        client = http.Client();
+        client = _createHttpClient();
         final response = await client.send(request).timeout(const Duration(seconds: 40));
         if (response.statusCode != 200) {
           final errorBody = await response.stream.bytesToString();

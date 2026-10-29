@@ -41,6 +41,10 @@ async function refreshAccessToken(token: any) {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  session: {
+    strategy: "jwt",
+    maxAge: 24 * 60 * 60, // Sesi login aktif 24 jam (86400 detik)
+  },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -132,10 +136,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     email: body.email || '',
                     image: body.image || body.picture || '',
                     spreadsheetId: body.spreadsheetId || '',
+                    isPremium: Boolean(body.isPremium),
                     accessToken,
                     refreshToken,
                     serverAuthCode,
-                    expiresAt,
+                    expiresAt: body.expiresAt || (Math.floor(Date.now() / 1000) + 86400),
                   };
                 }
               }
@@ -161,7 +166,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 if (tokenData.access_token) {
                   user.accessToken = tokenData.access_token;
                   if (tokenData.refresh_token) user.refreshToken = tokenData.refresh_token;
-                  if (tokenData.expires_in) user.expiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+                  if (tokenData.expires_in) user.expiresAt = Math.floor(Date.now() / 1000) + Math.max(tokenData.expires_in, 86400);
                 }
               }
             } catch (_) {}
@@ -174,8 +179,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             image: user.image,
             accessToken: user.accessToken,
             refreshToken: user.refreshToken,
-            expiresAt: user.expiresAt,
+            expiresAt: user.expiresAt || (Math.floor(Date.now() / 1000) + 86400),
             spreadsheetId: user.spreadsheetId,
+            isPremium: Boolean(user.isPremium),
           } as any;
         }
         return null;
@@ -188,35 +194,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
-        token.expiresAt = account.expires_at;
+        token.expiresAt = account.expires_at || (Math.floor(Date.now() / 1000) + 86400);
+        (token as any).sessionCreated = Date.now();
         delete token.error;
       }
       // Login awal via QR Code Credentials
       if (user) {
         token.picture = user.image || (profile as any)?.picture;
+        (token as any).sessionCreated = Date.now();
         if ((user as any).accessToken) {
           token.accessToken = (user as any).accessToken;
           token.refreshToken = (user as any).refreshToken;
-          token.expiresAt = (user as any).expiresAt;
+          token.expiresAt = (user as any).expiresAt || (Math.floor(Date.now() / 1000) + 86400);
           delete token.error;
         }
         if ((user as any).spreadsheetId) {
           (token as any).spreadsheetId = (user as any).spreadsheetId;
         }
+        if ((user as any).sessionId) {
+          (token as any).sessionId = (user as any).sessionId;
+        }
+        if ((user as any).isPremium !== undefined) {
+          (token as any).isPremium = (user as any).isPremium;
+        }
       }
 
-      // Jika token belum expired (buffer 5 menit sebelum benar-benar habis)
-      if (token.expiresAt && Date.now() < ((token.expiresAt as number) - 300) * 1000) {
-        return token;
-      }
-
-      // Jika token sudah mendekati/melewati waktu kedaluwarsa, coba refresh otomatis
-      if (token.refreshToken) {
+      // Refresh Google access token jika ada refreshToken dan token Google mendekati kadaluwarsa
+      if (token.refreshToken && token.expiresAt && Date.now() >= ((token.expiresAt as number) - 300) * 1000) {
         return await refreshAccessToken(token);
       }
 
-      // Jika tidak ada refreshToken dan waktu kedaluwarsa sudah terlewati sepenuhnya, tandai sesi berakhir
-      if (token.expiresAt && Date.now() >= (token.expiresAt as number) * 1000) {
+      // Sesi aktif 24 jam penuh. Hanya tandai berakhir jika 24 jam penuh telah terlewati
+      const sessionCreated = (token as any).sessionCreated || (token.expiresAt ? ((token.expiresAt as number) - 86400) * 1000 : 0);
+      if (sessionCreated > 0 && Date.now() >= sessionCreated + 24 * 60 * 60 * 1000) {
         return {
           ...token,
           error: "RefreshAccessTokenError",
@@ -238,6 +248,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       if ((token as any).spreadsheetId && session.user) {
         (session.user as any).spreadsheetId = (token as any).spreadsheetId;
+      }
+      if ((token as any).sessionId) {
+        (session as any).sessionId = (token as any).sessionId;
+      }
+      if ((token as any).isPremium !== undefined && session.user) {
+        (session.user as any).isPremium = (token as any).isPremium;
       }
       return session;
     }

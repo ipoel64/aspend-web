@@ -9,6 +9,7 @@ import 'package:mobile_scanner/src/method_channel/mobile_scanner_method_channel.
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/subscription_service.dart';
 
 /// Screen pemindai QR Code untuk login Aspend Web (WhatsApp Web model)
 class QrWebLoginScreen extends StatefulWidget {
@@ -341,6 +342,7 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
       endpointsToTry.add('http://192.168.1.8:3000/api/auth/qr-session');
       endpointsToTry.add('https://aspend-web.vercel.app/api/auth/qr-session');
 
+      final isUserPremium = SubscriptionService.instance.isPremium();
       final body = jsonEncode({
         'sessionId': sessionId,
         'email': auth.currentUser?.email ?? '',
@@ -349,11 +351,12 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
             ? 'https://drive.google.com/thumbnail?id=${auth.userProfile!.photoFileId}&sz=w200'
             : auth.currentUser?.photoUrl,
         'spreadsheetId': auth.spreadsheetId ?? '',
+        'isPremium': isUserPremium,
         'accessToken': accessToken,
         'idToken': idToken,
         'serverAuthCode': serverAuthCode,
         'refreshToken': refreshToken,
-        'expiresAt': expiresAt,
+        'expiresAt': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 86400, // 24 jam
       });
 
       // Always send to cloud relay so mobile on 4G/cellular data can authorize local PC web!
@@ -404,6 +407,17 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
           );
         } catch (e) {
           debugPrint('Note: Web_Sessions sheet append status: $e');
+        }
+
+        // Sinkronisasi status Premium ke sheet Premium jika pengguna Premium di HP
+        if (isUserPremium && auth.currentUser?.email != null) {
+          try {
+            await auth.sheetsService!.appendRow(
+              auth.spreadsheetId!,
+              'Premium',
+              [auth.currentUser!.email, 'Aktif', 'InAppPurchase'],
+            );
+          } catch (_) {}
         }
       }
 

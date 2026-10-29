@@ -2082,23 +2082,29 @@ class _CreateReportScreenState extends State<CreateReportScreen> {
 
     final picker = ImagePicker();
     if (source == ImageSource.gallery) {
-      final images = await picker.pickMultiImage(
-        maxWidth: 1280,
-        maxHeight: 1280,
-        imageQuality: 82,
-      );
-      setState(() {
+      // Tidak menyertakan maxWidth/maxHeight/imageQuality di picker agar pemilihan
+      // hingga 100 foto berlangsung instan (< 1 detik) tanpa freeze atau loading lama di sistem.
+      // Kompresi resolusi dokumen yang efisien dilakukan saat unggah dengan progress bar interaktif.
+      final images = await picker.pickMultiImage();
+      if (images.isNotEmpty && mounted) {
         final remaining = 100 - totalPhotos;
-        _selectedPhotos.addAll(images.take(remaining));
-      });
+        final toAdd = images.take(remaining).toList();
+        setState(() {
+          _selectedPhotos.addAll(toAdd);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${toAdd.length} foto berhasil ditambahkan (${_existingPhotoIds.length + _selectedPhotos.length}/100)',
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
-      final image = await picker.pickImage(
-        source: source,
-        maxWidth: 1280,
-        maxHeight: 1280,
-        imageQuality: 82,
-      );
-      if (image != null) {
+      final image = await picker.pickImage(source: source);
+      if (image != null && mounted) {
         setState(() {
           _selectedPhotos.add(image);
         });

@@ -109,6 +109,11 @@ export async function GET(request: Request) {
     let isPremiumUser = false;
     const userEmailLower = (session.user?.email || '').toLowerCase().trim();
 
+    // 0. Cek status Premium dari session (sinkron langsung dari Aspend Mobile saat login QR)
+    if ((session.user as any)?.isPremium === true) {
+      isPremiumUser = true;
+    }
+
     // 1. Akun Admin / Developer selalu Premium
     const adminEmails = ['binjaipkh@gmail.com'];
     if (userEmailLower && adminEmails.includes(userEmailLower)) {
@@ -383,6 +388,29 @@ export async function GET(request: Request) {
         date: String(row[2] || '').trim()
       }));
 
+    // Hitung jumlah laporan hari ini untuk batasan kuota gratis (maksimal 2x sehari)
+    const todayIso = new Date().toISOString().substring(0, 10);
+    const reportsToday = reports.filter(r => {
+      if (!r.Tanggal) return false;
+      const t = String(r.Tanggal).trim();
+      if (t.startsWith(todayIso)) return true;
+      const ts = parseRobustDate(t, '12:00');
+      if (ts > 0) {
+        const dt = new Date(ts);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}` === todayIso;
+      }
+      return false;
+    });
+
+    const dailyLimit = {
+      maxFree: 2,
+      todayCount: reportsToday.length,
+      isReached: !isPremiumUser && reportsToday.length >= 2,
+    };
+
     return NextResponse.json({
       success: true,
       spreadsheetId,
@@ -391,7 +419,8 @@ export async function GET(request: Request) {
       reports,
       riwayatPoinList,
       rhkList,
-      stats
+      stats,
+      dailyLimit
     });
   } catch (error: any) {
     console.error('Error di /api/dashboard:', error);

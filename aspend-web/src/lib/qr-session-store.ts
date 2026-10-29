@@ -6,6 +6,7 @@ export interface QrUserPayload {
   name: string;
   image?: string;
   spreadsheetId?: string;
+  isPremium?: boolean;
   accessToken?: string;
   refreshToken?: string;
   serverAuthCode?: string;

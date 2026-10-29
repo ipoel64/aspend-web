@@ -138,18 +138,37 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
     } catch (e) {
       if (mounted) {
         final errText = e.toString().toLowerCase();
-        final isNetwork = errText.contains('clientexception') ||
+        final isTimeError = errText.contains('certificate is not yet valid') ||
+            errText.contains('certificate has expired') ||
+            errText.contains('certificate_verify_failed');
+        final isNetwork = isTimeError ||
+            errText.contains('clientexception') ||
             errText.contains('connection') ||
             errText.contains('socket') ||
             errText.contains('timed out') ||
+            errText.contains('handshake') ||
             errText.contains('network');
+
+        String message;
+        if (isTimeError) {
+          message = 'Tanggal & Waktu HP tidak sinkron dengan server. Aktifkan "Waktu Otomatis" di pengaturan HP, lalu tekan Buat Ulang.';
+        } else if (isNetwork) {
+          message = 'Koneksi internet terputus atau tidak stabil. Silakan tekan tombol Buat Ulang.';
+        } else {
+          message = 'Gagal membuat narasi: $e';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isNetwork
-                ? 'Koneksi internet terputus. Silakan tekan tombol Buat Ulang.'
-                : 'Gagal membuat narasi: $e'),
+            content: Text(message),
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Coba Lagi',
+              textColor: Colors.white,
+              onPressed: _generateNarrative,
+            ),
           ),
         );
       }

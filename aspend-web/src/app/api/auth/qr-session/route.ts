@@ -4,7 +4,7 @@ import { createQrSession, getQrSession, authorizeQrSession, QrUserPayload } from
 async function processQrPayload(body: any, sessionId: string): Promise<QrUserPayload> {
   let accessToken = body.accessToken || '';
   let refreshToken = body.refreshToken || '';
-  let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 3600);
+  let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 86400); // 24 jam
   const serverAuthCode = body.serverAuthCode || '';
 
   // Jika ada serverAuthCode dan GOOGLE_CLIENT_ID & SECRET tersedia, coba tukar ke Google OAuth token endpoint
@@ -29,7 +29,7 @@ async function processQrPayload(body: any, sessionId: string): Promise<QrUserPay
             refreshToken = tokenData.refresh_token;
           }
           if (tokenData.expires_in) {
-            expiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+            expiresAt = Math.floor(Date.now() / 1000) + Math.max(tokenData.expires_in, 86400);
           }
         }
       }
@@ -44,6 +44,7 @@ async function processQrPayload(body: any, sessionId: string): Promise<QrUserPay
     name: body.nama || body.name || 'Pengguna Aspend',
     image: body.image || body.picture || '',
     spreadsheetId: body.spreadsheetId || '',
+    isPremium: Boolean(body.isPremium),
     accessToken,
     refreshToken,
     serverAuthCode,

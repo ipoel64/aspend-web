@@ -420,6 +420,37 @@ export async function POST(request: Request) {
       console.warn('Gagal membaca profile untuk PDF baru:', profErr);
     }
 
+    // Periksa status Premium & batasan kuota gratis (maksimal 2 laporan per hari)
+    let isPremiumAccount = false;
+    const userEmailLower = (session.user?.email || '').toLowerCase().trim();
+    if ((session.user as any)?.isPremium === true) isPremiumAccount = true;
+    if (['binjaipkh@gmail.com'].includes(userEmailLower)) isPremiumAccount = true;
+
+    if (!isPremiumAccount) {
+      try {
+        const todayIso = new Date().toISOString().substring(0, 10);
+        const existingLogs = await getSheetData(accessToken as string, spreadsheetId, 'Laporan_Log!A2:B');
+        let countToday = 0;
+        if (existingLogs && existingLogs.length > 0) {
+          for (const row of existingLogs) {
+            const rowDate = String(row[1] || '').trim();
+            if (rowDate.startsWith(todayIso)) {
+              countToday++;
+            }
+          }
+        }
+        if (countToday >= 2) {
+          return NextResponse.json({
+            error: 'Batas pembuatan RHK harian untuk akun gratis telah tercapai (maksimal 2 laporan per hari). Silakan upgrade ke status Premium melalui aplikasi Aspend Mobile untuk membuat laporan tanpa batas (Unlimited).',
+            isLimitReached: true,
+          }, { status: 403 });
+        }
+      } catch (checkErr) {
+        if (isGoogleAuthError(checkErr)) throw checkErr;
+        console.warn('Check daily RHK limit warning:', checkErr);
+      }
+    }
+
     // 4. Generate Dokumen PDF Resmi di Google Drive
     let createdPdfId = '';
     let parsedP2K2 = null;

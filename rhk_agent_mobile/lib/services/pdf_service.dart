@@ -1173,40 +1173,76 @@ class PdfService {
         : processedPhotos;
 
     if (appendixPhotos.isNotEmpty) {
-      pdf.addPage(
-        pw.MultiPage(
-          theme: theme,
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.only(left: 54, right: 54, top: 35, bottom: 54),
-          build: (context) => [
-            pw.Center(
-              child: pw.Text('LAMPIRAN DOKUMENTASI', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-            ),
-            pw.SizedBox(height: 20),
-            
-            // Layout photos in a grid/list, centered and safely constrained to prevent MultiPage overflow
-            ...appendixPhotos.map((bytes) {
-              return pw.Column(
-                children: [
+      // Chunking halaman lampiran dokumentasi secara independen (2 foto per halaman)
+      // menggunakan pw.Page agar proses render PDF berlangsung sangat cepat (hitungan detik
+      // bahkan untuk 100 foto) tanpa resiko lag, rekursif pagination loop, atau OOM (Out Of Memory).
+      const int photosPerPage = 2;
+      final int totalPhotoPages = (appendixPhotos.length / photosPerPage).ceil();
+
+      for (int i = 0; i < appendixPhotos.length; i += photosPerPage) {
+        final endIdx = (i + photosPerPage < appendixPhotos.length)
+            ? i + photosPerPage
+            : appendixPhotos.length;
+        final chunk = appendixPhotos.sublist(i, endIdx);
+        final pageNum = (i ~/ photosPerPage) + 1;
+
+        pdf.addPage(
+          pw.Page(
+            theme: theme,
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.only(left: 54, right: 54, top: 35, bottom: 45),
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (i == 0) ...[
                   pw.Center(
-                    child: pw.ConstrainedBox(
-                      constraints: const pw.BoxConstraints(
-                        maxWidth: 420,
-                        maxHeight: 500,
-                      ),
-                      child: pw.Image(
-                        pw.MemoryImage(bytes),
-                        fit: pw.BoxFit.contain,
-                      ),
+                    child: pw.Text(
+                      'LAMPIRAN DOKUMENTASI',
+                      style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
                     ),
                   ),
-                  pw.SizedBox(height: 16),
+                  pw.SizedBox(height: 12),
+                ] else ...[
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'LAMPIRAN DOKUMENTASI (Lanjutan)',
+                        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700),
+                      ),
+                      pw.Text(
+                        'Hal. $pageNum dari $totalPhotoPages',
+                        style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                      ),
+                    ],
+                  ),
+                  pw.Divider(thickness: 0.5, color: PdfColors.grey400),
+                  pw.SizedBox(height: 10),
                 ],
-              );
-            }),
-          ]
-        )
-      );
+                pw.Expanded(
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                    children: chunk.map((bytes) {
+                      return pw.Center(
+                        child: pw.ConstrainedBox(
+                          constraints: const pw.BoxConstraints(
+                            maxWidth: 420,
+                            maxHeight: 330,
+                          ),
+                          child: pw.Image(
+                            pw.MemoryImage(bytes),
+                            fit: pw.BoxFit.contain,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
     return await pdf.save();

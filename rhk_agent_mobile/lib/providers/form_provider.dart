@@ -61,7 +61,7 @@ class FormProvider extends ChangeNotifier {
     final int targetWidth = photos.length > 25 ? 760 : 800;
     final int quality = photos.length > 25 ? 68 : 72;
 
-    _progressMessage = 'Mengunggah foto (0/${photos.length})...';
+    _progressMessage = 'Mengompres & mengunggah foto (0/${photos.length})...';
     notifyListeners();
 
     for (int start = 0; start < photos.length; start += batchSize) {
@@ -71,12 +71,13 @@ class FormProvider extends ChangeNotifier {
       for (int i = start; i < end; i++) {
         final int index = i;
         batchFutures.add(() async {
-          final rawBytes = await photos[index].readAsBytes();
+          List<int>? rawBytes = await photos[index].readAsBytes();
           final bytes = await _pdfService.resizeImage(
             rawBytes,
             targetWidth: targetWidth,
             quality: quality,
           );
+          rawBytes = null; // Bebaskan memori foto mentah berukuran besar seketika
           final fileName = '${filePrefix}_${index + 1}.jpg';
 
           final fileId = await auth.driveService!.uploadFile(
@@ -94,7 +95,8 @@ class FormProvider extends ChangeNotifier {
           _cacheUploadedPhoto(fileId, bytes);
 
           completedCount++;
-          _progressMessage = 'Mengunggah foto ($completedCount/${photos.length})...';
+          final pct = ((completedCount / photos.length) * 100).round();
+          _progressMessage = 'Mengompres & mengunggah foto ($completedCount/${photos.length}) $pct%...';
           notifyListeners();
         }());
       }
@@ -550,6 +552,11 @@ class FormProvider extends ChangeNotifier {
 
   String _formatAiErrorMessage(dynamic e) {
     final str = e.toString().toLowerCase();
+    if (str.contains('certificate is not yet valid') ||
+        str.contains('certificate has expired') ||
+        str.contains('certificate_verify_failed')) {
+      return 'Tanggal & Waktu di HP Anda belum sinkron dengan server. Silakan aktifkan "Tanggal & Waktu Otomatis" di pengaturan HP Anda, lalu tekan "Buat Ulang".';
+    }
     if (str.contains('clientexception') ||
         str.contains('connection closed') ||
         str.contains('connection reset') ||

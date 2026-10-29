@@ -1332,7 +1332,14 @@ class _JarvisAssistantScreenState extends State<JarvisAssistantScreen>
           _isGeneratingNarrative = false;
           _isGeneratingPdf = false;
         });
-        _speak('Terjadi kendala saat memproses: $e, Boss.');
+        final errStr = e.toString().toLowerCase();
+        String spokenErr = 'Terjadi kendala saat memproses laporan, Boss.';
+        if (errStr.contains('certificate') || errStr.contains('handshake')) {
+          spokenErr = 'Tanggal dan waktu di HP belum sinkron dengan server. Silakan aktifkan waktu otomatis di HP, Boss.';
+        } else if (errStr.contains('timed out') || errStr.contains('connection') || errStr.contains('network')) {
+          spokenErr = 'Koneksi internet terputus atau tidak stabil saat memproses, Boss.';
+        }
+        _speak(spokenErr);
       }
     }
   }
