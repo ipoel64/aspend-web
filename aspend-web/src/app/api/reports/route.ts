@@ -424,7 +424,26 @@ export async function POST(request: Request) {
     let isPremiumAccount = false;
     const userEmailLower = (session.user?.email || '').toLowerCase().trim();
     if ((session.user as any)?.isPremium === true) isPremiumAccount = true;
-    if (['binjaipkh@gmail.com'].includes(userEmailLower)) isPremiumAccount = true;
+    const permanentPremiumEmails = ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'];
+    if (permanentPremiumEmails.includes(userEmailLower)) isPremiumAccount = true;
+
+    // Cek tab Premium di Google Sheet jika belum terdeteksi
+    if (!isPremiumAccount) {
+      try {
+        const premRows = await getSheetData(accessToken as string, spreadsheetId, 'Premium!A2:C');
+        if (premRows && premRows.length > 0) {
+          for (const row of premRows) {
+            if (row[0] && row[0].toString().trim().toLowerCase() === userEmailLower) {
+              const status = (row[1] || '').toString().trim().toLowerCase();
+              if (status === 'aktif' || status === 'active' || status === 'premium' || status === 'true' || status === 'inapppurchase') {
+                isPremiumAccount = true;
+                break;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     if (!isPremiumAccount) {
       try {

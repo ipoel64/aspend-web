@@ -10,6 +10,7 @@ import 'report/create_report_screen.dart';
 import 'settings/settings_screen.dart';
 import 'pengaduan/pengaduan_list_screen.dart';
 import '../services/notification_service.dart';
+import '../services/subscription_service.dart';
 
 /// Home Screen — Bottom Navigation Hub
 class HomeScreen extends StatefulWidget {
@@ -28,6 +29,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await NotificationService().requestPermissions();
+      try {
+        if (!mounted) return;
+        final auth = context.read<AuthProvider>();
+        if (SubscriptionService.instance.isPremium() && auth.sheetsService != null && auth.spreadsheetId != null && auth.currentUser?.email != null) {
+          auth.sheetsService!.appendRow(
+            auth.spreadsheetId!,
+            'Premium',
+            [auth.currentUser!.email, 'Aktif', 'InAppPurchase'],
+          ).catchError((_) {});
+        }
+      } catch (_) {}
     });
   }
 

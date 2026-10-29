@@ -589,6 +589,7 @@ export default function Home() {
   const [filterMonth, setFilterMonth] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [selectedRhkTarget, setSelectedRhkTarget] = useState<string | null>(null);
+  const [isFilterThisMonthOnly, setIsFilterThisMonthOnly] = useState(false);
 
   // Daily Limit Modal State (Batas akun reguler 2x sehari vs Premium tak terbatas)
   const [isDailyLimitModalOpen, setIsDailyLimitModalOpen] = useState(false);
@@ -807,7 +808,7 @@ export default function Home() {
   // Reset current page whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget, pageSize]);
+  }, [searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget, isFilterThisMonthOnly, pageSize]);
 
   // Load provinces on mount
   useEffect(() => {
@@ -1305,7 +1306,12 @@ export default function Home() {
   }, [reports, filterJenis, profile?.jenisSdm]);
 
   // Status Premium & Batasan Kuota Harian (2x sehari untuk akun gratis/reguler)
-  const isPremiumAccount = Boolean(profile?.isPremium || (session?.user as any)?.isPremium);
+  const isPremiumAccount = Boolean(
+    profile?.isPremium || 
+    (session?.user as any)?.isPremium ||
+    (session?.user?.email && ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'].includes(session.user.email.toLowerCase().trim())) ||
+    (profile?.email && ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'].includes(profile.email.toLowerCase().trim()))
+  );
 
   const reportsCreatedToday = useMemo(() => {
     const todayIso = new Date().toISOString().substring(0, 10);
@@ -1350,6 +1356,26 @@ export default function Home() {
         const iso = toISODate(r.Tanggal);
         if (!iso || iso !== filterDate) return false;
       }
+      if (isFilterThisMonthOnly && !selectedRhkTarget) {
+        const now = new Date();
+        const curY = now.getFullYear();
+        const curM = now.getMonth();
+        const curMonthIso = `${curY}-${String(curM + 1).padStart(2, '0')}`;
+        let matchesMonth = false;
+        if (r.Tanggal) {
+          const tStr = String(r.Tanggal).trim();
+          if (tStr.startsWith(curMonthIso)) {
+            matchesMonth = true;
+          } else {
+            const ts = parseRobustDate(tStr, '12:00');
+            if (ts > 0) {
+              const dt = new Date(ts);
+              matchesMonth = dt.getFullYear() === curY && dt.getMonth() === curM;
+            }
+          }
+        }
+        if (!matchesMonth) return false;
+      }
       if (selectedRhkTarget) {
         const targetNum = selectedRhkTarget.replace(/\D/g, '');
         const itemRhk = (r.IdRHK || r.JenisRHK || '').toUpperCase();
@@ -1388,9 +1414,9 @@ export default function Home() {
       if (timeB === 0) timeB = new Date(b.CreatedAt || 0).getTime();
       return timeB - timeA;
     });
-  }, [reports, searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget]);
+  }, [reports, searchTerm, filterJenis, filterAksi, filterMonth, filterDate, selectedRhkTarget, isFilterThisMonthOnly]);
 
-  const isFiltered = Boolean(searchTerm || filterJenis || filterAksi || filterMonth || filterDate || selectedRhkTarget);
+  const isFiltered = Boolean(searchTerm || filterJenis || filterAksi || filterMonth || filterDate || selectedRhkTarget || isFilterThisMonthOnly);
 
   // Pagination Calculations
   const totalFiltered = filteredReports.length;
@@ -1413,6 +1439,7 @@ export default function Home() {
     setFilterMonth("");
     setFilterDate("");
     setSelectedRhkTarget(null);
+    setIsFilterThisMonthOnly(false);
     setCurrentPage(1);
   };
 
@@ -3006,9 +3033,27 @@ export default function Home() {
                 <span className="uppercase text-primary font-bold text-xs">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
               )}
             </div>
+            {isPremiumAccount && (
+              <span
+                className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 border border-white flex items-center justify-center text-[9px] text-amber-950 font-black shadow-xs"
+                title="Akun ASPEND Premium Aktif"
+              >
+                ★
+              </span>
+            )}
           </div>
           <div className="overflow-hidden flex-1 min-w-0">
-            <p className="text-xs text-white truncate font-bold group-hover/prof:underline leading-tight">{profile?.nama || session?.user?.name}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-xs text-white truncate font-bold group-hover/prof:underline leading-tight">{profile?.nama || session?.user?.name}</p>
+              {isPremiumAccount && (
+                <span
+                  className="material-symbols-outlined text-amber-300 text-[14px] shrink-0 drop-shadow-xs"
+                  title="ASPEND Premium Aktif"
+                >
+                  workspace_premium
+                </span>
+              )}
+            </div>
             <p className="text-[9.5px] text-white/80 truncate leading-tight mt-0.5">{profile?.jabatan || 'Pendamping PKH'}</p>
             <p className="text-[8.5px] text-white/60 truncate font-mono mt-0.5 leading-tight">{profile?.email || session?.user?.email}</p>
           </div>
@@ -3225,30 +3270,77 @@ export default function Home() {
             
             {/* Header Title & Stats (2-Row Compact & Balanced Layout) */}
             <div className="mb-3 flex flex-col gap-2.5">
-              {/* Baris Atas: Judul di Kiri & Kartu Total Laporan di Kanan */}
+              {/* Baris Atas: Judul di Kiri & Kartu Total Laporan + Kartu Bulan Ini di Kanan */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="min-w-0">
-                  <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D21] leading-tight font-['Outfit']">
-                    Dashboard Laporan RHK
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D21] leading-tight font-['Outfit']">
+                      Dashboard Laporan RHK
+                    </h2>
+                    {isPremiumAccount && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-extrabold shadow-2xs"
+                        title="ASPEND Premium Aktif (Laporan Tanpa Batas)"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-amber-500 font-bold">workspace_premium</span>
+                        <span>Premium</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Kelola dan tinjau laporan pendampingan sosial secara real-time.
                   </p>
                 </div>
 
-                {/* Card Total Laporan (Sejajar di Kanan Atas) */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-4 py-2.5 flex items-center gap-3.5 min-w-[175px] shrink-0 self-start sm:self-center">
-                  <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
-                    <span className="material-symbols-outlined text-lg">summarize</span>
+                {/* Kartu Total Laporan & Kartu Bulan Ini (Sejajar di Kanan Atas) */}
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+                  {/* Card Total Laporan */}
+                  <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3.5 py-2 flex items-center gap-3 shrink-0">
+                    <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
+                      <span className="material-symbols-outlined text-lg">summarize</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">TOTAL LAPORAN</span>
+                      <div className="text-xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">TOTAL LAPORAN</span>
-                    <div className="text-xl sm:text-2xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
-                  </div>
+
+                  {/* Card Bulan Ini (Pindah ke Kanan Atas & Interaktif Filter Laporan Bulan Ini) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFilterThisMonthOnly(prev => !prev);
+                      setSelectedRhkTarget(null);
+                      const el = document.getElementById('laporan-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    title="Klik untuk filter khusus laporan bulan ini"
+                    className={`bg-white shadow-sm border rounded-2xl px-3.5 py-2 flex items-center gap-3 shrink-0 cursor-pointer transition-all text-left ${
+                      isFilterThisMonthOnly && !selectedRhkTarget
+                        ? 'ring-2 ring-purple-500 ring-offset-2 border-purple-500 bg-purple-50/90 shadow-md scale-[1.02]'
+                        : 'border-gray-200 hover:border-purple-300 hover:shadow-xs hover:scale-[1.01]'
+                    }`}
+                  >
+                    <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
+                      <span className="material-symbols-outlined text-lg">calendar_today</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500 text-[9px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
+                        {isFilterThisMonthOnly && !selectedRhkTarget && (
+                          <span className="text-[8px] font-black uppercase text-purple-700 bg-purple-100 px-1 rounded">Filter Aktif ✓</span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
+                        <span className="text-[10px] font-bold text-slate-400">/ 28 target</span>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Baris Bawah: Tombol Buat Laporan RHK di Kiri & Kartu Bulan Ini + Target RHK 1-9 Merentang Penuh di Kanan */}
+              {/* Baris Bawah: Tombol Buat Laporan RHK di Kiri & Progress RHK 1-9 Merentang Penuh di Kanan */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
                 <button 
                   onClick={handleOpenCreateReport}
@@ -3263,25 +3355,9 @@ export default function Home() {
                   )}
                 </button>
 
-                {/* Card Bulan Ini & Progress Setiap Target RHK (RHK 1 s/d RHK 9) */}
-                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3.5 py-2 flex flex-col xl:flex-row xl:items-center gap-3 flex-1 min-w-0">
-                  <div className="flex items-center justify-between xl:justify-start gap-2.5 flex-shrink-0 xl:pr-3 xl:border-r xl:border-slate-200/80">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
-                        <span className="material-symbols-outlined text-lg">calendar_today</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 text-[9px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
-                        <div className="flex items-baseline gap-1 mt-0.5">
-                          <span className="text-xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
-                          <span className="text-[10px] font-bold text-slate-400">/ 28 target</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Progress Setiap Target RHK 1 - 9 (Interaktif: Klik untuk Filter Laporan) */}
-                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 flex-1 min-w-0">
+                {/* Grid Progress Setiap Target RHK (RHK 1 s/d RHK 9 Merentang Penuh) */}
+                <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3 py-2 flex-1 min-w-0">
+                  <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-1.5 w-full min-w-0">
                     {RHK_MONTHLY_TARGETS.map(({ key, label, target }) => {
                       const count = stats.rhkBreakdown?.[key] || 0;
                       const pct = Math.min(100, Math.round((count / target) * 100));
@@ -3294,6 +3370,7 @@ export default function Home() {
                           key={key}
                           onClick={() => {
                             setSelectedRhkTarget(prev => (prev === key ? null : key));
+                            setIsFilterThisMonthOnly(false);
                             const tableElem = document.getElementById('laporan-section');
                             if (tableElem) {
                               tableElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3400,6 +3477,22 @@ export default function Home() {
                   onChange={(e) => setFilterDate(e.target.value)}
                   className="shrink-0 w-[120px] px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none bg-white text-gray-700" 
                 />
+
+                {/* Filter Bulan Ini Aktif */}
+                {isFilterThisMonthOnly && !selectedRhkTarget && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 text-purple-800 rounded-lg text-xs font-bold shadow-xs">
+                    <span className="material-symbols-outlined text-[15px] text-purple-600">calendar_month</span>
+                    <span>Filter: <strong>Bulan Ini ({stats.month})</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterThisMonthOnly(false)}
+                      className="ml-1 p-0.5 hover:bg-purple-200 rounded-full text-purple-600 hover:text-purple-900 transition-colors cursor-pointer"
+                      title="Batalkan filter bulan ini"
+                    >
+                      <span className="material-symbols-outlined text-[13px] block">close</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Filter Target RHK Aktif */}
                 {selectedRhkTarget && (
@@ -3910,7 +4003,15 @@ export default function Home() {
           <main className="flex-grow p-4 md:p-6 w-full max-w-[1200px] mx-auto pb-24">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-[#1A1D21] mb-1 font-['Outfit']">Profil Pengguna</h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-2xl font-bold text-[#1A1D21] font-['Outfit']">Profil Pengguna</h2>
+                  {isPremiumAccount && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold shadow-2xs">
+                      <span className="material-symbols-outlined text-[15px] text-amber-500 font-bold">workspace_premium</span>
+                      ASPEND Premium Aktif
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">Kelola identitas, jenis SDM, jabatan, wilayah tugas, serta data pendamping dampingan.</p>
               </div>
               <button 
@@ -3936,10 +4037,31 @@ export default function Home() {
                         <span className="text-4xl uppercase text-cyan-600 font-bold">{profile?.nama?.charAt(0) || session?.user?.name?.charAt(0) || '-'}</span>
                       )}
                     </div>
+                    {isPremiumAccount && (
+                      <div
+                        className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 border-2 border-white flex items-center justify-center text-white shadow-md"
+                        title="ASPEND Premium Aktif"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
+                      </div>
+                    )}
                   </div>
 
-                  <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <h3 className="text-lg font-bold text-gray-900">{profile?.nama || session?.user?.name}</h3>
+                    {isPremiumAccount && (
+                      <span className="material-symbols-outlined text-amber-500 text-[18px]" title="Akun ASPEND Premium">
+                        workspace_premium
+                      </span>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
+                    {isPremiumAccount && (
+                      <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shadow-2xs">
+                        <span className="material-symbols-outlined text-[13px] text-amber-600">workspace_premium</span>
+                        ASPEND Premium
+                      </span>
+                    )}
                     <span className="text-xs font-bold text-cyan-800 bg-cyan-50 px-2.5 py-0.5 rounded-full border border-cyan-200">
                       {profile?.jenisSdm || 'SDM PKH'}
                     </span>

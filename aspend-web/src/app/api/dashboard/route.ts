@@ -114,9 +114,9 @@ export async function GET(request: Request) {
       isPremiumUser = true;
     }
 
-    // 1. Akun Admin / Developer selalu Premium
-    const adminEmails = ['binjaipkh@gmail.com'];
-    if (userEmailLower && adminEmails.includes(userEmailLower)) {
+    // 1. Akun Admin / Developer / Pengembang Utama selalu Premium
+    const permanentPremiumEmails = ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'];
+    if (userEmailLower && permanentPremiumEmails.includes(userEmailLower)) {
       isPremiumUser = true;
     }
 
