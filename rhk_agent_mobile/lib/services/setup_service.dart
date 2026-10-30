@@ -1,4 +1,4 @@
-﻿import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
 import 'drive_service.dart';
@@ -241,6 +241,15 @@ class SetupService {
           'PoinText',
           'CreatedAt'
         ],
+        AppConstants.sheetWebSessions: [
+          'SessionId',
+          'Email',
+          'Nama',
+          'SpreadsheetId',
+          'Status',
+          'CreatedAt',
+          'DeviceInfo'
+        ],
       };
 
       // Create Drive folders
@@ -258,6 +267,30 @@ class SetupService {
       }
     } catch (e) {
       print('Error checking/creating Pengaduan and Nota Dinas sheets: $e');
+    }
+  }
+
+  Future<void> checkAndCreateWebSessionsSheet(String spreadsheetId) async {
+    try {
+      final existingSheetNames = await _sheetsService.getSheetNames(spreadsheetId);
+      if (!existingSheetNames.contains(AppConstants.sheetWebSessions)) {
+        await _sheetsService.createSheet(spreadsheetId, AppConstants.sheetWebSessions);
+        await _sheetsService.writeHeaders(
+          spreadsheetId,
+          AppConstants.sheetWebSessions,
+          [
+            'SessionId',
+            'Email',
+            'Nama',
+            'SpreadsheetId',
+            'Status',
+            'CreatedAt',
+            'DeviceInfo',
+          ],
+        );
+      }
+    } catch (e) {
+      print('Error checking/creating Web_Sessions sheet: $e');
     }
   }
 

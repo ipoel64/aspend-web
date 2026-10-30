@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import '../config/constants.dart';
 import '../models/p2k2_data.dart';
 import '../utils/string_utils.dart';
 
@@ -115,58 +116,73 @@ class AiService {
       content = prompt;
     }
 
-    final body = {
-      'model': model,
-      'messages': [
-        {'role': 'user', 'content': content}
-      ],
-      'max_tokens': 8192,
-      // Disable thinking/reasoning tokens for faster & cheaper response
-      'reasoning': {'effort': 'none'},
-    };
+    final effectiveKey = (apiKey.trim().isNotEmpty)
+        ? apiKey.trim()
+        : AppConstants.defaultOpenRouterApiKey;
 
-    const int maxAttempts = 3;
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      http.Client? client;
-      try {
-        client = _createHttpClient();
-        final response = await client.post(
-          url,
-          headers: {
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://aspend-mobile.app',
-            'X-Title': 'Aspend Mobile',
-            'Connection': 'keep-alive',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode(body),
-        ).timeout(const Duration(seconds: 45));
+    final modelsToTry = <String>[
+      if (model.trim().isNotEmpty) model.trim(),
+      'google/gemini-2.5-flash-lite',
+      'google/gemini-2.5-flash',
+      'google/gemini-2.0-flash-001',
+    ].toSet().toList();
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final choices = data['choices'] as List?;
-          if (choices != null && choices.isNotEmpty) {
-            final resContent = choices[0]['message']?['content'];
-            if (resContent != null && (resContent as String).trim().isNotEmpty) {
-              return resContent;
+    Exception? lastException;
+
+    for (final currentModel in modelsToTry) {
+      final body = {
+        'model': currentModel,
+        'messages': [
+          {'role': 'user', 'content': content}
+        ],
+        'max_tokens': 8192,
+        // Disable thinking/reasoning tokens for faster & cheaper response
+        'reasoning': {'effort': 'none'},
+      };
+
+      const int maxAttempts = 2;
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        http.Client? client;
+        try {
+          client = _createHttpClient();
+          final response = await client.post(
+            url,
+            headers: {
+              'Authorization': 'Bearer $effectiveKey',
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://aspend-mobile.app',
+              'X-Title': 'Aspend Mobile',
+              'Connection': 'keep-alive',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(body),
+          ).timeout(const Duration(seconds: 45));
+
+          if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            final choices = data['choices'] as List?;
+            if (choices != null && choices.isNotEmpty) {
+              final resContent = choices[0]['message']?['content'];
+              if (resContent != null && (resContent as String).trim().isNotEmpty) {
+                return resContent;
+              }
             }
+            throw Exception('Respon narasi kosong dari AI');
+          } else {
+            final errorBody = response.body;
+            throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
           }
-          throw Exception('Respon narasi kosong dari AI');
-        } else {
-          final errorBody = response.body;
-          throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
+        } catch (e) {
+          lastException = e is Exception ? e : Exception(e.toString());
+          if (attempt < maxAttempts) {
+            await Future.delayed(Duration(milliseconds: 800 * attempt));
+          }
+        } finally {
+          client?.close();
         }
-      } catch (e) {
-        if (attempt == maxAttempts) {
-          rethrow;
-        }
-        await Future.delayed(Duration(milliseconds: 1000 * attempt));
-      } finally {
-        client?.close();
       }
     }
-    throw Exception('Gagal menghubungi AI setelah beberapa percobaan');
+    throw lastException ?? Exception('Gagal menghubungi AI setelah beberapa percobaan');
   }
 
   Stream<String> generateNarrativeStream({
@@ -267,67 +283,87 @@ class AiService {
       content = prompt;
     }
 
-    final body = {
-      'model': model,
-      'messages': [
-        {'role': 'user', 'content': content}
-      ],
-      'max_tokens': 8192,
-      'stream': true,
-      // Disable thinking/reasoning tokens for faster & cheaper response
-      'reasoning': {'effort': 'none'},
-    };
+    final effectiveKey = (apiKey.trim().isNotEmpty)
+        ? apiKey.trim()
+        : AppConstants.defaultOpenRouterApiKey;
 
-    const int maxAttempts = 3;
+    final modelsToTry = <String>[
+      if (model.trim().isNotEmpty) model.trim(),
+      'google/gemini-2.5-flash-lite',
+      'google/gemini-2.5-flash',
+      'google/gemini-2.0-flash-001',
+    ].toSet().toList();
+
     bool hasYielded = false;
+    dynamic lastError;
 
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      http.Client? client;
-      try {
-        final request = http.Request('POST', url)
-          ..headers.addAll({
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://aspend-mobile.app',
-            'X-Title': 'Aspend Mobile',
-            'Connection': 'keep-alive',
-            'Accept': 'text/event-stream',
-          })
-          ..body = jsonEncode(body);
+    for (final currentModel in modelsToTry) {
+      final body = {
+        'model': currentModel,
+        'messages': [
+          {'role': 'user', 'content': content}
+        ],
+        'max_tokens': 8192,
+        'stream': true,
+        // Disable thinking/reasoning tokens for faster & cheaper response
+        'reasoning': {'effort': 'none'},
+      };
 
-        client = _createHttpClient();
-        final response = await client.send(request).timeout(const Duration(seconds: 40));
-        if (response.statusCode != 200) {
-          final errorBody = await response.stream.bytesToString();
-          throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
-        }
+      const int maxAttempts = 2;
 
-        final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
-        await for (var line in stream) {
-          if (line.startsWith('data: ') && line != 'data: [DONE]') {
-            final dataStr = line.substring(6).trim();
-            if (dataStr.isEmpty) continue;
-            try {
-              final data = jsonDecode(dataStr);
-              final contentChunk = data['choices']?[0]?['delta']?['content'];
-              if (contentChunk != null && (contentChunk as String).isNotEmpty) {
-                hasYielded = true;
-                yield contentChunk;
-              }
-            } catch (_) {}
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        http.Client? client;
+        try {
+          final request = http.Request('POST', url)
+            ..headers.addAll({
+              'Authorization': 'Bearer $effectiveKey',
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://aspend-mobile.app',
+              'X-Title': 'Aspend Mobile',
+              'Connection': 'keep-alive',
+              'Accept': 'text/event-stream',
+            })
+            ..body = jsonEncode(body);
+
+          client = _createHttpClient();
+          final response = await client.send(request).timeout(const Duration(seconds: 40));
+          if (response.statusCode != 200) {
+            final errorBody = await response.stream.bytesToString();
+            throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
           }
+
+          final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+          await for (var line in stream) {
+            if (line.startsWith('data: ') && line != 'data: [DONE]') {
+              final dataStr = line.substring(6).trim();
+              if (dataStr.isEmpty) continue;
+              try {
+                final data = jsonDecode(dataStr);
+                final contentChunk = data['choices']?[0]?['delta']?['content'];
+                if (contentChunk != null && (contentChunk as String).isNotEmpty) {
+                  hasYielded = true;
+                  yield contentChunk;
+                }
+              } catch (_) {}
+            }
+          }
+          return; // Success
+        } catch (e) {
+          lastError = e;
+          client?.close();
+          if (hasYielded) {
+            rethrow;
+          }
+          if (attempt < maxAttempts) {
+            await Future.delayed(Duration(milliseconds: 800 * attempt));
+          }
+        } finally {
+          client?.close();
         }
-        return; // Success
-      } catch (e) {
-        client?.close();
-        if (hasYielded || attempt == maxAttempts) {
-          rethrow;
-        }
-        await Future.delayed(Duration(milliseconds: 1000 * attempt));
-      } finally {
-        client?.close();
       }
+      if (hasYielded) return;
     }
+    if (lastError != null) throw lastError;
   }
 
   String buildReportPrompt({

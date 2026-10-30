@@ -27,6 +27,19 @@ class SheetsService {
     await _api.spreadsheets.batchUpdate(batchRequest, spreadsheetId);
   }
 
+  Future<List<String>> getSheetNames(String spreadsheetId) async {
+    try {
+      final spreadsheet = await _api.spreadsheets.get(spreadsheetId);
+      return spreadsheet.sheets
+              ?.map((s) => s.properties?.title ?? '')
+              .where((t) => t.isNotEmpty)
+              .toList() ??
+          [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> writeHeaders(
     String spreadsheetId,
     String sheetName,

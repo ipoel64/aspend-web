@@ -46,9 +46,19 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
         
         // Encode payload: contains session ID and local origin so mobile can reach it
         const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+        let browserName = 'Browser Web (Desktop)';
+        if (typeof navigator !== 'undefined') {
+          const ua = navigator.userAgent;
+          if (ua.includes('Chrome') && !ua.includes('Edg')) browserName = 'Chrome (Desktop)';
+          else if (ua.includes('Edg')) browserName = 'Microsoft Edge (Desktop)';
+          else if (ua.includes('Firefox')) browserName = 'Firefox (Desktop)';
+          else if (ua.includes('Safari') && !ua.includes('Chrome')) browserName = 'Safari (Mac)';
+        }
+
         const payload = JSON.stringify({
           type: 'ASPEND_WEB_LOGIN',
           session: sid,
+          device: browserName,
           endpoint: `${origin}/api/auth/qr-session`
         });
         

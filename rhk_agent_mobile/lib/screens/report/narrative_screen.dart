@@ -37,6 +37,13 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
   }
 
   @override
+  void deactivate() {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    context.read<FormProvider>().clearError();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _narrativeController.dispose();
     super.dispose();
@@ -138,6 +145,9 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
     } catch (e) {
       if (mounted) {
         final errText = e.toString().toLowerCase();
+        final isAuth = errText.contains('401') ||
+            errText.contains('missing authentication') ||
+            errText.contains('unauthorized');
         final isTimeError = errText.contains('certificate is not yet valid') ||
             errText.contains('certificate has expired') ||
             errText.contains('certificate_verify_failed');
@@ -152,18 +162,21 @@ class _NarrativeScreenState extends State<NarrativeScreen> {
         String message;
         if (isTimeError) {
           message = 'Tanggal & Waktu HP tidak sinkron dengan server. Aktifkan "Waktu Otomatis" di pengaturan HP, lalu tekan Buat Ulang.';
+        } else if (isAuth) {
+          message = 'Koneksi autentikasi AI sedang diperbarui otomatis. Silakan tekan tombol Buat Ulang.';
         } else if (isNetwork) {
           message = 'Koneksi internet terputus atau tidak stabil. Silakan tekan tombol Buat Ulang.';
         } else {
           message = 'Gagal membuat narasi: $e';
         }
 
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
             backgroundColor: Colors.red[700],
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: 'Coba Lagi',
               textColor: Colors.white,

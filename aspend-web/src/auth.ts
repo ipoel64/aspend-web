@@ -5,6 +5,10 @@ import { getQrSession } from "@/lib/qr-session-store";
 
 async function refreshAccessToken(token: any) {
   try {
+    if (!token.refreshToken) {
+      throw new Error("No refresh token available");
+    }
+
     const url = "https://oauth2.googleapis.com/token";
     const response = await fetch(url, {
       method: "POST",
@@ -28,14 +32,35 @@ async function refreshAccessToken(token: any) {
     return {
       ...token,
       accessToken: refreshedTokens.access_token,
-      expiresAt: Math.floor(Date.now() / 1000 + (refreshedTokens.expires_in || 3600)),
+      googleExpiresAt: Math.floor(Date.now() / 1000 + (refreshedTokens.expires_in || 3600)),
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      error: undefined,
+      googleAuthNeeded: false,
     };
   } catch (error) {
-    console.error("Error refreshing access token:", error);
+    console.error("Error refreshing Google access token:", error);
+
+    // Periksa apakah ada token yang diperbarui via QrSession / Mobile Relay
+    if (token.sessionId) {
+      try {
+        const qs = getQrSession(token.sessionId);
+        if (qs?.user?.accessToken && qs.user.accessToken !== token.accessToken) {
+          return {
+            ...token,
+            accessToken: qs.user.accessToken,
+            googleExpiresAt: qs.user.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600),
+            refreshToken: qs.user.refreshToken || token.refreshToken,
+            error: undefined,
+            googleAuthNeeded: false,
+          };
+        }
+      } catch (_) {}
+    }
+
+    // JANGAN memutus sesi web 24 jam! Tandai googleAuthNeeded agar UI dapat memperbarui token secara in-place tanpa logout paksa.
     return {
       ...token,
-      error: "RefreshAccessTokenError",
+      googleAuthNeeded: true,
     };
   }
 }
@@ -43,7 +68,7 @@ async function refreshAccessToken(token: any) {
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // Sesi login aktif 24 jam (86400 detik)
+    maxAge: 24 * 60 * 60, // Sesi login aktif 24 jam penuh (86400 detik)
   },
   providers: [
     Google({
@@ -103,7 +128,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 if (body && (body.sessionId === sessionId || body.email)) {
                   let accessToken = body.accessToken || '';
                   let refreshToken = body.refreshToken || '';
-                  let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 3600);
+                  let googleExpiresAt = body.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600);
                   const serverAuthCode = body.serverAuthCode || '';
 
                   if (serverAuthCode && !refreshToken && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -124,7 +149,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         if (tokenData.access_token) {
                           accessToken = tokenData.access_token;
                           if (tokenData.refresh_token) refreshToken = tokenData.refresh_token;
-                          if (tokenData.expires_in) expiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+                          if (tokenData.expires_in) googleExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
                         }
                       }
                     } catch (_) {}
@@ -140,7 +165,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     accessToken,
                     refreshToken,
                     serverAuthCode,
-                    expiresAt: body.expiresAt || (Math.floor(Date.now() / 1000) + 86400),
+                    googleExpiresAt,
+                    expiresAt: Math.floor(Date.now() / 1000) + 86400, // Sesi Web 24 jam
                   };
                 }
               }
@@ -166,7 +192,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 if (tokenData.access_token) {
                   user.accessToken = tokenData.access_token;
                   if (tokenData.refresh_token) user.refreshToken = tokenData.refresh_token;
-                  if (tokenData.expires_in) user.expiresAt = Math.floor(Date.now() / 1000) + Math.max(tokenData.expires_in, 86400);
+                  if (tokenData.expires_in) user.googleExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
                 }
               }
             } catch (_) {}
@@ -179,9 +205,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             image: user.image,
             accessToken: user.accessToken,
             refreshToken: user.refreshToken,
-            expiresAt: user.expiresAt || (Math.floor(Date.now() / 1000) + 86400),
+            googleExpiresAt: user.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600),
             spreadsheetId: user.spreadsheetId,
             isPremium: Boolean(user.isPremium),
+            sessionId,
           } as any;
         }
         return null;
@@ -190,23 +217,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, account, user, profile }) {
-      // Login awal via Google OAuth
+      // Login awal via Google OAuth langsung di web
       if (account) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
-        token.expiresAt = account.expires_at || (Math.floor(Date.now() / 1000) + 86400);
+        (token as any).googleExpiresAt = account.expires_at || (Math.floor(Date.now() / 1000) + 3600);
         (token as any).sessionCreated = Date.now();
         delete token.error;
+        delete (token as any).googleAuthNeeded;
       }
+
       // Login awal via QR Code Credentials
       if (user) {
         token.picture = user.image || (profile as any)?.picture;
         (token as any).sessionCreated = Date.now();
         if ((user as any).accessToken) {
           token.accessToken = (user as any).accessToken;
-          token.refreshToken = (user as any).refreshToken;
-          token.expiresAt = (user as any).expiresAt || (Math.floor(Date.now() / 1000) + 86400);
+          token.refreshToken = (user as any).refreshToken || token.refreshToken;
+          (token as any).googleExpiresAt = (user as any).googleExpiresAt || (Math.floor(Date.now() / 1000) + 3500);
           delete token.error;
+          delete (token as any).googleAuthNeeded;
         }
         if ((user as any).spreadsheetId) {
           (token as any).spreadsheetId = (user as any).spreadsheetId;
@@ -219,17 +249,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
       }
 
-      // Refresh Google access token jika ada refreshToken dan token Google mendekati kadaluwarsa
-      if (token.refreshToken && token.expiresAt && Date.now() >= ((token.expiresAt as number) - 300) * 1000) {
+      // Periksa sinkronisasi token otomatis dari QrSession store jika ada update token baru
+      if ((token as any).sessionId) {
+        try {
+          const qs = getQrSession((token as any).sessionId);
+          if (qs?.user?.accessToken && qs.user.accessToken !== token.accessToken) {
+            token.accessToken = qs.user.accessToken;
+            (token as any).googleExpiresAt = qs.user.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3500);
+            if (qs.user.refreshToken) token.refreshToken = qs.user.refreshToken;
+            delete token.error;
+            delete (token as any).googleAuthNeeded;
+          }
+        } catch (_) {}
+      }
+
+      // Refresh Google access token secara otomatis jika ada refreshToken dan token Google mendekati kadaluwarsa (5 menit sebelumnya)
+      const googleExpiresAt = (token as any).googleExpiresAt;
+      if (token.refreshToken && googleExpiresAt && Date.now() >= (googleExpiresAt - 300) * 1000) {
         return await refreshAccessToken(token);
       }
 
-      // Sesi aktif 24 jam penuh. Hanya tandai berakhir jika 24 jam penuh telah terlewati
-      const sessionCreated = (token as any).sessionCreated || (token.expiresAt ? ((token.expiresAt as number) - 86400) * 1000 : 0);
-      if (sessionCreated > 0 && Date.now() >= sessionCreated + 24 * 60 * 60 * 1000) {
+      // Evaluasi masa aktif sesi 24 jam penuh (86.400.000 ms)
+      const sessionCreated = (token as any).sessionCreated || Date.now();
+      if (Date.now() >= sessionCreated + 24 * 60 * 60 * 1000) {
         return {
           ...token,
-          error: "RefreshAccessTokenError",
+          error: "Session24HoursExpired",
         };
       }
 
@@ -242,6 +287,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.refreshToken = token.refreshToken;
       if (token.error) {
         (session as any).error = token.error;
+      }
+      if ((token as any).googleAuthNeeded) {
+        (session as any).googleAuthNeeded = true;
+      }
+      if ((token as any).googleExpiresAt) {
+        (session as any).googleExpiresAt = (token as any).googleExpiresAt;
+      }
+      if ((token as any).sessionCreated) {
+        (session as any).sessionCreated = (token as any).sessionCreated;
       }
       if (session.user && token.picture) {
         session.user.image = token.picture as string;

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -23,19 +24,32 @@ class ReportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompleted = report.status.trim().toLowerCase() == 'selesai';
     final isDraft = report.status.trim().toLowerCase() == 'draft';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ?? Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+    final cardBg = isDark
+        ? const Color(0xFF1E293B).withValues(alpha: 0.65)
+        : Colors.white.withValues(alpha: 0.82);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.white.withValues(alpha: 0.85);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor, width: 1.1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
@@ -153,6 +167,8 @@ class ReportCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
+    ),
     );
   }
 

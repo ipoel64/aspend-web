@@ -282,17 +282,17 @@ async function compressFilesInChunks(
  * saat server atau Vercel mengembalikan pesan HTML (413 Payload Too Large, 504 Gateway Timeout, 401, dll.)
  */
 async function safeJsonParse(res: Response): Promise<any> {
-  if (res.status === 401 && typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('aspend-session-expired'));
-  }
   const text = await res.text();
   try {
     const parsed = JSON.parse(text);
-    if (
-      (res.status === 401 || parsed?.sessionExpired || parsed?.error === 'SESSION_EXPIRED') &&
-      typeof window !== 'undefined'
-    ) {
-      window.dispatchEvent(new CustomEvent('aspend-session-expired'));
+    if (parsed?.error === 'SESSION_24H_EXPIRED' || parsed?.is24HoursExpired) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aspend-session-expired-24h'));
+      }
+    } else if (parsed?.googleTokenExpired || (res.status === 401 && !parsed?.is24HoursExpired)) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aspend-google-token-expired'));
+      }
     }
     return parsed;
   } catch {
@@ -303,7 +303,10 @@ async function safeJsonParse(res: Response): Promise<any> {
       throw new Error('Batas waktu proses server habis (HTTP 504 Gateway Timeout). Silakan refresh halaman untuk mengecek status dokumen Anda.');
     }
     if (res.status === 401) {
-      throw new Error('Sesi login telah berakhir. Mengalihkan ke halaman login...');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('aspend-google-token-expired'));
+      }
+      throw new Error('Otorisasi Google Anda perlu diperbarui. Draf laporan Anda tetap aman tersimpan.');
     }
     throw new Error(`Terjadi kendala pada server (Status HTTP ${res.status}). Silakan coba beberapa saat lagi.`);
   }
@@ -411,6 +414,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [isGoogleAuthModalOpen, setIsGoogleAuthModalOpen] = useState(false);
+  const [reauthSessionId, setReauthSessionId] = useState<string>('');
+  const [reauthStatus, setReauthStatus] = useState<'IDLE' | 'LOADING' | 'READY' | 'SUCCESS'>('IDLE');
   const [sessionCountdown, setSessionCountdown] = useState(3);
   const [isProfileVerifiedFromServer, setIsProfileVerifiedFromServer] = useState(false);
   const lastActiveTimeRef = React.useRef<number>(Date.now());
@@ -612,8 +618,13 @@ export default function Home() {
       const res = await fetch("/api/dashboard");
       const result = await safeJsonParse(res);
       
-      if (res.status === 401 || result?.sessionExpired || result?.error === 'SESSION_EXPIRED') {
+      if (result?.error === 'SESSION_24H_EXPIRED' || result?.is24HoursExpired) {
         setIsSessionExpired(true);
+        return;
+      }
+
+      if (result?.googleTokenExpired) {
+        setIsGoogleAuthModalOpen(true);
         return;
       }
 
@@ -644,8 +655,12 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      if (err?.message?.includes('401') || err?.message?.includes('Sesi login telah berakhir')) {
+      if (err?.message?.includes('SESSION_24H_EXPIRED')) {
         setIsSessionExpired(true);
+        return;
+      }
+      if (err?.message?.includes('401') || err?.message?.includes('Otorisasi Google')) {
+        setIsGoogleAuthModalOpen(true);
         return;
       }
       if (!isSilentRefresh) {
@@ -674,10 +689,12 @@ export default function Home() {
     }
   }, [session?.user?.email, profile]);
 
-  // Pantau status kedaluwarsa sesi dari NextAuth atau event global HTTP 401
+  // Pantau status kedaluwarsa sesi dari NextAuth
   useEffect(() => {
-    if ((session as any)?.error === 'RefreshAccessTokenError') {
+    if ((session as any)?.error === 'Session24HoursExpired') {
       setIsSessionExpired(true);
+    } else if ((session as any)?.googleAuthNeeded) {
+      setIsGoogleAuthModalOpen(true);
     }
   }, [session]);
 
@@ -731,11 +748,18 @@ export default function Home() {
   }, [status, session]);
 
   useEffect(() => {
-    const handleSessionExpired = () => {
+    const handleSession24hExpired = () => {
       setIsSessionExpired(true);
     };
-    window.addEventListener('aspend-session-expired', handleSessionExpired);
-    return () => window.removeEventListener('aspend-session-expired', handleSessionExpired);
+    const handleGoogleTokenExpired = () => {
+      setIsGoogleAuthModalOpen(true);
+    };
+    window.addEventListener('aspend-session-expired-24h', handleSession24hExpired);
+    window.addEventListener('aspend-google-token-expired', handleGoogleTokenExpired);
+    return () => {
+      window.removeEventListener('aspend-session-expired-24h', handleSession24hExpired);
+      window.removeEventListener('aspend-google-token-expired', handleGoogleTokenExpired);
+    };
   }, []);
 
   // Countdown otomatis untuk mengalihkan ke halaman login saat sesi telah berakhir
@@ -756,6 +780,62 @@ export default function Home() {
     }, 1000);
     return () => clearInterval(timer);
   }, [isSessionExpired]);
+
+  // Efek otorisasi ulang token Google in-place tanpa memutus sesi 24 jam web
+  useEffect(() => {
+    if (!isGoogleAuthModalOpen) {
+      setReauthStatus('IDLE');
+      return;
+    }
+
+    let isMounted = true;
+    let pollTimer: NodeJS.Timeout | null = null;
+
+    const startReauth = async () => {
+      setReauthStatus('LOADING');
+      try {
+        const res = await fetch('/api/auth/qr-session?action=create');
+        const data = await res.json();
+        if (data?.success && data?.sessionId && isMounted) {
+          setReauthSessionId(data.sessionId);
+          setReauthStatus('READY');
+
+          // Mulai polling untuk otorisasi dari HP
+          pollTimer = setInterval(async () => {
+            try {
+              const pollRes = await fetch(`/api/auth/qr-session?sessionId=${encodeURIComponent(data.sessionId)}`);
+              if (!pollRes.ok) return;
+              const pollData = await pollRes.json();
+              if (pollData?.success && pollData?.status === 'AUTHORIZED' && isMounted) {
+                if (pollTimer) clearInterval(pollTimer);
+                setReauthStatus('SUCCESS');
+
+                // Update NextAuth session in-place
+                await signIn('qr-session', {
+                  sessionId: data.sessionId,
+                  userPayload: pollData.user ? JSON.stringify(pollData.user) : '',
+                  redirect: false,
+                });
+
+                setIsGoogleAuthModalOpen(false);
+                showToast('✅ Otorisasi Google berhasil diperbarui! Draf Anda siap disimpan.', 'success');
+                fetchDashboardData(true);
+              }
+            } catch (_) {}
+          }, 2000);
+        }
+      } catch (_) {
+        if (isMounted) setReauthStatus('IDLE');
+      }
+    };
+
+    startReauth();
+
+    return () => {
+      isMounted = false;
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [isGoogleAuthModalOpen, showToast, fetchDashboardData]);
 
   // Periksa ulang validitas sesi secara otomatis ketika pengguna kembali ke tab browser setelah lama tidak aktif
   useEffect(() => {
@@ -2181,14 +2261,19 @@ export default function Home() {
       } catch (_) {}
 
       const msg = String(err?.message || '').toLowerCase();
+      const is24h = msg.includes('session_24h_expired') || msg.includes('24 jam');
       const isAuth =
         msg.includes('invalid authentication credentials') ||
         msg.includes('401') ||
-        msg.includes('sesi') ||
+        msg.includes('otorisasi') ||
+        msg.includes('google_token_expired') ||
         msg.includes('session_expired');
 
-      if (isAuth) {
+      if (is24h) {
         setIsSessionExpired(true);
+      } else if (isAuth) {
+        setIsGoogleAuthModalOpen(true);
+        showToast('Otorisasi Google Drive perlu diperbarui. Draf Anda tersimpan aman, silakan tautkan ulang.', 'info');
       } else {
         showToast(err.message || 'Terjadi kesalahan saat menyimpan laporan.', 'error');
       }
@@ -5403,6 +5488,84 @@ export default function Home() {
                   className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                 >
                   Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Pembaruan Otorisasi Google In-Place (Draf Aman 100%, Tanpa Logout) */}
+        {isGoogleAuthModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
+            <div className="w-full max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border border-white/60 shadow-2xl p-6 sm:p-7 text-center animate-scale-up">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-2xl shadow-inner">
+                🔄
+              </div>
+              <h3 className="text-lg font-extrabold text-slate-900">
+                Penyegaran Otorisasi Google
+              </h3>
+              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                Sesi web Anda tetap aktif (24 Jam). Google Drive memerlukan penyegaran otorisasi untuk menyimpan file & dokumen PDF ke akun Anda.
+              </p>
+
+              {/* Draf Aman Callout */}
+              <div className="mt-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-left flex items-start gap-2.5">
+                <span className="text-emerald-600 text-base leading-none mt-0.5">✓</span>
+                <div className="text-xs text-emerald-800">
+                  <span className="font-bold block">Draf Laporan Anda Aman!</span>
+                  Teks narasi laporan, foto, dan formulir tetap tersimpan utuh di layar ini tanpa hilang.
+                </div>
+              </div>
+
+              {/* QR Code Barcode Box */}
+              <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[190px]">
+                {reauthStatus === 'LOADING' && (
+                  <div className="flex flex-col items-center py-6 space-y-2">
+                    <div className="w-7 h-7 border-3 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs text-gray-500 font-medium">Menyiapkan barcode penyegaran...</span>
+                  </div>
+                )}
+
+                {reauthStatus === 'READY' && reauthSessionId && (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=170x170&margin=6&data=${encodeURIComponent(
+                        JSON.stringify({
+                          type: 'ASPEND_WEB_LOGIN',
+                          session: reauthSessionId,
+                          device: 'Penyegaran Sesi Google',
+                          endpoint: `${typeof window !== 'undefined' ? window.location.origin : 'https://aspend-web.vercel.app'}/api/auth/qr-session`
+                        })
+                      )}`}
+                      alt="Scan QR Barcode untuk Penyegaran Sesi"
+                      width={170}
+                      height={170}
+                      className="rounded-xl shadow-xs border border-gray-100"
+                    />
+                    <p className="text-[11px] font-semibold text-slate-700 mt-2">
+                      Scan barcode di atas dari aplikasi Aspend Mobile di HP Anda
+                    </p>
+                  </div>
+                )}
+
+                {reauthStatus === 'SUCCESS' && (
+                  <div className="flex flex-col items-center py-6 space-y-2 animate-in zoom-in-95">
+                    <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xl font-bold">
+                      ✓
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700">Otorisasi Google Berhasil Disegarkan!</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Tombol Aksi */}
+              <div className="mt-4 flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsGoogleAuthModalOpen(false)}
+                  className="w-full py-3 px-4 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Tutup & Lanjut Mengedit Draf
                 </button>
               </div>
             </div>

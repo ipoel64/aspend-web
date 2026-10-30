@@ -24,10 +24,11 @@ export async function DELETE(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
       return NextResponse.json({
-        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
         sessionExpired: true,
+        is24HoursExpired: true,
         isAuthError: true
       }, { status: 401 });
     }
@@ -98,10 +99,11 @@ export async function PUT(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
       return NextResponse.json({
-        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
         sessionExpired: true,
+        is24HoursExpired: true,
         isAuthError: true
       }, { status: 401 });
     }
@@ -315,10 +317,11 @@ export async function POST(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
       return NextResponse.json({
-        error: 'Sesi otorisasi Google Anda telah berakhir. Silakan hubungkan ulang sesi dari aplikasi HP.',
+        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
         sessionExpired: true,
+        is24HoursExpired: true,
         isAuthError: true
       }, { status: 401 });
     }
@@ -574,9 +577,10 @@ export async function POST(request: Request) {
     const isAuthError = isGoogleAuthError(error) || msg.toLowerCase().includes('invalid authentication credentials') || error?.code === 401;
     return NextResponse.json({ 
       error: isAuthError 
-        ? 'Sesi otorisasi Google Anda telah berakhir (1 jam). Silakan tautkan ulang barcode dari aplikasi HP untuk melanjutkan.' 
+        ? 'Otorisasi token Google Anda perlu diperbarui. Draf narasi dan form Anda tetap aman tersimpan.' 
         : msg,
-      sessionExpired: isAuthError,
+      googleTokenExpired: isAuthError,
+      sessionExpired: false,
       isAuthError 
     }, { status: isAuthError ? 401 : 500 });
   }

@@ -59,6 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Notification State
   bool _notificationEnabled = true;
   TimeOfDay _notificationTime = const TimeOfDay(hour: 16, minute: 5);
+  String _notificationSoundType = 'default';
 
   String _appVersion = '';
   String _packageName = 'com.ipol.aspend';
@@ -77,10 +78,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final service = NotificationService();
     final enabled = await service.isNotificationEnabled();
     final time = await service.getScheduledTime();
+    final soundType = await service.getSoundType();
     if (mounted) {
       setState(() {
         _notificationEnabled = enabled;
         _notificationTime = TimeOfDay(hour: time['hour']!, minute: time['minute']!);
+        _notificationSoundType = soundType;
       });
     }
   }
@@ -1879,7 +1882,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (val) async {
               setState(() => _notificationEnabled = val);
               if (val) {
-                await NotificationService().requestPermissions();
+                await NotificationService().requestPermissions(requestExactAlarm: true);
               }
               await NotificationService().scheduleDailyNotification(enabled: val);
             },
@@ -1901,6 +1904,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       hour: newTime.hour,
                       minute: newTime.minute,
                     );
+                    if (mounted) {
+                      final hh = newTime.hour.toString().padLeft(2, '0');
+                      final mm = newTime.minute.toString().padLeft(2, '0');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Pengingat berhasil dijadwalkan pada pukul $hh.$mm'),
+                          backgroundColor: Colors.green[700],
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
                   }
                 },
                 icon: const Icon(Icons.access_time_rounded, size: 16, color: AppColors.navy),
@@ -1910,31 +1924,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const Divider(height: 1),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Nada Notifikasi', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+              subtitle: Text(
+                _notificationSoundType == 'chime'
+                    ? 'Nada Lonceng Lembut (Chime)'
+                    : (_notificationSoundType == 'system'
+                        ? 'Suara Standar Sistem HP'
+                        : 'Suara Asisten Aspend (Default)'),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _notificationSoundType,
+                  icon: const Icon(Icons.arrow_drop_down, color: AppColors.navy),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'default',
+                      child: Text('Suara Aspend (Default)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    ),
+                    DropdownMenuItem(
+                      value: 'system',
+                      child: Text('Suara Sistem HP', style: TextStyle(fontSize: 13)),
+                    ),
+                    DropdownMenuItem(
+                      value: 'chime',
+                      child: Text('Nada Lonceng (Chime)', style: TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                  onChanged: (val) async {
+                    if (val != null) {
+                      setState(() => _notificationSoundType = val);
+                      await NotificationService().scheduleDailyNotification(soundType: val);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Nada notifikasi berhasil diperbarui'),
+                            backgroundColor: Colors.green[700],
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () async {
-                  final granted = await NotificationService().requestPermissions();
-                  if (granted == false) {
-                    if (context.mounted) {
+                  try {
+                    final granted = await NotificationService().requestPermissions(requestExactAlarm: false);
+                    if (!granted) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Izin notifikasi belum diizinkan di pengaturan HP Anda.'),
+                            backgroundColor: Colors.orange,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    await NotificationService().showTestNotification(soundType: _notificationSoundType);
+                    if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Izin notifikasi belum diizinkan di pengaturan HP Anda.'),
-                          backgroundColor: Colors.orange,
+                        SnackBar(
+                          content: const Text('Notifikasi uji coba dikirim! Periksa panel notifikasi HP Anda.'),
+                          backgroundColor: Colors.green[700],
+                          behavior: SnackBarBehavior.floating,
                         ),
                       );
                     }
-                    return;
-                  }
-                  await NotificationService().showTestNotification();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notifikasi uji coba dikirim! Periksa panel notifikasi HP Anda.'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Gagal menampilkan notifikasi: $e'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
                   }
                 },
                 icon: const Icon(Icons.notifications_active_rounded, size: 16),

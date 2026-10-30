@@ -49,8 +49,8 @@ export async function GET(request: Request) {
     const session = await auth();
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
-    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
-      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
+    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
+      return NextResponse.json({ error: 'SESSION_24H_EXPIRED', sessionExpired: true, is24HoursExpired: true }, { status: 401 });
     }
     const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {
@@ -318,7 +318,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('KPM GET error:', error);
     if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
-      return NextResponse.json({ error: 'SESSION_EXPIRED', sessionExpired: true }, { status: 401 });
+      return NextResponse.json({ error: 'GOOGLE_TOKEN_EXPIRED', googleTokenExpired: true, sessionExpired: false }, { status: 401 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

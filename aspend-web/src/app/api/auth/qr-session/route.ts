@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createQrSession, getQrSession, authorizeQrSession, QrUserPayload } from '@/lib/qr-session-store';
+import {
+  createQrSession,
+  getQrSession,
+  authorizeQrSession,
+  updateQrSessionTokens,
+  QrUserPayload,
+} from '@/lib/qr-session-store';
 
 async function processQrPayload(body: any, sessionId: string): Promise<QrUserPayload> {
   let accessToken = body.accessToken || '';
   let refreshToken = body.refreshToken || '';
-  let expiresAt = body.expiresAt || (Math.floor(Date.now() / 1000) + 86400); // 24 jam
+  let googleExpiresAt = body.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600); // Token Google aktif 1 jam
+  let expiresAt = googleExpiresAt;
   const serverAuthCode = body.serverAuthCode || '';
 
   // Jika ada serverAuthCode dan GOOGLE_CLIENT_ID & SECRET tersedia, coba tukar ke Google OAuth token endpoint
@@ -29,9 +36,13 @@ async function processQrPayload(body: any, sessionId: string): Promise<QrUserPay
             refreshToken = tokenData.refresh_token;
           }
           if (tokenData.expires_in) {
-            expiresAt = Math.floor(Date.now() / 1000) + Math.max(tokenData.expires_in, 86400);
+            googleExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in;
+            expiresAt = googleExpiresAt;
           }
         }
+      } else {
+        const errText = await tokenRes.text();
+        console.warn("serverAuthCode exchange non-ok:", tokenRes.status, errText);
       }
     } catch (err) {
       console.warn("serverAuthCode exchange warning:", err);
@@ -50,6 +61,7 @@ async function processQrPayload(body: any, sessionId: string): Promise<QrUserPay
     serverAuthCode,
     idToken: body.idToken || '',
     expiresAt,
+    googleExpiresAt,
   };
 }
 
@@ -105,6 +117,36 @@ export async function GET(request: Request) {
       } catch (_) {}
     }
 
+    // Jika sudah AUTHORIZED, periksa apakah ada pembaruan token (refresh) via Cloud Relay
+    if (session.status === 'AUTHORIZED' && session.user) {
+      try {
+        const refreshRelay = await fetch(`https://ntfy.sh/aspend_qr_refresh_${encodeURIComponent(sessionId)}/raw?poll=1`, {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(1000)
+        });
+        if (refreshRelay.ok) {
+          const rawText = await refreshRelay.text();
+          if (rawText && rawText.trim()) {
+            const lines = rawText.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('{'));
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed?.accessToken && session.user && parsed.accessToken !== session.user.accessToken) {
+                  updateQrSessionTokens(
+                    sessionId,
+                    parsed.accessToken,
+                    parsed.refreshToken,
+                    parsed.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600)
+                  );
+                  session = getQrSession(sessionId)!;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     return NextResponse.json({
       success: true,
       sessionId: session.sessionId,
@@ -119,10 +161,36 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sessionId } = body;
+    const { sessionId, action } = body;
 
     if (!sessionId) {
       return NextResponse.json({ success: false, error: 'sessionId wajib diisi' }, { status: 400 });
+    }
+
+    // Action khusus: Pembaruan token berkala dari background mobile
+    if (action === 'REFRESH_TOKEN' && body.accessToken) {
+      const updated = updateQrSessionTokens(
+        sessionId,
+        body.accessToken,
+        body.refreshToken,
+        body.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600)
+      );
+
+      // Broadcast ke channel relay refresh
+      try {
+        await fetch(`https://ntfy.sh/aspend_qr_refresh_${encodeURIComponent(sessionId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: body.accessToken,
+            refreshToken: body.refreshToken,
+            googleExpiresAt: body.googleExpiresAt,
+            sessionId
+          }),
+        });
+      } catch (_) {}
+
+      return NextResponse.json({ success: updated, message: 'Token Google berhasil diperbarui.' });
     }
 
     let session = getQrSession(sessionId);

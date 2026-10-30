@@ -1,5 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
 import '../models/dashboard_stats.dart';
@@ -23,8 +25,17 @@ class ReportProvider extends ChangeNotifier {
   String? _filterMonth; // Format: 'YYYY-MM'
   String? _filterDate; // Format: 'YYYY-MM-DD'
 
+  static const String _prefCachedReportsKey = 'cached_reports_list_permanent';
+
+  ReportProvider() {
+    _loadFromLocalCache();
+  }
+
   void updateAuth(AuthProvider auth) {
     _auth = auth;
+    if (_reports.isEmpty) {
+      _loadFromLocalCache();
+    }
   }
 
   bool get isLoading => _isLoading;
@@ -33,42 +44,111 @@ class ReportProvider extends ChangeNotifier {
   List<Report> get filteredReports => _filteredReports;
   DashboardStats get stats => _stats;
 
+  Future<void> _loadFromLocalCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = _auth?.currentUser?.email ?? '';
+      final userKey = email.isNotEmpty ? '${_prefCachedReportsKey}_$email' : _prefCachedReportsKey;
+      final cachedStr = prefs.getString(userKey) ?? prefs.getString(_prefCachedReportsKey);
+
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(cachedStr);
+        _reports = decoded.map((row) => Report.fromSheetRow(List<Object?>.from(row))).toList();
+        _sortReports();
+        _applyFilters();
+        debugPrint('Loaded ${_reports.length} reports from permanent local cache');
+      }
+    } catch (e) {
+      debugPrint('Error loading cached reports: $e');
+    }
+  }
+
+  Future<void> _saveToLocalCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = _auth?.currentUser?.email ?? '';
+      final userKey = email.isNotEmpty ? '${_prefCachedReportsKey}_$email' : _prefCachedReportsKey;
+      final rowsToSave = _reports.map((r) => r.toSheetRow()).toList();
+      final jsonStr = jsonEncode(rowsToSave);
+      await prefs.setString(userKey, jsonStr);
+      await prefs.setString(_prefCachedReportsKey, jsonStr);
+    } catch (e) {
+      debugPrint('Error saving cached reports: $e');
+    }
+  }
+
+  void _sortReports() {
+    _reports.sort((a, b) {
+      final dateA = _parseReportDate(a.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB = _parseReportDate(b.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final pureDateA = DateTime(dateA.year, dateA.month, dateA.day);
+      final pureDateB = DateTime(dateB.year, dateB.month, dateB.day);
+      final comp = pureDateB.compareTo(pureDateA);
+      if (comp == 0) {
+        final timeA = _parseTime(a.pukul);
+        final timeB = _parseTime(b.pukul);
+        final timeComp = timeB.compareTo(timeA);
+        if (timeComp == 0) {
+          return b.createdAt.compareTo(a.createdAt);
+        }
+        return timeComp;
+      }
+      return comp;
+    });
+  }
+
   Future<void> loadReports() async {
-    if (_auth?.sheetsService == null || _auth?.spreadsheetId == null) return;
+    // 1. Tampilkan data dari cache lokal terlebih dahulu agar UI tidak pernah kosong (0 laporan)
+    if (_reports.isEmpty) {
+      await _loadFromLocalCache();
+    }
+
+    if (_auth == null) return;
+
+    // Pastikan service sheets siap. Jika sesi telah 1 jam / expired, segarkan token secara otomatis
+    if (_auth!.sheetsService == null) {
+      await _auth!.ensureFreshAuth();
+    }
+
+    if (_auth!.sheetsService == null || _auth!.spreadsheetId == null) {
+      return;
+    }
 
     _setLoading(true);
     _errorMessage = null;
 
     try {
-      final rows = await _auth!.sheetsService!.getAllRows(
-        _auth!.spreadsheetId!,
-        AppConstants.sheetLaporanLog,
-      );
+      List<List<Object?>> rows;
+      try {
+        rows = await _auth!.sheetsService!.getAllRows(
+          _auth!.spreadsheetId!,
+          AppConstants.sheetLaporanLog,
+        );
+      } catch (e) {
+        debugPrint('Fetch reports exception ($e), refreshing OAuth session...');
+        // Refresh token Google OAuth jika access token 1 jam telah kadaluarsa
+        final refreshed = await _auth!.ensureFreshAuth(forceRefresh: true);
+        if (refreshed && _auth!.sheetsService != null) {
+          rows = await _auth!.sheetsService!.getAllRows(
+            _auth!.spreadsheetId!,
+            AppConstants.sheetLaporanLog,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       _reports = rows.map((row) => Report.fromSheetRow(row)).toList();
-      // Sort by report date (tanggal) newest first, secondary sort by time (pukul), tertiary by creation time
-      _reports.sort((a, b) {
-        final dateA = _parseReportDate(a.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dateB = _parseReportDate(b.tanggal) ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final pureDateA = DateTime(dateA.year, dateA.month, dateA.day);
-        final pureDateB = DateTime(dateB.year, dateB.month, dateB.day);
-        final comp = pureDateB.compareTo(pureDateA);
-        if (comp == 0) {
-          final timeA = _parseTime(a.pukul);
-          final timeB = _parseTime(b.pukul);
-          final timeComp = timeB.compareTo(timeA);
-          if (timeComp == 0) {
-            return b.createdAt.compareTo(a.createdAt);
-          }
-          return timeComp;
-        }
-        return comp;
-      });
-
+      _sortReports();
+      await _saveToLocalCache();
       _applyFilters();
     } catch (e) {
       _errorMessage = 'Gagal memuat laporan: $e';
-      print(_errorMessage);
+      debugPrint(_errorMessage);
+      // Jangan hapus _reports yang sudah ada! Pertahankan data offline/cache lokal
+      if (_reports.isNotEmpty) {
+        _applyFilters();
+      }
     }
 
     _setLoading(false);

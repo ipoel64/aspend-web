@@ -7,7 +7,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 // ignore: implementation_imports
 import 'package:mobile_scanner/src/method_channel/mobile_scanner_method_channel.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/app_theme.dart';
+import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/subscription_service.dart';
 
@@ -128,6 +130,7 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
     // Parse session ID & endpoint
     String sessionId = data;
     String? apiEndpoint;
+    String? scannedDevice;
 
     final trimmed = data.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -135,10 +138,12 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
         final json = jsonDecode(trimmed);
         sessionId = json['session'] ?? json['sessionId'] ?? data;
         apiEndpoint = json['endpoint'];
+        scannedDevice = json['device'] ?? json['deviceInfo'];
       } catch (_) {}
     } else if (data.contains('session=')) {
       final uri = Uri.tryParse(data);
       sessionId = uri?.queryParameters['session'] ?? data;
+      scannedDevice = uri?.queryParameters['device'];
       if (uri != null && uri.host.isNotEmpty) {
         apiEndpoint = uri.replace(path: '/api/auth/qr-session', query: '').toString();
       }
@@ -283,7 +288,7 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
     );
 
     if (confirmed == true && mounted) {
-      await _authorizeWebSession(sessionId, apiEndpoint: apiEndpoint);
+      await _authorizeWebSession(sessionId, apiEndpoint: apiEndpoint, deviceInfo: scannedDevice);
     } else {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -292,7 +297,7 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
     }
   }
 
-  Future<void> _authorizeWebSession(String sessionId, {String? apiEndpoint}) async {
+  Future<void> _authorizeWebSession(String sessionId, {String? apiEndpoint, String? deviceInfo}) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -317,12 +322,13 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
       final auth = context.read<AuthProvider>();
       await auth.ensureFreshAuth();
 
-      final creds = await auth.getOAuthCredentials(forceRefresh: true);
+      final creds = await auth.getOAuthCredentials(forceRefresh: true, needServerAuthCode: true);
       String accessToken = creds['accessToken'] as String? ?? '';
       final idToken = creds['idToken'] as String? ?? '';
       final serverAuthCode = creds['serverAuthCode'] as String? ?? '';
       final refreshToken = creds['refreshToken'] as String? ?? '';
-      final expiresAt = creds['expiresAt'] as int? ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600);
+      final googleExpiresAt = creds['expiresAt'] as int? ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600);
+      final expiresAt = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 86400; // Sesi Web 24 Jam
 
       // Fallback jika belum terisi dari client
       if (accessToken.isEmpty) {
@@ -356,7 +362,8 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
         'idToken': idToken,
         'serverAuthCode': serverAuthCode,
         'refreshToken': refreshToken,
-        'expiresAt': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 86400, // 24 jam
+        'googleExpiresAt': googleExpiresAt,
+        'expiresAt': expiresAt,
       });
 
       // Always send to cloud relay so mobile on 4G/cellular data can authorize local PC web!
@@ -388,23 +395,90 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
         }
       }
 
-      // 2. Write authentication record to Google Sheet Web_Sessions tab or cloud log
-      if (auth.sheetsService != null && auth.spreadsheetId != null) {
-        final payload = [
-          sessionId,
-          auth.currentUser?.email ?? '',
-          auth.userProfile?.nama ?? '',
-          auth.spreadsheetId ?? '',
-          'AUTHORIZED',
-          DateTime.now().toIso8601String(),
-        ];
+      final effectiveDevice = (deviceInfo != null && deviceInfo.isNotEmpty)
+          ? deviceInfo
+          : 'Aspend Web (Browser Laptop/PC)';
 
+      // 2. Simpan sesi aktif ke SharedPreferences secara instan
+      final newSessionMap = {
+        'sessionId': sessionId,
+        'email': auth.currentUser?.email ?? '',
+        'nama': auth.userProfile?.nama ?? auth.currentUser?.displayName ?? '',
+        'spreadsheetId': auth.spreadsheetId ?? '',
+        'status': 'AUTHORIZED',
+        'createdAt': DateTime.now().toIso8601String(),
+        'deviceInfo': effectiveDevice,
+      };
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final localSessionsStr = prefs.getString('local_web_sessions') ?? '[]';
+        List<dynamic> localList = [];
         try {
-          await auth.sheetsService!.appendRow(
+          localList = jsonDecode(localSessionsStr) as List;
+        } catch (_) {}
+        localList.removeWhere((item) => item['sessionId'] == sessionId);
+        localList.insert(0, newSessionMap);
+        await prefs.setString('local_web_sessions', jsonEncode(localList));
+        debugPrint('QR Login: Sesi berhasil disimpan ke penyimpanan lokal.');
+      } catch (e) {
+        debugPrint('QR Login: Save local session error: $e');
+      }
+
+      // 3. Simpan dan sinkronisasi ke tab Web_Sessions di Google Sheets
+      if (auth.sheetsService != null && auth.spreadsheetId != null) {
+        try {
+          // Pastikan tab Web_Sessions sudah ada
+          final sheetNames = await auth.sheetsService!.getSheetNames(auth.spreadsheetId!);
+          if (!sheetNames.contains(AppConstants.sheetWebSessions)) {
+            await auth.sheetsService!.createSheet(auth.spreadsheetId!, AppConstants.sheetWebSessions);
+            await auth.sheetsService!.writeHeaders(
+              auth.spreadsheetId!,
+              AppConstants.sheetWebSessions,
+              [
+                'SessionId',
+                'Email',
+                'Nama',
+                'SpreadsheetId',
+                'Status',
+                'CreatedAt',
+                'DeviceInfo',
+              ],
+            );
+          }
+
+          final payload = [
+            sessionId,
+            auth.currentUser?.email ?? '',
+            auth.userProfile?.nama ?? '',
+            auth.spreadsheetId ?? '',
+            'AUTHORIZED',
+            DateTime.now().toIso8601String(),
+            effectiveDevice,
+          ];
+
+          final existingRow = await auth.sheetsService!.findRowByValue(
             auth.spreadsheetId!,
-            'Web_Sessions',
-            payload,
+            AppConstants.sheetWebSessions,
+            0,
+            sessionId,
           );
+
+          if (existingRow > 0) {
+            await auth.sheetsService!.updateRow(
+              auth.spreadsheetId!,
+              AppConstants.sheetWebSessions,
+              existingRow,
+              payload,
+            );
+          } else {
+            await auth.sheetsService!.appendRow(
+              auth.spreadsheetId!,
+              AppConstants.sheetWebSessions,
+              payload,
+            );
+          }
+          debugPrint('QR Login: Sesi berhasil dicatat di tab Web_Sessions Google Sheets.');
         } catch (e) {
           debugPrint('Note: Web_Sessions sheet append status: $e');
         }
@@ -816,19 +890,54 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 15,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 10),
+                          // Badge Alamat Web Jelas & Mencolok
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF0D9488), Color(0xFF0284C7)],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF0D9488).withOpacity(0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.language_rounded, color: Colors.white, size: 16),
+                                SizedBox(width: 8),
+                                Text(
+                                  'aspend-web.vercel.app',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Text(
-                            'Buka aspend-web.vercel.app di browser laptop/PC Anda, lalu arahkan kamera ke barcode untuk login otomatis.',
+                            'Buka alamat web di atas pada laptop/PC Anda, lalu arahkan kamera ke kode QR untuk login otomatis.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontSize: 12,
-                              height: 1.4,
+                              color: Colors.white.withOpacity(0.85),
+                              fontSize: 11.5,
+                              height: 1.35,
                             ),
                           ),
                         ],

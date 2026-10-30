@@ -35,9 +35,15 @@ function createAuthExpiredError(): Error & { status?: number; code?: number } {
  * Mendapatkan instance Google Sheets API yang sudah terautentikasi dengan token user
  * @param accessToken Token akses OAuth2 dari session NextAuth
  */
-export async function getSheetsClient(accessToken: string) {
-  const auth = new google.auth.OAuth2();
-  auth.setCredentials({ access_token: accessToken });
+export async function getSheetsClient(accessToken: string, refreshToken?: string) {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+  auth.setCredentials({
+    access_token: accessToken,
+    ...(refreshToken ? { refresh_token: refreshToken } : {})
+  });
   return google.sheets({ version: 'v4', auth });
 }
 

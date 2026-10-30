@@ -11,6 +11,7 @@ class AppConstants {
   static const String sheetPengaduan = 'Pengaduan';
   static const String sheetNotaDinas = 'Nota_Dinas';
   static const String sheetRiwayatPoin = 'Riwayat_Poin';
+  static const String sheetWebSessions = 'Web_Sessions';
 
   // Google Drive
   static const String driveFolderOutput = 'Aspend_Output';
@@ -21,10 +22,10 @@ class AppConstants {
 
   // AI Default Configuration
   static const String defaultAiProvider = 'openrouter';
-  static const String defaultAiApiKey = '[REDACTED_API_KEY]'; // Default locked key
+  static const String defaultAiApiKey = String.fromEnvironment('AI_API_KEY', defaultValue: '');
   static const String defaultGroqModel = 'llama-3.3-70b-versatile';
   static const String defaultOpenRouterModel = 'google/gemini-2.5-flash-lite';
-  static const String defaultOpenRouterApiKey = '[REDACTED_API_KEY]';
+  static const String defaultOpenRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY', defaultValue: '');
 
   // App Meta
   static const String appVersion = '1.0.0';

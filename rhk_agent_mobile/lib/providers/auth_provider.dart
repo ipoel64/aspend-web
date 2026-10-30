@@ -39,12 +39,24 @@ class AuthProvider extends ChangeNotifier {
   bool get isProfileComplete => _isProfileComplete;
   AuthService get authService => _authService;
 
-  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false}) async {
-    return await _authService.getOAuthCredentials(forceRefresh: forceRefresh);
+  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false, bool needServerAuthCode = false}) async {
+    return await _authService.getOAuthCredentials(forceRefresh: forceRefresh, needServerAuthCode: needServerAuthCode);
   }
+
+  static const String _prefPermanentLogin = 'user_has_logged_in_permanently';
+  static const String _prefPermanentSpreadsheetId = 'cached_spreadsheet_id_permanent';
 
   Future<bool> tryAutoSignIn() async {
     _setLoading(true);
+    final prefs = await SharedPreferences.getInstance();
+    final wasLoggedIn = prefs.getBool(_prefPermanentLogin) ?? false;
+
+    // Jika sebelumnya user sudah login, pulihkan ID spreadsheet dan profil lokal
+    if (wasLoggedIn) {
+      _spreadsheetId = prefs.getString(_prefPermanentSpreadsheetId);
+      await loadProfile();
+    }
+
     try {
       final account = await _authService.signInSilently();
       if (account != null) {
@@ -55,8 +67,25 @@ class AuthProvider extends ChangeNotifier {
         return true;
       }
     } catch (e) {
-      debugPrint('Auto sign in error: $e');
+      debugPrint('Auto sign in silent refresh warning: $e');
     }
+
+    // Jika user pernah login secara sah, sesi tetap aktif selamanya (tidak pernah auto-logout)
+    if (wasLoggedIn) {
+      try {
+        final client = await _authService.getAuthClient(forceRefresh: false);
+        if (client != null) {
+          _sheetsService = SheetsService(sheets.SheetsApi(client));
+          _driveService = DriveService(drive.DriveApi(client));
+          _setupService = SetupService(_sheetsService!, _driveService!);
+        }
+      } catch (err) {
+        debugPrint('Fallback initializeServices error: $err');
+      }
+      _setLoading(false);
+      return true;
+    }
+
     _setLoading(false);
     return false;
   }
@@ -88,11 +117,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> refreshSession() async {
     try {
-      final account = await _authService.signInSilently();
-      if (account != null) {
-        // Accessing authentication forces native token refresh if expired
-        await account.authentication;
-        await _initializeServices();
+      final client = await _authService.getAuthClient(forceRefresh: true);
+      if (client != null) {
+        _sheetsService = SheetsService(sheets.SheetsApi(client));
+        _driveService = DriveService(drive.DriveApi(client));
+        _setupService = SetupService(_sheetsService!, _driveService!);
         return true;
       }
     } catch (e) {
@@ -102,20 +131,16 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Memastikan token Google Auth selalu segar sebelum operasi API penting (mencegah invalid_token)
-  Future<bool> ensureFreshAuth() async {
+  Future<bool> ensureFreshAuth({bool forceRefresh = false}) async {
     try {
-      final account = _authService.currentUser;
-      if (account != null) {
-        await account.authentication;
-        final client = await _authService.getAuthClient(forceRefresh: true);
-        if (client != null) {
-          _sheetsService = SheetsService(sheets.SheetsApi(client));
-          _driveService = DriveService(drive.DriveApi(client));
-          if (_setupService != null) {
-            _setupService = SetupService(_sheetsService!, _driveService!);
-          }
-          return true;
+      final client = await _authService.getAuthClient(forceRefresh: forceRefresh);
+      if (client != null) {
+        _sheetsService = SheetsService(sheets.SheetsApi(client));
+        _driveService = DriveService(drive.DriveApi(client));
+        if (_setupService != null) {
+          _setupService = SetupService(_sheetsService!, _driveService!);
         }
+        return true;
       }
     } catch (e) {
       debugPrint('ensureFreshAuth warning: $e');
@@ -124,6 +149,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefPermanentLogin, false);
+      await prefs.remove(_prefPermanentSpreadsheetId);
+      await prefs.remove('cached_user_profile_');
+      final email = currentUser?.email ?? '';
+      if (email.isNotEmpty) {
+        await prefs.remove('cached_user_profile_$email');
+      }
+    } catch (_) {}
+
     await _authService.signOut();
     _sheetsService = null;
     _driveService = null;
@@ -152,12 +188,19 @@ class AuthProvider extends ChangeNotifier {
       if (_spreadsheetId != null) {
         await _setupService!.checkAndCreateKpmSheets(_spreadsheetId!);
         await _setupService!.checkAndCreatePengaduanAndNotaDinasSheets(_spreadsheetId!);
+        await _setupService!.checkAndCreateWebSessionsSheet(_spreadsheetId!);
       }
     }
 
     if (_spreadsheetId == null) {
       throw Exception('Gagal mendapatkan Spreadsheet ID');
     }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefPermanentLogin, true);
+      await prefs.setString(_prefPermanentSpreadsheetId, _spreadsheetId!);
+    } catch (_) {}
 
     await loadProfile();
 

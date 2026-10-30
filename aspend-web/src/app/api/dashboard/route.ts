@@ -80,12 +80,14 @@ export async function GET(request: Request) {
     const session = await auth();
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
+    // @ts-expect-error - refreshToken is set in jwt callback
+    const refreshToken = session?.refreshToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'RefreshAccessTokenError') {
+    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
       return NextResponse.json({
-        error: 'SESSION_EXPIRED',
+        error: 'SESSION_24H_EXPIRED',
         sessionExpired: true,
-        message: 'Sesi login Anda telah berakhir karena tidak ada aktivitas dalam waktu tertentu. Silakan masuk kembali.'
+        message: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan akun, silakan hubungkan ulang akun dengan scan barcode.'
       }, { status: 401 });
     }
 
@@ -426,9 +428,10 @@ export async function GET(request: Request) {
     console.error('Error di /api/dashboard:', error);
     if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
       return NextResponse.json({
-        error: 'SESSION_EXPIRED',
-        sessionExpired: true,
-        message: 'Sesi login Anda telah berakhir karena tidak ada aktivitas dalam waktu tertentu. Silakan masuk kembali.'
+        error: 'GOOGLE_TOKEN_EXPIRED',
+        googleTokenExpired: true,
+        sessionExpired: false,
+        message: 'Otorisasi token Google Anda perlu diperbarui. Draf Anda tetap aman.'
       }, { status: 401 });
     }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

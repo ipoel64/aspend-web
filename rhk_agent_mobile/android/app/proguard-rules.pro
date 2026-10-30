@@ -1,4 +1,5 @@
 # Flutter Local Notifications / WorkManager rules
+-keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -keep class androidx.work.** { *; }
 -keep class androidx.room.** { *; }
 -keep class androidx.sqlite.** { *; }
@@ -6,6 +7,7 @@
     <init>();
 }
 -keep class com.dexterous.flutterlocalnotifications.** { *; }
+-keepclassmembers class com.dexterous.flutterlocalnotifications.** { *; }
 -keep class androidx.core.app.NotificationCompat** { *; }
 
 # Gson rules (untuk mencegah crash TypeToken pada build release)

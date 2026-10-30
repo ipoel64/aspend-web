@@ -12,6 +12,7 @@ export interface QrUserPayload {
   serverAuthCode?: string;
   idToken?: string;
   expiresAt?: number;
+  googleExpiresAt?: number;
 }
 
 export interface QrSession {
@@ -45,8 +46,11 @@ export function createQrSession(sessionId?: string): QrSession {
 export function getQrSession(sessionId: string): QrSession | null {
   const session = qrSessionsMap.get(sessionId);
   if (!session) return null;
-  // Expire after 10 minutes
-  if (Date.now() - session.createdAt > 10 * 60 * 1000) {
+
+  // Sesi PENDING kedaluwarsa setelah 10 menit (waktu scan barcode baru)
+  // Sesi AUTHORIZED aktif penuh selama 24 jam (86.400.000 ms)
+  const maxLifetime = session.status === 'AUTHORIZED' ? 24 * 60 * 60 * 1000 : 10 * 60 * 1000;
+  if (Date.now() - session.createdAt > maxLifetime) {
     session.status = 'EXPIRED';
     qrSessionsMap.delete(sessionId);
     return null;
@@ -55,10 +59,38 @@ export function getQrSession(sessionId: string): QrSession | null {
 }
 
 export function authorizeQrSession(sessionId: string, user: QrUserPayload): boolean {
+  let session = qrSessionsMap.get(sessionId);
+  if (!session) {
+    session = {
+      sessionId,
+      status: 'AUTHORIZED',
+      createdAt: Date.now(),
+      user,
+    };
+  } else {
+    session.status = 'AUTHORIZED';
+    session.user = { ...(session.user || {}), ...user };
+  }
+  qrSessionsMap.set(sessionId, session);
+  return true;
+}
+
+export function updateQrSessionTokens(
+  sessionId: string,
+  accessToken: string,
+  refreshToken?: string,
+  googleExpiresAt?: number
+): boolean {
   const session = getQrSession(sessionId);
-  if (!session) return false;
-  session.status = 'AUTHORIZED';
-  session.user = user;
+  if (!session || !session.user) return false;
+
+  session.user.accessToken = accessToken;
+  if (refreshToken) {
+    session.user.refreshToken = refreshToken;
+  }
+  if (googleExpiresAt) {
+    session.user.googleExpiresAt = googleExpiresAt;
+  }
   qrSessionsMap.set(sessionId, session);
   return true;
 }

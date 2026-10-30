@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 import '../models/kpm_model.dart';
 import 'auth_provider.dart';
@@ -9,20 +11,72 @@ class KpmProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  static const String _prefCachedKpmKey = 'cached_kpm_list_permanent';
+
+  KpmProvider() {
+    _loadFromLocalCache();
+  }
+
   List<KpmCaretaker> get kpmList => _kpmList;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
   void updateAuth(AuthProvider authProvider) {
     _authProvider = authProvider;
+    if (_kpmList.isEmpty) {
+      _loadFromLocalCache();
+    }
     // Otomatis fetch data jika user sudah masuk dan spreadsheet siap
     if (authProvider.isSignedIn && authProvider.spreadsheetId != null) {
       fetchKpmList();
     }
   }
 
+  Future<void> _loadFromLocalCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = _authProvider?.currentUser?.email ?? '';
+      final userKey = email.isNotEmpty ? '${_prefCachedKpmKey}_$email' : _prefCachedKpmKey;
+      final cachedStr = prefs.getString(userKey) ?? prefs.getString(_prefCachedKpmKey);
+
+      if (cachedStr != null && cachedStr.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(cachedStr);
+        _kpmList = decoded.map((row) => KpmCaretaker.fromSheetRow(List<dynamic>.from(row))).toList();
+        notifyListeners();
+        debugPrint('Loaded ${_kpmList.length} KPM from permanent local cache');
+      }
+    } catch (e) {
+      debugPrint('Error loading cached KPM: $e');
+    }
+  }
+
+  Future<void> _saveToLocalCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = _authProvider?.currentUser?.email ?? '';
+      final userKey = email.isNotEmpty ? '${_prefCachedKpmKey}_$email' : _prefCachedKpmKey;
+      final rowsToSave = _kpmList.map((k) => k.toSheetRow()).toList();
+      final jsonStr = jsonEncode(rowsToSave);
+      await prefs.setString(userKey, jsonStr);
+      await prefs.setString(_prefCachedKpmKey, jsonStr);
+    } catch (e) {
+      debugPrint('Error saving cached KPM: $e');
+    }
+  }
+
   /// Memuat daftar singkat KPM dari Google Sheets
   Future<void> fetchKpmList() async {
+    // 1. Muat dari cache lokal terlebih dahulu agar UI instan
+    if (_kpmList.isEmpty) {
+      await _loadFromLocalCache();
+    }
+
+    if (_authProvider == null) return;
+
+    if (_authProvider!.sheetsService == null) {
+      await _authProvider!.ensureFreshAuth();
+    }
+
     final sheets = _authProvider?.sheetsService;
     final ssId = _authProvider?.spreadsheetId;
     if (sheets == null || ssId == null) return;
@@ -31,11 +85,25 @@ class KpmProvider extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      final rows = await sheets.getAllRows(ssId, AppConstants.sheetKpmMaster);
+      List<List<dynamic>> rows;
+      try {
+        rows = await sheets.getAllRows(ssId, AppConstants.sheetKpmMaster);
+      } catch (e) {
+        debugPrint('Fetch KPM failed ($e), refreshing token...');
+        final refreshed = await _authProvider!.ensureFreshAuth(forceRefresh: true);
+        if (refreshed && _authProvider!.sheetsService != null) {
+          rows = await _authProvider!.sheetsService!.getAllRows(ssId, AppConstants.sheetKpmMaster);
+        } else {
+          rethrow;
+        }
+      }
+
       _kpmList = rows.map((row) => KpmCaretaker.fromSheetRow(row)).toList();
+      await _saveToLocalCache();
       notifyListeners();
     } catch (e) {
       _errorMessage = 'Gagal memuat daftar KPM: $e';
+      debugPrint(_errorMessage);
     } finally {
       _setLoading(false);
     }

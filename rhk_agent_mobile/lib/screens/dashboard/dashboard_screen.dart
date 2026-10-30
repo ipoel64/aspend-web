@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -11,9 +12,6 @@ import '../../providers/report_provider.dart';
 import '../../models/report.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/report_card.dart';
-import '../settings/settings_screen.dart';
-import '../jarvis/jarvis_assistant_screen.dart';
-import '../auth/qr_web_login_screen.dart';
 import '../auth/linked_devices_screen.dart';
 
 /// Dashboard Screen — Statistik + Riwayat Laporan + Filter
@@ -27,7 +25,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
 
   String? _filterJenis;
-  String? _filterRencanaAksi;
   String? _filterMonth;
   String? _filterDate;
 
@@ -47,7 +44,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _resetFilters() {
     setState(() {
       _filterJenis = null;
-      _filterRencanaAksi = null;
       _filterMonth = null;
       _filterDate = null;
     });
@@ -57,11 +53,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2EBF5),
       body: Stack(
         children: [
+          // Ambient Multi-Tone Mesh Wallpaper (Glassy Style identical to Aspend Web)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? const [
+                          Color(0xFF090D16),
+                          Color(0xFF0F172A),
+                          Color(0xFF0B192C),
+                        ]
+                      : const [
+                          Color(0xFFE2EBF5),
+                          Color(0xFFEEF2F8),
+                          Color(0xFFE5ECF6),
+                        ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -40,
+            left: -40,
+            width: 240,
+            height: 240,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isDark
+                      ? const Color(0xFF0284C7).withValues(alpha: 0.12)
+                      : const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 160,
+            right: -50,
+            width: 260,
+            height: 260,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isDark
+                      ? const Color(0xFF6366F1).withValues(alpha: 0.10)
+                      : const Color(0xFFFB923C).withValues(alpha: 0.18),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 120,
+            left: -40,
+            width: 220,
+            height: 220,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isDark
+                      ? const Color(0xFF0D9488).withValues(alpha: 0.12)
+                      : const Color(0xFF2DD4BF).withValues(alpha: 0.20),
+                ),
+              ),
+            ),
+          ),
           RefreshIndicator(
             color: AppColors.navy,
             onRefresh: () => context.read<ReportProvider>().loadReports(),
@@ -165,6 +232,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ],
                             ),
+                          ),
+                          // Google Drive Folder Button (Disamping kiri icon scan barcode)
+                          IconButton(
+                            onPressed: _openGoogleDriveFolder,
+                            icon: const Icon(Icons.folder_shared_rounded, color: Colors.white, size: 23),
+                            tooltip: 'Buka Folder Google Drive',
                           ),
                           // Scan QR / Perangkat Web Tertaut Button
                           IconButton(
@@ -444,36 +517,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
-      // Floating Asisten Pintar Button on Dashboard (Dapat Digeser-geser)
-      const _AsistenPintarFloatingWidget(),
     ],
   ),
 );
   }
 
   Widget _buildStatCards() {
+    final auth = context.read<AuthProvider>();
+    final jenisSdm = auth.userProfile?.jenisSdm ?? 'SDM PKH';
+    final uniqueJenis = getUniqueJenisRHK(jenisSdm);
+    final rhkKeys = uniqueJenis.map((e) => e['id'] ?? '').where((id) => id.isNotEmpty).toList();
+
     return Consumer<ReportProvider>(
-      builder: (_, rp, __) => Row(
-        children: [
-          Expanded(
-            child: StatCard(
-              icon: Icons.assignment_rounded,
-              title: 'Total Laporan',
-              value: '${rp.stats.total}',
-              color: AppColors.navy,
+      builder: (_, rp, __) {
+        final counts = rp.stats.rhkCountsMonth;
+        int totalTarget = 0;
+        int totalCount = 0;
+        for (var k in rhkKeys) {
+          totalTarget += _getRhkTarget(k, jenisSdm);
+          totalCount += counts[k] ?? 0;
+        }
+        final totalPct = totalTarget > 0 ? ((totalCount / totalTarget) * 100).clamp(0, 100).round() : 0;
+
+        return Row(
+          children: [
+            Expanded(
+              child: StatCard(
+                icon: Icons.assignment_rounded,
+                title: 'Total Laporan',
+                value: '${rp.stats.total}',
+                color: AppColors.navy,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: StatCard(
-              icon: Icons.calendar_month_rounded,
-              title: 'Bulan Ini',
-              value: '${rp.stats.month}',
-              color: AppColors.gold,
+            const SizedBox(width: 12),
+            Expanded(
+              child: StatCard(
+                icon: Icons.calendar_month_rounded,
+                title: 'Bulan Ini',
+                value: '${rp.stats.month} / $totalTarget',
+                badgeText: '$totalPct%',
+                subtitle: totalCount >= totalTarget ? 'Target Tercapai!' : 'Progres Target',
+                color: totalCount >= totalTarget ? const Color(0xFF10B981) : AppColors.gold,
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -518,166 +607,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final uniqueJenis = getUniqueJenisRHK(jenisSdm);
     final rhkKeys = uniqueJenis.map((e) => e['id'] ?? '').where((id) => id.isNotEmpty).toList();
 
-    int totalTarget = 0;
-    int totalCount = 0;
-    for (var k in rhkKeys) {
-      totalTarget += _getRhkTarget(k, jenisSdm);
-      totalCount += counts[k] ?? 0;
-    }
-    final totalPct = totalTarget > 0 ? ((totalCount / totalTarget) * 100).clamp(0, 100).round() : 0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = (constraints.maxWidth - 10) / 3;
+        return Wrap(
+          spacing: 5,
+          runSpacing: 4.5,
+          children: rhkKeys.map((key) {
+            final target = _getRhkTarget(key, jenisSdm);
+            final count = counts[key] ?? 0;
+            final pct = target > 0 ? ((count / target) * 100).clamp(0, 100).round() : 0;
+            final isDone = count >= target;
+            final isSelected = _filterJenis == key;
+            final color = _getRhkColor(key);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header Ringkasan Target Bulan Ini
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.track_changes_rounded,
-                  size: 16,
-                  color: isDark ? const Color(0xFF38BDF8) : AppColors.teal,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Target RHK Bulan Ini',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : AppColors.navyDark,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: totalCount >= totalTarget
-                        ? Colors.green.withOpacity(0.15)
-                        : (isDark ? Colors.white10 : Colors.grey.withOpacity(0.12)),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: totalCount >= totalTarget
-                          ? Colors.green.withOpacity(0.4)
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Text(
-                    '$totalCount / $totalTarget ($totalPct%)',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: totalCount >= totalTarget
-                          ? (isDark ? Colors.greenAccent : Colors.green.shade800)
-                          : (isDark ? Colors.grey[300] : Colors.grey[700]),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (_filterJenis != null)
-              InkWell(
+            Color cardBg;
+            Color borderColor;
+            if (isSelected) {
+              cardBg = color.withOpacity(isDark ? 0.3 : 0.15);
+              borderColor = color;
+            } else if (isDone) {
+              cardBg = isDark
+                  ? const Color(0xFF064E3B).withOpacity(0.4)
+                  : const Color(0xFFECFDF5).withOpacity(0.85);
+              borderColor = isDark
+                  ? const Color(0xFF10B981).withOpacity(0.6)
+                  : const Color(0xFF6EE7B7);
+            } else {
+              cardBg = isDark
+                  ? const Color(0xFF1E293B).withOpacity(0.55)
+                  : color.withOpacity(0.04);
+              borderColor = isDark
+                  ? Colors.white10
+                  : color.withOpacity(0.18);
+            }
+
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
                 onTap: () {
+                  final now = DateTime.now();
+                  final currentMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
                   setState(() {
-                    _filterJenis = null;
-                    _filterRencanaAksi = null;
+                    if (_filterJenis == key) {
+                      _filterJenis = null;
+                      _filterMonth = null;
+                      _filterDate = null;
+                      context.read<ReportProvider>().setFilterJenis(null);
+                      context.read<ReportProvider>().setFilterMonth(null);
+                    } else {
+                      _filterJenis = key;
+                      _filterMonth = currentMonth;
+                      _filterDate = null;
+                      context.read<ReportProvider>().setFilterJenis(key);
+                      context.read<ReportProvider>().setFilterMonth(currentMonth);
+                    }
                   });
-                  context.read<ReportProvider>().setFilterJenis(null);
                 },
-                borderRadius: BorderRadius.circular(6),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Filter: $_filterJenis',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.teal,
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      const Icon(Icons.close_rounded, size: 12, color: AppColors.teal),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // Grid 3 Kolom Responsif Kartu Target RHK
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final cardWidth = (constraints.maxWidth - 12) / 3;
-            return Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: rhkKeys.map((key) {
-                final target = _getRhkTarget(key, jenisSdm);
-                final count = counts[key] ?? 0;
-                final pct = target > 0 ? ((count / target) * 100).clamp(0, 100).round() : 0;
-                final isDone = count >= target;
-                final isSelected = _filterJenis == key;
-                final color = _getRhkColor(key);
-
-                Color cardBg;
-                Color borderColor;
-                if (isSelected) {
-                  cardBg = color.withOpacity(isDark ? 0.25 : 0.12);
-                  borderColor = color;
-                } else if (isDone) {
-                  cardBg = isDark
-                      ? const Color(0xFF064E3B).withOpacity(0.35)
-                      : const Color(0xFFECFDF5);
-                  borderColor = isDark
-                      ? const Color(0xFF10B981).withOpacity(0.5)
-                      : const Color(0xFF6EE7B7);
-                } else {
-                  cardBg = isDark
-                      ? AppColors.bgDark
-                      : color.withOpacity(0.04);
-                  borderColor = isDark
-                      ? Colors.white12
-                      : color.withOpacity(0.2);
-                }
-
-                return Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (_filterJenis == key) {
-                          _filterJenis = null;
-                          _filterRencanaAksi = null;
-                        } else {
-                          _filterJenis = key;
-                          _filterRencanaAksi = null;
-                        }
-                      });
-                      context.read<ReportProvider>().setFilterJenis(_filterJenis);
-                    },
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
                       width: cardWidth,
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 3.5),
                       decoration: BoxDecoration(
                         color: cardBg,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: borderColor,
-                          width: isSelected ? 2.0 : (isDone ? 1.2 : 0.8),
+                          width: isSelected ? 1.6 : (isDone ? 1.0 : 0.6),
                         ),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: color.withOpacity(0.3),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
+                                  color: color.withOpacity(0.25),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1.5),
                                 )
                               ]
                             : null,
@@ -693,7 +697,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 key.replaceAll('-', ' '),
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
                                   color: isSelected
                                       ? color
@@ -705,18 +709,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               if (isDone)
                                 const Icon(
                                   Icons.check_circle_rounded,
-                                  size: 12,
+                                  size: 10.5,
                                   color: Color(0xFF10B981),
                                 )
                               else if (isSelected)
                                 Icon(
                                   Icons.filter_alt_rounded,
-                                  size: 11,
+                                  size: 10,
                                   color: color,
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 1.5),
 
                           // Baris Tengah: Jumlah Capaian / Target & Persentase
                           Row(
@@ -730,7 +734,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     TextSpan(
                                       text: '$count',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w900,
                                         color: isDone
                                             ? (isDark ? const Color(0xFF34D399) : const Color(0xFF047857))
@@ -740,7 +744,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     TextSpan(
                                       text: '/$target',
                                       style: TextStyle(
-                                        fontSize: 9,
+                                        fontSize: 8.5,
                                         fontWeight: FontWeight.bold,
                                         color: isDark ? Colors.grey[500] : Colors.grey[600],
                                       ),
@@ -751,7 +755,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 '$pct%',
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 8.5,
                                   fontWeight: FontWeight.bold,
                                   color: isDone
                                       ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
@@ -760,13 +764,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
 
                           // Baris Bawah: Mini Linear Progress Bar
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
+                            borderRadius: BorderRadius.circular(2),
                             child: SizedBox(
-                              height: 3.5,
+                              height: 2.5,
                               child: LinearProgressIndicator(
                                 value: (pct / 100).clamp(0.0, 1.0),
                                 backgroundColor: isDark
@@ -786,75 +790,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
               }).toList(),
             );
           },
-        ),
-      ],
-    );
+        );
   }
 
   Widget _buildFilterSection() {
     final auth = context.read<AuthProvider>();
     final jenisSdm = auth.userProfile?.jenisSdm ?? 'SDM PKH';
     final uniqueJenis = getUniqueJenisRHK(jenisSdm);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color ?? Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    final cardBg = isDark
+        ? const Color(0xFF1E293B).withValues(alpha: 0.65)
+        : Colors.white.withValues(alpha: 0.82);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.white.withValues(alpha: 0.85);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor, width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Progress Setiap Target RHK (Sesuai Ketentuan Aspend Web & Fungsi Filter Interaktif)
-          Consumer<ReportProvider>(
-            builder: (context, rp, child) {
-              return _buildRhkTargetProgressSection(rp, jenisSdm);
-            },
-          ),
-          const SizedBox(height: 14),
-          // Filter row
-          Row(
+          child: Column(
             children: [
-              // Jenis RHK filter
-              Expanded(
-                flex: 3,
-                child: _buildFilterDropdown(
-                  value: _filterJenis,
-                  hint: 'RHK',
-                  items: uniqueJenis.map((j) => DropdownMenuItem(
-                    value: j['id'] as String,
-                    child: Text(j['id'] as String, style: const TextStyle(fontSize: 11)),
-                  )).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _filterJenis = value;
-                      _filterRencanaAksi = null;
-                    });
-                    context.read<ReportProvider>().setFilterJenis(value);
-                  },
-                ),
+              // Progress Setiap Target RHK (Sesuai Ketentuan Aspend Web & Fungsi Filter Interaktif)
+              Consumer<ReportProvider>(
+                builder: (context, rp, child) {
+                  return _buildRhkTargetProgressSection(rp, jenisSdm);
+                },
               ),
-              const SizedBox(width: 6),
-              // Date filter
-              Expanded(
-                flex: 3,
-                child: _buildDatePicker(),
-              ),
-              const SizedBox(width: 6),
-              // Month filter
-              Expanded(
-                flex: 3,
-                child: _buildMonthPicker(),
-              ),
-              const SizedBox(width: 6),
-              // Reset button
-              InkWell(
+              const SizedBox(height: 8),
+              // Filter row
+              Row(
+                children: [
+                  // Jenis RHK filter
+                  Expanded(
+                    flex: 3,
+                    child: _buildFilterDropdown(
+                      value: _filterJenis,
+                      hint: 'RHK',
+                      items: uniqueJenis.map((j) => DropdownMenuItem(
+                        value: j['id'] as String,
+                        child: Text(j['id'] as String, style: const TextStyle(fontSize: 11)),
+                      )).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _filterJenis = value;
+                        });
+                        context.read<ReportProvider>().setFilterJenis(value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Date filter
+                  Expanded(
+                    flex: 3,
+                    child: _buildDatePicker(),
+                  ),
+                  const SizedBox(width: 6),
+                  // Month filter
+                  Expanded(
+                    flex: 3,
+                    child: _buildMonthPicker(),
+                  ),
+                  const SizedBox(width: 6),
+                  // Reset button
+                  InkWell(
                 onTap: _resetFilters,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
@@ -871,6 +885,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+    ),
+    ),
     );
   }
 
@@ -1119,15 +1135,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _openGoogleDriveFolder() async {
     final auth = context.read<AuthProvider>();
     if (auth.driveService == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Drive belum siap, silakan sign in kembali')),
-      );
+      await auth.ensureFreshAuth();
+    }
+    if (auth.driveService == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Drive belum siap, silakan coba beberapa saat lagi')),
+        );
+      }
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Mencari folder penyimpanan di Google Drive...'), duration: Duration(seconds: 1)),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Membuka folder penyimpanan di Google Drive...'), duration: Duration(seconds: 1)),
+      );
+    }
 
     try {
       final folderId = await auth.driveService!.findFolder(AppConstants.driveFolderOutput);
@@ -1207,232 +1230,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppColors.gold,
-      ),
-    );
-  }
-}
-
-/// Floating button khusus Asisten Pintar dengan latar icon Aspend (tanpa celah hitam), draggable, dan teks "Asisten Pintar"
-class _AsistenPintarFloatingWidget extends StatefulWidget {
-  const _AsistenPintarFloatingWidget();
-
-  @override
-  State<_AsistenPintarFloatingWidget> createState() => _AsistenPintarFloatingWidgetState();
-}
-
-class _AsistenPintarFloatingWidgetState extends State<_AsistenPintarFloatingWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-  Offset? _position;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final padding = MediaQuery.of(context).padding;
-    const buttonWidth = 72.0;
-    const buttonHeight = 72.0;
-
-    // Posisi awal: pojok kanan bawah di atas bottom bar
-    final defaultLeft = screenSize.width - buttonWidth - 18;
-    final defaultTop = screenSize.height - buttonHeight - 110;
-
-    final currentLeft = _position?.dx ?? defaultLeft;
-    final currentTop = _position?.dy ?? defaultTop;
-
-    return Positioned(
-      left: currentLeft,
-      top: currentTop,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-            final newX = (currentLeft + details.delta.dx).clamp(
-              10.0,
-              screenSize.width - buttonWidth - 10.0,
-            );
-            final newTop = (currentTop + details.delta.dy).clamp(
-              padding.top + 50.0,
-              screenSize.height - buttonHeight - 80.0,
-            );
-            _position = Offset(newX, newTop);
-          });
-        },
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const JarvisAssistantScreen()),
-          );
-          if (result != null && result is Map && result['success'] == true && context.mounted) {
-            context.read<ReportProvider>().loadReports();
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: const Color(0xFF0F172A),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-                ),
-                title: const Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
-                    SizedBox(width: 10),
-                    Text(
-                      'Laporan & PDF Selesai!',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Laporan ${result['idRHK'] ?? 'RHK'} berhasil disimpan dan file PDF resmi telah dibuat serta diunggah ke Google Drive.',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 18),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Status: Selesai (File PDF Resmi Terbit)',
-                              style: TextStyle(
-                                color: Color(0xFF10B981),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                actions: [
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    ),
-                    child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            );
-          }
-        },
-        child: AnimatedBuilder(
-          animation: _animController,
-          builder: (context, child) {
-            final glowRadius = 8 + (_animController.value * 8);
-            return Container(
-              width: buttonWidth,
-              height: buttonHeight,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00F0FF).withOpacity(0.4 + (_animController.value * 0.3)),
-                    blurRadius: glowRadius,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  // Outer Ring Neon Gradient
-                  Container(
-                    width: 66,
-                    height: 66,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00F0FF), Color(0xFF0A84FF), Color(0xFFFFD700)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.9),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                  // Inner Circular Avatar with Zoomed Aspend icon - NO BLACK GAPS
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                    ),
-                    child: ClipOval(
-                      child: Transform.scale(
-                        scale: 1.25, // Zoomed in agar tidak ada celah hitam di pinggirnya
-                        child: Image.asset(
-                          'assets/images/app_icon.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.auto_awesome,
-                            color: Color(0xFF00F0FF),
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Pulsing Online Green Dot
-                  Positioned(
-                    top: 2,
-                    right: 4,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.8),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
       ),
     );
   }

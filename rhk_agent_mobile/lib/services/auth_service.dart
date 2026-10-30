@@ -37,7 +37,12 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.disconnect();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+    try {
+      await _googleSignIn.disconnect();
+    } catch (_) {}
   }
 
   Future<bool> isSignedIn() async {
@@ -46,12 +51,18 @@ class AuthService {
 
   Future<auth.AuthClient?> getAuthClient({bool forceRefresh = false}) async {
     try {
-      if (forceRefresh || _googleSignIn.currentUser != null) {
-        final account = await _googleSignIn.signInSilently();
-        if (account != null) {
-          // Calling authentication forces native token refresh if expired
-          await account.authentication;
+      var account = _googleSignIn.currentUser;
+      if (account == null || forceRefresh) {
+        account = await _googleSignIn.signInSilently();
+      }
+      if (account != null) {
+        if (forceRefresh) {
+          try {
+            await account.clearAuthCache();
+          } catch (_) {}
         }
+        // Calling authentication forces native token refresh if expired
+        await account.authentication;
       }
       final client = await _googleSignIn.authenticatedClient();
       return client;
@@ -62,10 +73,10 @@ class AuthService {
   }
 
   /// Mengambil kredensial OAuth2 lengkap (termasuk accessToken data yang valid untuk Android)
-  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>> getOAuthCredentials({bool forceRefresh = false, bool needServerAuthCode = false}) async {
     try {
       final client = await getAuthClient(forceRefresh: forceRefresh);
-      final account = _googleSignIn.currentUser;
+      var account = _googleSignIn.currentUser;
       final auth = await account?.authentication;
 
       String? accessToken = client?.credentials.accessToken.data;
@@ -73,6 +84,19 @@ class AuthService {
       String? refreshToken = client?.credentials.refreshToken;
       String? idToken = auth?.idToken;
       String? serverAuthCode = account?.serverAuthCode ?? auth?.serverAuthCode;
+
+      // Jika butuh serverAuthCode untuk Web linking dan belum ada
+      if (needServerAuthCode && (serverAuthCode == null || serverAuthCode.isEmpty)) {
+        try {
+          final interactiveAccount = await _googleSignIn.signIn();
+          if (interactiveAccount != null) {
+            account = interactiveAccount;
+            serverAuthCode = interactiveAccount.serverAuthCode;
+          }
+        } catch (e) {
+          print('Error getting serverAuthCode: $e');
+        }
+      }
 
       return {
         'accessToken': accessToken ?? '',

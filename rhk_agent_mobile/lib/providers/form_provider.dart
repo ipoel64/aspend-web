@@ -550,8 +550,18 @@ class FormProvider extends ChangeNotifier {
     }
   }
 
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   String _formatAiErrorMessage(dynamic e) {
     final str = e.toString().toLowerCase();
+    if (str.contains('missing authentication header') ||
+        str.contains('401') ||
+        str.contains('unauthorized')) {
+      return 'Koneksi autentikasi AI sedang diperbarui. Sistem otomatis menghubungkan ulang, silakan tekan "Buat Ulang".';
+    }
     if (str.contains('certificate is not yet valid') ||
         str.contains('certificate has expired') ||
         str.contains('certificate_verify_failed')) {

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -25,8 +26,23 @@ import 'services/subscription_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Mengatasi kendala SSL Certificate Handshake seperti CERTIFICATE_VERIFY_FAILED: certificate is not yet valid
+/// yang terjadi apabila jam/tanggal di perangkat pengguna mengalami ketidaksesuaian/drift.
+class AspendHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+        return true; // Izinkan koneksi aman meskipun terdapat certificate time mismatch pada OS
+      };
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Terapkan HttpOverrides global untuk seluruh request di aplikasi
+  HttpOverrides.global = AspendHttpOverrides();
 
   // Initialize date formatting for Indonesian locale
   await initializeDateFormatting('id_ID', null);

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/app_theme.dart';
+import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import 'qr_web_login_screen.dart';
 
@@ -30,63 +32,126 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       _isLoading = true;
     });
 
+    final prefs = await SharedPreferences.getInstance();
+    final localSessionsStr = prefs.getString('local_web_sessions') ?? '[]';
+    List<Map<String, dynamic>> localSessions = [];
+    try {
+      final decoded = jsonDecode(localSessionsStr) as List;
+      localSessions = decoded
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) => e['status'] == 'AUTHORIZED')
+          .toList();
+    } catch (_) {}
+
+    // Segera tampilkan sesi lokal dari cache perangkat HP
+    if (localSessions.isNotEmpty && mounted) {
+      setState(() {
+        _activeSessions = localSessions;
+      });
+    }
+
+    if (!mounted) return;
     final auth = context.read<AuthProvider>();
     if (auth.sheetsService == null || auth.spreadsheetId == null) {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _activeSessions = [];
         });
       }
       return;
     }
 
     try {
+      // Pastikan sheet Web_Sessions sudah ada di spreadsheet pengguna
+      final sheetNames = await auth.sheetsService!.getSheetNames(auth.spreadsheetId!);
+      if (!sheetNames.contains(AppConstants.sheetWebSessions)) {
+        await auth.sheetsService!.createSheet(auth.spreadsheetId!, AppConstants.sheetWebSessions);
+        await auth.sheetsService!.writeHeaders(
+          auth.spreadsheetId!,
+          AppConstants.sheetWebSessions,
+          [
+            'SessionId',
+            'Email',
+            'Nama',
+            'SpreadsheetId',
+            'Status',
+            'CreatedAt',
+            'DeviceInfo',
+          ],
+        );
+      }
+
       final rows = await auth.sheetsService!.getAllRows(
         auth.spreadsheetId!,
-        'Web_Sessions',
+        AppConstants.sheetWebSessions,
       );
 
-      final List<Map<String, dynamic>> sessions = [];
+      final List<Map<String, dynamic>> cloudSessions = [];
+      final Set<String> loggedOutIds = {};
+
       if (rows.isNotEmpty) {
         for (int i = 0; i < rows.length; i++) {
           final row = rows[i];
-          if (row.length > 4 && row[4]?.toString().toUpperCase() == 'AUTHORIZED') {
-            final sessionId = row[0]?.toString() ?? '';
+          final sessionId = row.isNotEmpty ? row[0]?.toString() ?? '' : '';
+          final status = row.length > 4 ? row[4]?.toString().toUpperCase() ?? '' : '';
+
+          if (status == 'LOGGED_OUT' && sessionId.isNotEmpty) {
+            loggedOutIds.add(sessionId);
+          } else if (status == 'AUTHORIZED' && sessionId.isNotEmpty) {
             final email = row.length > 1 ? row[1]?.toString() ?? '' : '';
             final nama = row.length > 2 ? row[2]?.toString() ?? '' : '';
             final createdAtStr = row.length > 5 ? row[5]?.toString() ?? '' : '';
-            final deviceInfo = row.length > 6 ? row[6]?.toString() ?? 'Browser Web (Desktop)' : 'Browser Web (Desktop)';
+            final deviceInfo = row.length > 6 ? row[6]?.toString() ?? 'Aspend Web (Browser Laptop/PC)' : 'Aspend Web (Browser Laptop/PC)';
 
-            sessions.add({
+            cloudSessions.add({
               'sessionId': sessionId,
               'email': email,
               'nama': nama,
               'createdAt': createdAtStr,
               'deviceInfo': deviceInfo,
+              'status': 'AUTHORIZED',
             });
           }
         }
       }
 
+      // Gabungkan sesi lokal & cloud, buang yang sudah LOGGED_OUT
+      final Map<String, Map<String, dynamic>> combined = {};
+      for (var s in localSessions) {
+        final sId = s['sessionId'] as String;
+        if (!loggedOutIds.contains(sId)) {
+          combined[sId] = s;
+        }
+      }
+      for (var s in cloudSessions) {
+        final sId = s['sessionId'] as String;
+        if (!loggedOutIds.contains(sId)) {
+          combined[sId] = s;
+        }
+      }
+
+      final List<Map<String, dynamic>> mergedList = combined.values.toList();
+
       // Urutkan dari yang paling baru
-      sessions.sort((a, b) {
+      mergedList.sort((a, b) {
         final dateA = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(2000);
         final dateB = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(2000);
         return dateB.compareTo(dateA);
       });
 
+      // Simpan kembali hasil sinkronisasi terpadu ke SharedPreferences
+      await prefs.setString('local_web_sessions', jsonEncode(mergedList));
+
       if (mounted) {
         setState(() {
-          _activeSessions = sessions;
+          _activeSessions = mergedList;
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error loading Web_Sessions: $e');
+      debugPrint('Error syncing Web_Sessions: $e');
       if (mounted) {
         setState(() {
-          _activeSessions = [];
           _isLoading = false;
         });
       }
@@ -131,6 +196,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
 
     final auth = context.read<AuthProvider>();
     final sessionId = session['sessionId'] as String;
+    final email = session['email'] as String? ?? auth.currentUser?.email ?? '';
 
     // Show loading indicator
     showDialog(
@@ -139,19 +205,31 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.teal)),
     );
 
+    // 1. Hapus dari penyimpanan lokal HP
     try {
-      // 1. Update row in Google Sheets
+      final prefs = await SharedPreferences.getInstance();
+      final localSessionsStr = prefs.getString('local_web_sessions') ?? '[]';
+      List<dynamic> localList = [];
+      try {
+        localList = jsonDecode(localSessionsStr) as List;
+      } catch (_) {}
+      localList.removeWhere((item) => item['sessionId'] == sessionId);
+      await prefs.setString('local_web_sessions', jsonEncode(localList));
+    } catch (_) {}
+
+    try {
+      // 2. Update status ke LOGGED_OUT di Google Sheets
       if (auth.sheetsService != null && auth.spreadsheetId != null) {
         try {
           final rowIndex = await auth.sheetsService!.findRowByValue(
             auth.spreadsheetId!,
-            'Web_Sessions',
+            AppConstants.sheetWebSessions,
             0,
             sessionId,
           );
           final currentRow = await auth.sheetsService!.getRowByValue(
             auth.spreadsheetId!,
-            'Web_Sessions',
+            AppConstants.sheetWebSessions,
             0,
             sessionId,
           );
@@ -162,7 +240,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
             }
             await auth.sheetsService!.updateRow(
               auth.spreadsheetId!,
-              'Web_Sessions',
+              AppConstants.sheetWebSessions,
               rowIndex,
               updatedRow,
             );
@@ -172,7 +250,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
         }
       }
 
-      // 2. Broadcast logout via Cloud Relay ntfy.sh
+      // 3. Broadcast logout via Cloud Relay ntfy.sh (ke topik sesi dan topik user)
       try {
         await http.post(
           Uri.parse('https://ntfy.sh/aspend_qr_${Uri.encodeComponent(sessionId)}'),
@@ -184,6 +262,17 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
           }),
         ).timeout(const Duration(seconds: 4));
       } catch (_) {}
+
+      if (email.isNotEmpty) {
+        final userTopic = 'aspend_user_${email.replaceAll('@', '_').replaceAll('.', '_')}';
+        try {
+          http.post(
+            Uri.parse('https://ntfy.sh/$userTopic'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'action': 'LOGOUT', 'sessionId': sessionId, 'email': email}),
+          ).timeout(const Duration(seconds: 3)).then((_) {}, onError: (_) {});
+        } catch (_) {}
+      }
 
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
@@ -254,21 +343,27 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.teal)),
     );
 
+    // 1. Kosongkan penyimpanan lokal
     try {
-      // 1. Update all active rows in Google Sheets
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('local_web_sessions', '[]');
+    } catch (_) {}
+
+    try {
+      // 2. Update semua sesi aktif di Google Sheets
       if (auth.sheetsService != null && auth.spreadsheetId != null) {
         for (var sess in _activeSessions) {
           final sId = sess['sessionId'] as String;
           try {
             final rowIndex = await auth.sheetsService!.findRowByValue(
               auth.spreadsheetId!,
-              'Web_Sessions',
+              AppConstants.sheetWebSessions,
               0,
               sId,
             );
             final currentRow = await auth.sheetsService!.getRowByValue(
               auth.spreadsheetId!,
-              'Web_Sessions',
+              AppConstants.sheetWebSessions,
               0,
               sId,
             );
@@ -279,7 +374,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
               }
               await auth.sheetsService!.updateRow(
                 auth.spreadsheetId!,
-                'Web_Sessions',
+                AppConstants.sheetWebSessions,
                 rowIndex,
                 updatedRow,
               );
@@ -288,7 +383,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
         }
       }
 
-      // 2. Broadcast logout to all individual sessions via cloud relay
+      // 3. Broadcast logout ke setiap sesi
       for (var sess in _activeSessions) {
         final sId = sess['sessionId'] as String;
         try {
@@ -300,7 +395,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
         } catch (_) {}
       }
 
-      // 3. Broadcast to user channel
+      // 4. Broadcast ke user channel untuk logout massal seketika
       final email = auth.currentUser?.email ?? '';
       if (email.isNotEmpty) {
         final userTopic = 'aspend_user_${email.replaceAll('@', '_').replaceAll('.', '_')}';
@@ -431,18 +526,61 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                           'Gunakan Aspend di Web',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 17,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Text(
-                          'Buka aspend-web.vercel.app di komputer / laptop Anda, lalu pindai kode QR untuk login secara otomatis.',
+                          'Buka situs Aspend Web di browser komputer / laptop Anda:',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withOpacity(0.85),
                             fontSize: 12.5,
-                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // Badge Alamat Web yang Jelas & Mencolok
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0D9488), Color(0xFF0284C7)],
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.language_rounded, color: Colors.white, size: 17),
+                              SizedBox(width: 8),
+                              Text(
+                                'aspend-web.vercel.app',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Lalu pindai kode QR di layar untuk login secara otomatis.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 12,
                           ),
                         ),
                         const SizedBox(height: 18),
