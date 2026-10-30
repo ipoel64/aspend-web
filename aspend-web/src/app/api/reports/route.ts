@@ -24,11 +24,9 @@ export async function DELETE(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
+    if (!session || !accessToken) {
       return NextResponse.json({
-        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
-        sessionExpired: true,
-        is24HoursExpired: true,
+        error: 'Unauthorized',
         isAuthError: true
       }, { status: 401 });
     }
@@ -99,11 +97,9 @@ export async function PUT(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
+    if (!session || !accessToken) {
       return NextResponse.json({
-        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
-        sessionExpired: true,
-        is24HoursExpired: true,
+        error: 'Unauthorized',
         isAuthError: true
       }, { status: 401 });
     }
@@ -317,11 +313,9 @@ export async function POST(request: Request) {
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
+    if (!session || !accessToken) {
       return NextResponse.json({
-        error: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan, silakan hubungkan ulang akun dengan scan barcode.',
-        sessionExpired: true,
-        is24HoursExpired: true,
+        error: 'Unauthorized',
         isAuthError: true
       }, { status: 401 });
     }
@@ -576,13 +570,9 @@ export async function POST(request: Request) {
     const msg = error.message || 'Internal Server Error';
     const isAuthError = isGoogleAuthError(error) || msg.toLowerCase().includes('invalid authentication credentials') || error?.code === 401;
     return NextResponse.json({ 
-      error: isAuthError 
-        ? 'Otorisasi token Google Anda perlu diperbarui. Draf narasi dan form Anda tetap aman tersimpan.' 
-        : msg,
-      googleTokenExpired: isAuthError,
-      sessionExpired: false,
+      error: msg,
       isAuthError 
-    }, { status: isAuthError ? 401 : 500 });
+    }, { status: 500 });
   }
 }
 

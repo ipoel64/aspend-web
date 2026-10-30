@@ -57,18 +57,15 @@ async function refreshAccessToken(token: any) {
       } catch (_) {}
     }
 
-    // JANGAN memutus sesi web 24 jam! Tandai googleAuthNeeded agar UI dapat memperbarui token secara in-place tanpa logout paksa.
-    return {
-      ...token,
-      googleAuthNeeded: true,
-    };
+    // JANGAN memutus sesi web! Sesi tetap aktif terbuka terus
+    return token;
   }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // Sesi login aktif 24 jam penuh (86400 detik)
+    maxAge: 365 * 24 * 60 * 60, // Sesi login tetap terbuka terus menerus (1 tahun)
   },
   providers: [
     Google({
@@ -269,15 +266,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         return await refreshAccessToken(token);
       }
 
-      // Evaluasi masa aktif sesi 24 jam penuh (86.400.000 ms)
-      const sessionCreated = (token as any).sessionCreated || Date.now();
-      if (Date.now() >= sessionCreated + 24 * 60 * 60 * 1000) {
-        return {
-          ...token,
-          error: "Session24HoursExpired",
-        };
-      }
-
       return token;
     },
     async session({ session, token }) {
@@ -287,9 +275,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.refreshToken = token.refreshToken;
       if (token.error) {
         (session as any).error = token.error;
-      }
-      if ((token as any).googleAuthNeeded) {
-        (session as any).googleAuthNeeded = true;
       }
       if ((token as any).googleExpiresAt) {
         (session as any).googleExpiresAt = (token as any).googleExpiresAt;

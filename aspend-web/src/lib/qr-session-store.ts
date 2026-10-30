@@ -48,8 +48,8 @@ export function getQrSession(sessionId: string): QrSession | null {
   if (!session) return null;
 
   // Sesi PENDING kedaluwarsa setelah 10 menit (waktu scan barcode baru)
-  // Sesi AUTHORIZED aktif penuh selama 24 jam (86.400.000 ms)
-  const maxLifetime = session.status === 'AUTHORIZED' ? 24 * 60 * 60 * 1000 : 10 * 60 * 1000;
+  // Sesi AUTHORIZED aktif penuh dan terbuka terus (1 tahun)
+  const maxLifetime = session.status === 'AUTHORIZED' ? 365 * 24 * 60 * 60 * 1000 : 10 * 60 * 1000;
   if (Date.now() - session.createdAt > maxLifetime) {
     session.status = 'EXPIRED';
     qrSessionsMap.delete(sessionId);

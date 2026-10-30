@@ -83,11 +83,10 @@ export async function GET(request: Request) {
     // @ts-expect-error - refreshToken is set in jwt callback
     const refreshToken = session?.refreshToken;
 
-    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
+    if (!session || !accessToken) {
       return NextResponse.json({
-        error: 'SESSION_24H_EXPIRED',
-        sessionExpired: true,
-        message: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan akun, silakan hubungkan ulang akun dengan scan barcode.'
+        error: 'UNAUTHORIZED',
+        message: 'Silakan masuk.'
       }, { status: 401 });
     }
 
@@ -428,11 +427,10 @@ export async function GET(request: Request) {
     console.error('Error di /api/dashboard:', error);
     if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
       return NextResponse.json({
-        error: 'GOOGLE_TOKEN_EXPIRED',
-        googleTokenExpired: true,
-        sessionExpired: false,
-        message: 'Otorisasi token Google Anda perlu diperbarui. Draf Anda tetap aman.'
-      }, { status: 401 });
+        success: false,
+        error: 'AUTH_REFRESHING',
+        message: 'Koneksi ke Google Drive sedang disegarkan di latar belakang.'
+      }, { status: 200 });
     }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }

@@ -49,8 +49,8 @@ export async function GET(request: Request) {
     const session = await auth();
     // @ts-expect-error - accessToken is set in jwt callback
     const accessToken = session?.accessToken;
-    if (!session || !accessToken || (session as any)?.error === 'Session24HoursExpired') {
-      return NextResponse.json({ error: 'SESSION_24H_EXPIRED', sessionExpired: true, is24HoursExpired: true }, { status: 401 });
+    if (!session || !accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const spreadsheetId = (session?.user as any)?.spreadsheetId || await findAspendSpreadsheet(accessToken);
     if (!spreadsheetId) {

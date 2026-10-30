@@ -63,12 +63,10 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!accessToken || (session as any)?.error === 'Session24HoursExpired') {
+    if (!accessToken) {
       return NextResponse.json({
-        error: 'SESSION_24H_EXPIRED',
-        sessionExpired: true,
-        is24HoursExpired: true,
-        message: 'Sesi otorisasi Anda telah aktif selama 24 jam. Demi keamanan akun, silakan hubungkan ulang akun dengan scan barcode.'
+        error: 'Unauthorized',
+        message: 'Silakan masuk.'
       }, { status: 401 });
     }
     const files = formData.getAll('files') as File[];
@@ -119,12 +117,8 @@ export async function POST(request: Request) {
     console.error('Error uploading file to Drive:', error);
     const isAuth = isGoogleAuthError(error);
     return NextResponse.json({
-      error: isAuth
-        ? 'Otorisasi token Google Anda perlu diperbarui. File draf Anda tetap aman.'
-        : (error.message || 'Gagal mengunggah file ke Google Drive.'),
-      googleTokenExpired: isAuth,
-      sessionExpired: false,
+      error: error.message || 'Gagal mengunggah file ke Google Drive.',
       isAuthError: isAuth
-    }, { status: isAuth ? 401 : 500 });
+    }, { status: 500 });
   }
 }
