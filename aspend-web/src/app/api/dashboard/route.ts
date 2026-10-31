@@ -445,8 +445,9 @@ export async function GET(request: Request) {
     if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {
       return NextResponse.json({
         success: false,
+        isAuthError: true,
         error: 'AUTH_REFRESHING',
-        message: 'Koneksi ke Google Drive sedang disegarkan di latar belakang.'
+        message: 'Koneksi ke Google Drive sedang dijeda sementara (masa aktif 1 jam). Data ditampilkan dari memori aman.'
       }, { status: 200 });
     }
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });

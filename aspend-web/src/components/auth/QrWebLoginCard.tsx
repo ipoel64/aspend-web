@@ -264,23 +264,27 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
         </p>
       </div>
 
-      {/* Divider & Google Sign In (Hidden: login is barcode-only) */}
+      {/* Divider & Google Sign In (Pilihan Sesi Permanen) */}
       {showGoogleSignIn && onGoogleSignIn && (
-        <>
-          <div className="w-full flex items-center my-5">
-            <div className="flex-1 border-t border-gray-200"></div>
-            <span className="px-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">atau</span>
-            <div className="flex-1 border-t border-gray-200"></div>
+        <div className="w-full mt-4">
+          <div className="w-full flex items-center my-3">
+            <div className="flex-1 border-t border-slate-700/60"></div>
+            <span className="px-3 text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">atau</span>
+            <div className="flex-1 border-t border-slate-700/60"></div>
           </div>
 
           <button
+            type="button"
             onClick={onGoogleSignIn}
-            className="w-full py-3 bg-white text-gray-700 border border-gray-300 font-medium text-xs rounded-xl hover:bg-gray-50 transition-all shadow-xs flex items-center justify-center gap-3 active:scale-98 cursor-pointer"
+            className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 font-bold text-xs rounded-xl transition-all shadow-sm hover:shadow flex items-center justify-center gap-2.5 active:scale-98 cursor-pointer"
           >
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-            <span>Masuk manual dengan Akun Google</span>
+            <span>Masuk Langsung dengan Akun Google</span>
           </button>
-        </>
+          <p className="text-[10px] text-slate-400 mt-1.5 text-center leading-normal">
+            Sesi aktif permanen tanpa batasan waktu 1 jam.
+          </p>
+        </div>
       )}
     </div>
   );
