@@ -782,12 +782,19 @@ export default function Home() {
       if (document.visibilityState === 'visible') {
         const idleMs = Date.now() - lastActiveTimeRef.current;
         lastActiveTimeRef.current = Date.now();
-        // Lakukan penyegaran data berkala di latar belakang jika lebih dari 30 menit
-        if (idleMs > 30 * 60 * 1000) {
+        // Lakukan penyegaran data berkala di latar belakang jika lebih dari 15 menit
+        if (idleMs > 15 * 60 * 1000) {
           fetchDashboardData(true);
         }
       }
     };
+
+    // Pengecekan berkala setiap 5 menit untuk memastikan token Google masih aktif
+    const periodicCheckTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    }, 5 * 60 * 1000);
 
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -795,6 +802,7 @@ export default function Home() {
     window.addEventListener('keydown', updateActivity, { passive: true });
 
     return () => {
+      clearInterval(periodicCheckTimer);
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('click', updateActivity);
@@ -1538,9 +1546,18 @@ export default function Home() {
         }
         setDeleteModalOpen(false);
       } else {
+        if (result?.isAuthError || res.status === 401 || result?.error === 'AUTH_REFRESHING') {
+          setIsGoogleConnectionPaused(true);
+          setIsReauthModalOpen(true);
+        }
         showToast(result.error || "Gagal menghapus laporan.", "error");
       }
     } catch (err: any) {
+      const errMsg = String(err?.message || '').toLowerCase();
+      if (errMsg.includes('401') || errMsg.includes('oauth') || errMsg.includes('credentials') || errMsg.includes('otorisasi')) {
+        setIsGoogleConnectionPaused(true);
+        setIsReauthModalOpen(true);
+      }
       showToast(err.message || "Terjadi kesalahan saat menghapus laporan.", "error");
     } finally {
       setIsDeleting(false);
@@ -1712,9 +1729,18 @@ export default function Home() {
         setPdfRefreshTimestamp(Date.now());
         setEditModalOpen(false);
       } else {
+        if (result?.isAuthError || res.status === 401 || result?.error === 'AUTH_REFRESHING') {
+          setIsGoogleConnectionPaused(true);
+          setIsReauthModalOpen(true);
+        }
         showToast(result.error || "Gagal memperbarui laporan.", "error");
       }
     } catch (err: any) {
+      const errMsg = String(err?.message || '').toLowerCase();
+      if (errMsg.includes('401') || errMsg.includes('oauth') || errMsg.includes('credentials') || errMsg.includes('otorisasi')) {
+        setIsGoogleConnectionPaused(true);
+        setIsReauthModalOpen(true);
+      }
       showToast(err.message || "Terjadi kesalahan saat menyimpan perubahan.", "error");
     } finally {
       setIsSavingEdit(false);
@@ -1725,6 +1751,10 @@ export default function Home() {
 
   // ─── Akses Form Buat Laporan RHK ──────────────────────
   const handleOpenCreateReport = () => {
+    if (isGoogleConnectionPaused) {
+      setIsReauthModalOpen(true);
+      return;
+    }
     if (isDailyLimitReached) {
       setIsDailyLimitModalOpen(true);
       return;
@@ -2206,7 +2236,9 @@ export default function Home() {
         msg.includes('unauthenticated');
 
       if (isAuth) {
-        showToast('Sesi otorisasi Google Drive memerlukan penyegaran (melewati batas aman 1 jam). Draf teks dan foto Anda tersimpan aman 100%! Silakan buka Aspend Mobile dan scan barcode kembali untuk menyelesaikan penyimpanan.', 'error');
+        setIsGoogleConnectionPaused(true);
+        setIsReauthModalOpen(true);
+        showToast('Sesi otorisasi Google Drive memerlukan penyegaran (melewati batas aman 1 jam). Draf teks dan foto Anda tersimpan aman 100%! Silakan scan barcode pada popup untuk menyelesaikan penyimpanan.', 'error');
       } else if (msg.includes('unable to parse range') || msg.includes('gagal menyimpan data ke google sheets')) {
         showToast('Tabel database Google Sheets telah disiapkan otomatis. Draf narasi Anda aman, silakan klik tombol Simpan sekali lagi.', 'info');
       } else {
@@ -3338,36 +3370,6 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-
-              {/* Notifikasi Penyambungan Ulang Google Drive (Jika masa aktif 1 jam Google dijeda) */}
-              {isGoogleConnectionPaused && (
-                <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950 shadow-xs animate-in fade-in duration-300">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-amber-200/80 flex items-center justify-center shrink-0 text-amber-700">
-                      <span className="material-symbols-outlined text-lg">sync_saved_locally</span>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-bold text-amber-950">
-                          Sesi Google Drive Dijeda Sementara (Batas Keamanan 1 Jam)
-                        </span>
-                        <span className="px-2 py-0.2 rounded-full bg-amber-200 text-amber-900 text-[10px] font-extrabold">Mode Memori Aman</span>
-                      </div>
-                      <p className="text-[11px] text-amber-800/90 leading-tight">
-                        Semua data tetap aman dan ditampilkan dari memori. Silakan scan barcode kembali via Aspend Mobile untuk menyinkronkan data atau membuat dokumen baru.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsReauthModalOpen(true)}
-                    className="px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 self-start sm:self-center"
-                  >
-                    <span className="material-symbols-outlined text-sm">qr_code_scanner</span>
-                    <span>Sambungkan Ulang</span>
-                  </button>
-                </div>
-              )}
 
               {/* Baris Bawah: Tombol Buat Laporan RHK di Kiri & Progress RHK 1-9 Merentang Penuh di Kanan */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
@@ -5459,38 +5461,58 @@ export default function Home() {
           </div>
         )}
 
-        {/* Modal Sambungkan Ulang Google Drive (Non-blocking Barcode Re-Auth) */}
-        {isReauthModalOpen && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-in fade-in duration-200">
-            <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/20 shadow-2xl p-6 sm:p-7 text-center relative overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setIsReauthModalOpen(false)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
+        {/* Modal Wajib Sambungkan Ulang Google Drive (Mandatory Re-Auth Popup) */}
+        {(isGoogleConnectionPaused || isReauthModalOpen) && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-in fade-in duration-300 overflow-y-auto">
+            <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-amber-500/30 shadow-[0_25px_70px_rgba(0,0,0,0.85)] p-6 sm:p-7 text-center relative overflow-hidden my-auto">
+              
+              {/* Subtle ambient lighting */}
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-              <div className="w-12 h-12 mx-auto mb-2.5 rounded-2xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-400">
-                <span className="material-symbols-outlined text-2xl">qr_code_scanner</span>
+              {/* Icon & Badge */}
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner">
+                <span className="material-symbols-outlined text-3xl animate-pulse">lock_clock</span>
               </div>
 
-              <h3 className="text-lg font-bold text-white font-['Outfit']">Sambungkan Ulang Google Drive</h3>
-              <p className="text-xs text-slate-300 mt-1 mb-4 leading-relaxed px-2">
-                Buka aplikasi <b>Aspend Mobile</b> di HP Anda, ketuk tombol scanner barcode, lalu arahkan kamera ke barcode berikut untuk memperbarui koneksi secara instan.
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10.5px] font-extrabold uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span>Wajib Sambungkan Ulang</span>
+              </div>
+
+              <h3 className="text-lg sm:text-xl font-bold text-white font-['Outfit'] tracking-tight">
+                Sesi Google Drive Berakhir (1 Jam)
+              </h3>
+              
+              <p className="text-xs text-slate-300 mt-2 mb-3.5 leading-relaxed px-1">
+                Demi keamanan akun Anda, sesi izin Google Drive telah mencapai batas waktu 1 jam. Silakan scan barcode di bawah melalui aplikasi <b>Aspend Mobile</b> di HP Anda atau masuk dengan Akun Google untuk melanjutkan.
               </p>
 
-              <QrWebLoginCard onGoogleSignIn={() => signIn('google')} showGoogleSignIn={true} />
+              {/* Status Aman Memori Lokal */}
+              <div className="mb-4 p-2.5 rounded-xl bg-emerald-950/50 border border-emerald-500/30 flex items-center gap-2.5 text-left">
+                <span className="material-symbols-outlined text-emerald-400 text-lg shrink-0">verified</span>
+                <span className="text-[11px] text-emerald-200 font-medium leading-tight">
+                  Seluruh data laporan (<strong>{reports.length || stats.total || 0} laporan</strong>) dan draf Anda tetap tersimpan aman di sistem.
+                </span>
+              </div>
 
-              <div className="mt-4">
+              {/* Card Barcode & Google Sign In */}
+              <div className="bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
+                <QrWebLoginCard onGoogleSignIn={() => signIn('google')} showGoogleSignIn={true} />
+              </div>
+
+              {/* Opsi Keluar Akun */}
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-center">
                 <button
                   type="button"
-                  onClick={() => setIsReauthModalOpen(false)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                  className="text-xs text-slate-400 hover:text-rose-400 font-semibold transition-colors flex items-center gap-1.5 cursor-pointer py-1.5 px-3.5 rounded-xl hover:bg-slate-800/80 active:scale-95"
                 >
-                  Tutup & Lanjutkan di Mode Memori
+                  <span className="material-symbols-outlined text-sm">logout</span>
+                  <span>Keluar dari Akun (Logout)</span>
                 </button>
               </div>
+
             </div>
           </div>
         )}
