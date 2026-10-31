@@ -6,6 +6,7 @@ import {
   updateQrSessionTokens,
   QrUserPayload,
 } from '@/lib/qr-session-store';
+import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from '@/lib/google-auth-helpers';
 
 async function processQrPayload(body: any, sessionId: string): Promise<QrUserPayload> {
   let accessToken = body.accessToken || '';
@@ -14,15 +15,15 @@ async function processQrPayload(body: any, sessionId: string): Promise<QrUserPay
   let expiresAt = googleExpiresAt;
   const serverAuthCode = body.serverAuthCode || '';
 
-  // Jika ada serverAuthCode dan GOOGLE_CLIENT_ID & SECRET tersedia, coba tukar ke Google OAuth token endpoint
-  if (serverAuthCode && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  // Jika ada serverAuthCode, tukar ke Google OAuth token endpoint untuk mendapatkan refreshToken abadi
+  if (serverAuthCode) {
     try {
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          client_id: process.env.GOOGLE_CLIENT_ID,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
           code: serverAuthCode,
           grant_type: "authorization_code",
           redirect_uri: "",

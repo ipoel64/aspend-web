@@ -31,12 +31,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       try {
         if (!mounted) return;
         final auth = context.read<AuthProvider>();
-        if (SubscriptionService.instance.isPremium() && auth.sheetsService != null && auth.spreadsheetId != null && auth.currentUser?.email != null) {
-          auth.sheetsService!.appendRow(
-            auth.spreadsheetId!,
-            'Premium',
-            [auth.currentUser!.email, 'Aktif', 'InAppPurchase'],
-          ).catchError((_) {});
+        if (SubscriptionService.instance.isPremium(auth.currentUser?.email) && auth.sheetsService != null && auth.spreadsheetId != null && auth.currentUser?.email != null) {
+          auth.sheetsService!.getSheetNames(auth.spreadsheetId!).then((sheetNames) async {
+            if (!sheetNames.contains('Premium')) {
+              await auth.sheetsService!.createSheet(auth.spreadsheetId!, 'Premium');
+              await auth.sheetsService!.writeHeaders(
+                auth.spreadsheetId!,
+                'Premium',
+                ['Email', 'Status', 'Metode', 'TanggalAktif'],
+              );
+            }
+            await auth.sheetsService!.appendRow(
+              auth.spreadsheetId!,
+              'Premium',
+              [auth.currentUser!.email, 'Aktif', 'InAppPurchase', DateTime.now().toIso8601String()],
+            );
+          }).catchError((_) {});
         }
       } catch (_) {}
     });
@@ -229,5 +239,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
   }
-}
 }

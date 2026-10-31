@@ -113,6 +113,9 @@ export default function QrWebLoginCard({ onGoogleSignIn, showGoogleSignIn = fals
             const currentKeep = localStorage.getItem('aspend_keep_signed_in') !== 'false';
             localStorage.setItem('aspend_keep_signed_in', currentKeep ? 'true' : 'false');
             sessionStorage.setItem('aspend_active_tab_session', '1');
+            if (data.user?.isPremium && data.user?.email) {
+              localStorage.setItem(`aspend_premium_${data.user.email.toLowerCase().trim()}`, 'true');
+            }
           } catch (_) {}
 
           // Sign in using next-auth Credentials provider (kirim userPayload langsung agar tidak gagal di multi-instance serverless)

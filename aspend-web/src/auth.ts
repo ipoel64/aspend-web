@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { getQrSession } from "@/lib/qr-session-store";
+import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, refreshGoogleAccessToken } from "@/lib/google-auth-helpers";
 
 async function refreshAccessToken(token: any) {
   try {
@@ -9,31 +10,16 @@ async function refreshAccessToken(token: any) {
       throw new Error("No refresh token available");
     }
 
-    const url = "https://oauth2.googleapis.com/token";
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
-      }),
-    });
-
-    const refreshedTokens = await response.json();
-
-    if (!response.ok) {
-      throw refreshedTokens;
+    const refreshed = await refreshGoogleAccessToken(token.refreshToken);
+    if (!refreshed || !refreshed.accessToken) {
+      throw new Error("Token refresh returned empty response");
     }
 
     return {
       ...token,
-      accessToken: refreshedTokens.access_token,
-      googleExpiresAt: Math.floor(Date.now() / 1000 + (refreshedTokens.expires_in || 3600)),
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+      accessToken: refreshed.accessToken,
+      googleExpiresAt: Math.floor(Date.now() / 1000 + (refreshed.expiresIn || 3600)),
+      refreshToken: refreshed.refreshToken ?? token.refreshToken,
       error: undefined,
       googleAuthNeeded: false,
     };
@@ -50,6 +36,7 @@ async function refreshAccessToken(token: any) {
             accessToken: qs.user.accessToken,
             googleExpiresAt: qs.user.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600),
             refreshToken: qs.user.refreshToken || token.refreshToken,
+            isPremium: qs.user.isPremium !== undefined ? qs.user.isPremium : (token as any).isPremium,
             error: undefined,
             googleAuthNeeded: false,
           };
@@ -69,8 +56,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
       authorization: {
         params: {
           scope: "openid email profile https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
@@ -128,14 +115,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   let googleExpiresAt = body.googleExpiresAt || (Math.floor(Date.now() / 1000) + 3600);
                   const serverAuthCode = body.serverAuthCode || '';
 
-                  if (serverAuthCode && !refreshToken && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+                  if (serverAuthCode && !refreshToken) {
                     try {
                       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
                         method: "POST",
                         headers: { "Content-Type": "application/x-www-form-urlencoded" },
                         body: new URLSearchParams({
-                          client_id: process.env.GOOGLE_CLIENT_ID,
-                          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                          client_id: GOOGLE_CLIENT_ID,
+                          client_secret: GOOGLE_CLIENT_SECRET,
                           code: serverAuthCode,
                           grant_type: "authorization_code",
                           redirect_uri: "",
@@ -171,14 +158,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           } catch (_) {}
         }
         if (user) {
-          if (user.serverAuthCode && !user.refreshToken && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+          if (user.serverAuthCode && !user.refreshToken) {
             try {
               const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: new URLSearchParams({
-                  client_id: process.env.GOOGLE_CLIENT_ID,
-                  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                  client_id: GOOGLE_CLIENT_ID,
+                  client_secret: GOOGLE_CLIENT_SECRET,
                   code: user.serverAuthCode,
                   grant_type: "authorization_code",
                   redirect_uri: "",

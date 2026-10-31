@@ -116,7 +116,7 @@ class AiService {
       content = prompt;
     }
 
-    final effectiveKey = (apiKey.trim().isNotEmpty)
+    String effectiveKey = (apiKey.trim().isNotEmpty && apiKey.trim() != 'null' && apiKey.trim() != 'undefined')
         ? apiKey.trim()
         : AppConstants.defaultOpenRouterApiKey;
 
@@ -170,6 +170,10 @@ class AiService {
             throw Exception('Respon narasi kosong dari AI');
           } else {
             final errorBody = response.body;
+            if (response.statusCode == 401 && effectiveKey != AppConstants.defaultOpenRouterApiKey) {
+              effectiveKey = AppConstants.defaultOpenRouterApiKey;
+              continue;
+            }
             throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
           }
         } catch (e) {
@@ -283,7 +287,7 @@ class AiService {
       content = prompt;
     }
 
-    final effectiveKey = (apiKey.trim().isNotEmpty)
+    String effectiveKey = (apiKey.trim().isNotEmpty && apiKey.trim() != 'null' && apiKey.trim() != 'undefined')
         ? apiKey.trim()
         : AppConstants.defaultOpenRouterApiKey;
 
@@ -329,6 +333,10 @@ class AiService {
           final response = await client.send(request).timeout(const Duration(seconds: 40));
           if (response.statusCode != 200) {
             final errorBody = await response.stream.bytesToString();
+            if (response.statusCode == 401 && effectiveKey != AppConstants.defaultOpenRouterApiKey) {
+              effectiveKey = AppConstants.defaultOpenRouterApiKey;
+              continue;
+            }
             throw Exception('OpenRouter API Error: ${response.statusCode} - $errorBody');
           }
 

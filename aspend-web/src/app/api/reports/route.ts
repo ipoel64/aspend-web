@@ -4,6 +4,7 @@ import { findAspendSpreadsheet, getDriveClient } from '@/lib/google-drive';
 import { getSheetData, deleteSheetRow, updateSheetRow, appendSheetData, isGoogleAuthError } from '@/lib/google-sheets';
 import { generateReportPDF } from '@/lib/pdf-generator';
 import { capitalizeEachWord } from '@/lib/format-utils';
+import { getFreshAccessToken, cleanGoogleErrorMessage } from '@/lib/google-auth-helpers';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -21,8 +22,7 @@ function extractDriveId(str: string) {
 export async function DELETE(request: Request) {
   try {
     const session = await auth();
-    // @ts-expect-error - accessToken is attached in auth.ts
-    const accessToken = session?.accessToken;
+    const accessToken = await getFreshAccessToken(session);
 
     if (!session || !accessToken) {
       return NextResponse.json({
@@ -94,8 +94,7 @@ export async function DELETE(request: Request) {
 export async function PUT(request: Request) {
   try {
     const session = await auth();
-    // @ts-expect-error - accessToken is attached in auth.ts
-    const accessToken = session?.accessToken;
+    const accessToken = await getFreshAccessToken(session);
 
     if (!session || !accessToken) {
       return NextResponse.json({
@@ -310,8 +309,7 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await auth();
-    // @ts-expect-error - accessToken is attached in auth.ts
-    const accessToken = session?.accessToken;
+    const accessToken = await getFreshAccessToken(session);
 
     if (!session || !accessToken) {
       return NextResponse.json({
@@ -527,7 +525,12 @@ export async function POST(request: Request) {
       accessToken as string,
       spreadsheetId,
       'Laporan_Log!A:O',
-      [newRow]
+      [newRow],
+      [
+        'ReportId', 'Tanggal', 'JenisRHK', 'IdRHK', 'RencanaAksi',
+        'Pukul', 'PoinKegiatan', 'NarasiAI', 'NarasiEdited', 'Status',
+        'PdfFileId', 'FotoIds', 'P2K2Data', 'Lokasi', 'CreatedAt'
+      ]
     );
 
     // 6. Simpan riwayat poin ke sheet Riwayat_Poin jika ada (opsional / non-blocking)
@@ -537,7 +540,8 @@ export async function POST(request: Request) {
           accessToken as string,
           spreadsheetId,
           'Riwayat_Poin!A:C',
-          [[idRHK || jenisRHK, poinKegiatan.trim(), now.toISOString()]]
+          [[idRHK || jenisRHK, poinKegiatan.trim(), now.toISOString()]],
+          ['IdRHK', 'PoinKegiatan', 'CreatedAt']
         );
       } catch {
         // Riwayat_Poin sheet mungkin belum ada
@@ -567,12 +571,12 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Error POST /api/reports:', error);
-    const msg = error.message || 'Internal Server Error';
-    const isAuthError = isGoogleAuthError(error) || msg.toLowerCase().includes('invalid authentication credentials') || error?.code === 401;
+    const isAuthError = isGoogleAuthError(error);
+    const friendlyMsg = cleanGoogleErrorMessage(error);
     return NextResponse.json({ 
-      error: msg,
+      error: friendlyMsg,
       isAuthError 
-    }, { status: 500 });
+    }, { status: isAuthError ? 401 : 500 });
   }
 }
 

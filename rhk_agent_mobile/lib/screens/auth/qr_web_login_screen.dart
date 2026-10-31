@@ -348,7 +348,7 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
       endpointsToTry.add('http://192.168.1.8:3000/api/auth/qr-session');
       endpointsToTry.add('https://aspend-web.vercel.app/api/auth/qr-session');
 
-      final isUserPremium = SubscriptionService.instance.isPremium();
+      final isUserPremium = SubscriptionService.instance.isPremium(auth.currentUser?.email);
       final body = jsonEncode({
         'sessionId': sessionId,
         'email': auth.currentUser?.email ?? '',
@@ -486,10 +486,19 @@ class _QrWebLoginScreenState extends State<QrWebLoginScreen>
         // Sinkronisasi status Premium ke sheet Premium jika pengguna Premium di HP
         if (isUserPremium && auth.currentUser?.email != null) {
           try {
+            final sheetNames = await auth.sheetsService!.getSheetNames(auth.spreadsheetId!);
+            if (!sheetNames.contains('Premium')) {
+              await auth.sheetsService!.createSheet(auth.spreadsheetId!, 'Premium');
+              await auth.sheetsService!.writeHeaders(
+                auth.spreadsheetId!,
+                'Premium',
+                ['Email', 'Status', 'Metode', 'TanggalAktif'],
+              );
+            }
             await auth.sheetsService!.appendRow(
               auth.spreadsheetId!,
               'Premium',
-              [auth.currentUser!.email, 'Aktif', 'InAppPurchase'],
+              [auth.currentUser!.email, 'Aktif', 'InAppPurchase', DateTime.now().toIso8601String()],
             );
           } catch (_) {}
         }

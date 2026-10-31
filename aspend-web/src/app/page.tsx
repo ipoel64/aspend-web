@@ -338,6 +338,9 @@ async function uploadPhotosInParallelBatches(
     });
     const upResult = await safeJsonParse(upRes);
     if (!upRes.ok || !upResult.success) {
+      if (upResult?.isAuthError || upRes.status === 401) {
+        throw new Error('Sesi otorisasi Google Drive memerlukan penyegaran (melewati batas 1 jam). Draf narasi dan foto Anda tersimpan aman 100%! Silakan buka Aspend Mobile dan scan barcode untuk menyimpan dokumen.');
+      }
       throw new Error(upResult.error || 'Gagal mengunggah foto bukti dukung ke Google Drive.');
     }
     if (upResult.folderId && !cachedFolderId) {
@@ -617,6 +620,11 @@ export default function Home() {
               `aspend_cached_profile_${result.profile.email.toLowerCase().trim()}`,
               JSON.stringify(result.profile)
             );
+          } catch (_) {}
+        }
+        if (result.profile?.isPremium && result.profile?.email) {
+          try {
+            localStorage.setItem(`aspend_premium_${result.profile.email.toLowerCase().trim()}`, 'true');
           } catch (_) {}
         }
       } else {
@@ -1253,6 +1261,8 @@ export default function Home() {
   const isPremiumAccount = Boolean(
     profile?.isPremium || 
     (session?.user as any)?.isPremium ||
+    (typeof window !== 'undefined' && session?.user?.email && localStorage.getItem(`aspend_premium_${session.user.email.toLowerCase().trim()}`) === 'true') ||
+    (typeof window !== 'undefined' && profile?.email && localStorage.getItem(`aspend_premium_${profile.email.toLowerCase().trim()}`) === 'true') ||
     (session?.user?.email && ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'].includes(session.user.email.toLowerCase().trim())) ||
     (profile?.email && ['binjaipkh@gmail.com', 'syaifulkhalifah@gmail.com'].includes(profile.email.toLowerCase().trim()))
   );
@@ -2125,15 +2135,22 @@ export default function Home() {
       } catch (_) {}
 
       const msg = String(err?.message || '').toLowerCase();
-      const is24h = msg.includes('session_24h_expired') || msg.includes('24 jam');
       const isAuth =
         msg.includes('invalid authentication credentials') ||
+        msg.includes('oauth') ||
         msg.includes('401') ||
         msg.includes('otorisasi') ||
         msg.includes('google_token_expired') ||
-        msg.includes('session_expired');
+        msg.includes('session_expired') ||
+        msg.includes('unauthenticated');
 
-      showToast(err.message || 'Terjadi kesalahan saat menyimpan laporan. Draf teks Anda tetap tersimpan.', 'error');
+      if (isAuth) {
+        showToast('Sesi otorisasi Google Drive memerlukan penyegaran (melewati batas aman 1 jam). Draf teks dan foto Anda tersimpan aman 100%! Silakan buka Aspend Mobile dan scan barcode kembali untuk menyelesaikan penyimpanan.', 'error');
+      } else if (msg.includes('unable to parse range') || msg.includes('gagal menyimpan data ke google sheets')) {
+        showToast('Tabel database Google Sheets telah disiapkan otomatis. Draf narasi Anda aman, silakan klik tombol Simpan sekali lagi.', 'info');
+      } else {
+        showToast(err.message || 'Terjadi kendala saat menyimpan laporan. Draf teks Anda tetap tersimpan utuh.', 'error');
+      }
     } finally {
       setIsSubmittingReport(false);
       setSubmitReportStatusText('');

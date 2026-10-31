@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { findAspendSpreadsheet } from '@/lib/google-drive';
-import { getSheetData, isGoogleAuthError } from '@/lib/google-sheets';
+import { getSheetData, isGoogleAuthError, ensureSheetExists, appendSheetData } from '@/lib/google-sheets';
 import { MASTER_RHK_DATA, getMasterRHKData } from '@/lib/master-rhk';
+import { getFreshAccessToken } from '@/lib/google-auth-helpers';
 
 function extractDriveId(str: string) {
   if (!str) return '';
@@ -78,10 +79,7 @@ function parseRobustDate(dateStr: string, timeStr: string = '00:00') {
 export async function GET(request: Request) {
   try {
     const session = await auth();
-    // @ts-expect-error - accessToken is set in jwt callback
-    const accessToken = session?.accessToken;
-    // @ts-expect-error - refreshToken is set in jwt callback
-    const refreshToken = session?.refreshToken;
+    const accessToken = await getFreshAccessToken(session);
 
     if (!session || !accessToken) {
       return NextResponse.json({
@@ -241,6 +239,25 @@ export async function GET(request: Request) {
     } catch (err) {
       if (isGoogleAuthError(err)) throw err;
       console.warn('Gagal membaca sheet Users/Profile:', err);
+    }
+
+    // Sinkronisasi status Premium ke sheet Premium spreadsheet pengguna
+    if (isPremiumUser && userEmailLower) {
+      ensureSheetExists(accessToken as string, spreadsheetId, 'Premium', ['Email', 'Status', 'Metode', 'TanggalAktif']).then(async () => {
+        try {
+          const existing = await getSheetData(accessToken as string, spreadsheetId, 'Premium!A2:A');
+          const found = existing?.some(r => r[0] && r[0].toString().trim().toLowerCase() === userEmailLower);
+          if (!found) {
+            await appendSheetData(
+              accessToken as string,
+              spreadsheetId,
+              'Premium!A:D',
+              [[userEmailLower, 'Aktif', 'InAppPurchase', new Date().toISOString()]],
+              ['Email', 'Status', 'Metode', 'TanggalAktif']
+            );
+          }
+        } catch (_) {}
+      }).catch(() => {});
     }
 
     // 3. Baca Master RHK (Fallback ke master data aktif berdasarkan Jenis SDM: SDM PKH vs TKSK)

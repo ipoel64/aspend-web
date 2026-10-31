@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from './google-auth-helpers';
 
 /**
  * Deteksi apakah error dari Google API disebabkan oleh token kedaluwarsa / tidak valid (HTTP 401)
@@ -18,7 +19,8 @@ export function isGoogleAuthError(error: any): boolean {
     msg.includes('unauthenticated') ||
     msg.includes('invalid_grant') ||
     msg.includes('session_expired') ||
-    msg.includes('request had invalid authentication credentials')
+    msg.includes('request had invalid authentication credentials') ||
+    msg.includes('expected oauth 2 access token')
   );
 }
 
@@ -37,8 +39,8 @@ function createAuthExpiredError(): Error & { status?: number; code?: number } {
  */
 export async function getSheetsClient(accessToken: string, refreshToken?: string) {
   const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET
   );
   auth.setCredentials({
     access_token: accessToken,
@@ -112,9 +114,68 @@ export async function batchGetSheetData(
 }
 
 /**
- * Menulis baris baru (append) ke Spreadsheet
+ * Memastikan tab sheet dengan nama tertentu sudah ada di Spreadsheet.
+ * Jika belum ada, otomatis dibuat beserta header baris pertamanya.
  */
-export async function appendSheetData(accessToken: string, spreadsheetId: string, range: string, values: any[][]) {
+export async function ensureSheetExists(
+  accessToken: string,
+  spreadsheetId: string,
+  sheetName: string,
+  headers?: string[]
+): Promise<boolean> {
+  try {
+    const sheets = await getSheetsClient(accessToken);
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const exists = meta.data.sheets?.some(
+      (s) => s.properties?.title?.toLowerCase() === sheetName.toLowerCase()
+    );
+
+    if (!exists) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: sheetName,
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      if (headers && headers.length > 0) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${sheetName}!A1`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [headers],
+          },
+        });
+      }
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn(`ensureSheetExists warning for "${sheetName}":`, err);
+    return false;
+  }
+}
+
+/**
+ * Menulis baris baru (append) ke Spreadsheet.
+ * Otomatis membuat tab sheet baru dan mengisi header jika tab belum tersedia!
+ */
+export async function appendSheetData(
+  accessToken: string,
+  spreadsheetId: string,
+  range: string,
+  values: any[][],
+  defaultHeaders?: string[]
+) {
   try {
     const sheets = await getSheetsClient(accessToken);
     const response = await sheets.spreadsheets.values.append({
@@ -126,12 +187,44 @@ export async function appendSheetData(accessToken: string, spreadsheetId: string
       },
     });
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     if (isGoogleAuthError(error)) {
       throw createAuthExpiredError();
     }
-    console.error('Error menulis ke Google Sheets:', error);
-    throw new Error('Gagal menyimpan data ke Google Sheets.');
+
+    // Jika tab sheet belum ada ("Unable to parse range" atau "not found"), otomatis buat tab sheet dan retry append!
+    const errMsg = String(
+      error?.message || error?.response?.data?.error?.message || ''
+    ).toLowerCase();
+
+    if (
+      errMsg.includes('unable to parse range') ||
+      errMsg.includes('not found') ||
+      errMsg.includes('bad request') ||
+      error?.status === 400 ||
+      error?.code === 400
+    ) {
+      const sheetName = range.split('!')[0].replace(/['"]/g, '');
+      console.log(`Sheet "${sheetName}" belum tersedia, membuat tab otomatis...`);
+      try {
+        await ensureSheetExists(accessToken, spreadsheetId, sheetName, defaultHeaders);
+        const sheets = await getSheetsClient(accessToken);
+        const retryRes = await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values },
+        });
+        return retryRes.data;
+      } catch (retryErr: any) {
+        if (isGoogleAuthError(retryErr)) throw createAuthExpiredError();
+        console.error('Gagal retry appendSheetData setelah createSheet:', retryErr);
+      }
+    }
+
+    const errorDetails = error?.response?.data?.error?.message || error?.message || '';
+    console.error('Error menulis ke Google Sheets:', errorDetails, error);
+    throw new Error(`Gagal menyimpan data ke Google Sheets: ${errorDetails || 'Kesalahan Server'}`);
   }
 }
 

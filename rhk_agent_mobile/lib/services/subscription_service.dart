@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -143,16 +143,24 @@ class SubscriptionService {
       final isPremiumStored = prefs.getBool(_premiumKey) ?? false;
       final expiryStr = prefs.getString(_premiumExpiryKey);
 
-      if (isPremiumStored && expiryStr != null) {
-        final expiry = DateTime.tryParse(expiryStr);
-        if (expiry != null && expiry.isAfter(DateTime.now())) {
-          _isPremium = true;
-          debugPrint('SubscriptionService: Premium aktif (cache) sampai $expiry');
+      if (isPremiumStored) {
+        if (expiryStr != null && expiryStr.isNotEmpty) {
+          final expiry = DateTime.tryParse(expiryStr);
+          if (expiry != null && expiry.isAfter(DateTime.now())) {
+            _isPremium = true;
+            debugPrint('SubscriptionService: Premium aktif (cache) sampai $expiry');
+          } else if (expiry != null && !expiry.isAfter(DateTime.now())) {
+            // Sudah kadaluarsa
+            _isPremium = false;
+            await prefs.setBool(_premiumKey, false);
+            debugPrint('SubscriptionService: Premium sudah kadaluarsa.');
+          } else {
+            _isPremium = true;
+          }
         } else {
-          // Sudah kadaluarsa
-          _isPremium = false;
-          await prefs.setBool(_premiumKey, false);
-          debugPrint('SubscriptionService: Premium sudah kadaluarsa.');
+          // Status premium aktif tanpa expiry (permanen/seumur hidup)
+          _isPremium = true;
+          debugPrint('SubscriptionService: Premium aktif (permanen).');
         }
       }
     } catch (e) {
@@ -161,7 +169,16 @@ class SubscriptionService {
   }
 
   /// Cek apakah pengguna saat ini berstatus Premium.
-  bool isPremium() => _isPremium;
+  bool isPremium([String? email]) {
+    if (_isPremium) return true;
+    if (email != null && email.isNotEmpty) {
+      final lower = email.toLowerCase().trim();
+      if (lower == 'syaifulkhalifah@gmail.com' || lower == 'binjaipkh@gmail.com') {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Dapatkan tanggal kadaluarsa Premium (null jika tidak aktif).
   Future<DateTime?> getPremiumExpiry() async {

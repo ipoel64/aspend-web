@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getOrCreateFolder, uploadFileToDrive } from '@/lib/google-drive';
 import { isGoogleAuthError } from '@/lib/google-sheets';
+import { getFreshAccessToken, cleanGoogleErrorMessage, refreshGoogleAccessToken } from '@/lib/google-auth-helpers';
 import crypto from 'crypto';
 
 export const maxDuration = 60;
@@ -25,48 +26,29 @@ function decryptToken(tokenStr: string): any | null {
   }
 }
 
-async function getAccessTokenFromRefreshToken(refreshToken: string): Promise<string | null> {
-  try {
-    const url = 'https://oauth2.googleapis.com/token';
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }),
-    });
-    const data = await response.json();
-    return data.access_token || null;
-  } catch (err) {
-    console.error('Error refreshing token in upload route:', err);
-    return null;
-  }
-}
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const token = (formData.get('token') as string) || request.headers.get('x-kpm-token');
 
-    let accessToken: string | null = null;
     const session = await auth();
-    // @ts-expect-error - accessToken is attached in auth.ts
-    accessToken = session?.accessToken || null;
+    let accessToken: string | null = await getFreshAccessToken(session);
 
     if (!accessToken && token) {
       const decoded = decryptToken(token);
       if (decoded?.refreshToken) {
-        accessToken = await getAccessTokenFromRefreshToken(decoded.refreshToken);
+        const refreshed = await refreshGoogleAccessToken(decoded.refreshToken);
+        if (refreshed?.accessToken) {
+          accessToken = refreshed.accessToken;
+        }
       }
     }
 
     if (!accessToken) {
       return NextResponse.json({
         error: 'Unauthorized',
-        message: 'Silakan masuk.'
+        message: 'Sesi otorisasi Google belum terhubung. Silakan login kembali.',
+        isAuthError: true
       }, { status: 401 });
     }
     const files = formData.getAll('files') as File[];
@@ -78,7 +60,27 @@ export async function POST(request: Request) {
     }
 
     // Gunakan folderId yang sudah di-cache oleh client, atau buat/cari folder tujuan di Google Drive
-    const targetFolderId = providedFolderId || (await getOrCreateFolder(accessToken as string, folderName));
+    let targetFolderId: string = providedFolderId;
+    try {
+      if (!targetFolderId) {
+        targetFolderId = (await getOrCreateFolder(accessToken as string, folderName)) || '';
+      }
+    } catch (folderErr: any) {
+      // Jika auth error dan ada refreshToken di session, refresh dan retry folder
+      // @ts-expect-error - refreshToken from session
+      if (isGoogleAuthError(folderErr) && session?.refreshToken) {
+        // @ts-expect-error - refreshToken from session
+        const ref = await refreshGoogleAccessToken(session.refreshToken);
+        if (ref?.accessToken) {
+          accessToken = ref.accessToken;
+          targetFolderId = (await getOrCreateFolder(accessToken, folderName)) || '';
+        } else {
+          throw folderErr;
+        }
+      } else {
+        throw folderErr;
+      }
+    }
 
     // Unggah seluruh file dalam batch secara paralel dengan urutan tetap terjaga
     const uploadPromises = files.map(async (file, idx) => {
@@ -116,9 +118,10 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Error uploading file to Drive:', error);
     const isAuth = isGoogleAuthError(error);
+    const friendlyMsg = cleanGoogleErrorMessage(error);
     return NextResponse.json({
-      error: error.message || 'Gagal mengunggah file ke Google Drive.',
+      error: friendlyMsg,
       isAuthError: isAuth
-    }, { status: 500 });
+    }, { status: isAuth ? 401 : 500 });
   }
 }

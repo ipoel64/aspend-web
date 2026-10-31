@@ -1,13 +1,14 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } from './google-auth-helpers';
 
 /**
  * Mendapatkan instance Google Drive API
  */
 export async function getDriveClient(accessToken: string, refreshToken?: string) {
   const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET
   );
   auth.setCredentials({
     access_token: accessToken,
