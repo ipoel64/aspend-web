@@ -3447,35 +3447,35 @@ export default function Home() {
             )}
             
             {/* Header Title & Stats (2-Row Compact & Balanced Layout) */}
-            <div className="mb-3 flex flex-col gap-2.5">
+            <div className="mb-3 flex flex-col gap-2.5 w-full">
               {/* Baris Atas: Judul di Kiri & Kalender + Kartu Total Laporan + Kartu Bulan Ini di Kanan */}
-              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
-                <div className="min-w-0 shrink-0">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 w-full">
+                <div className="min-w-0 shrink">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D21] leading-tight font-['Outfit']">
+                    <h2 className="text-lg sm:text-xl font-bold text-[#1A1D21] leading-tight font-['Outfit'] truncate">
                       Dashboard Laporan RHK
                     </h2>
                     {isPremiumAccount && (
                       <span
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-extrabold shadow-2xs"
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-[10.5px] font-extrabold shadow-2xs shrink-0"
                         title="ASPEND Premium Aktif (Laporan Tanpa Batas)"
                       >
-                        <span className="material-symbols-outlined text-[14px] text-amber-500 font-bold">workspace_premium</span>
+                        <span className="material-symbols-outlined text-[13px] text-amber-500 font-bold">workspace_premium</span>
                         <span>Premium</span>
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
                     Kelola dan tinjau laporan pendampingan sosial secara real-time.
                   </p>
                 </div>
 
                 {/* Kalender Kontrol Kegiatan + Kartu Total Laporan + Kartu Bulan Ini (Sejajar di Kanan Atas) */}
-                <div className="flex flex-wrap items-center gap-2 self-start xl:self-center shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 self-start xl:self-center shrink-0 max-w-full">
                   {/* ── KALENDER KONTROL KEGIATAN BULAN BERJALAN (DI SAMPING TOTAL LAPORAN) ── */}
-                  <div className="relative flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-white border border-gray-200 shadow-sm shrink-0 z-40">
+                  <div className="relative flex items-center gap-2 px-2.5 py-1 rounded-2xl bg-white border border-gray-200 shadow-sm shrink-0 z-40">
                     {/* Kiri: Navigasi Bulan & Tombol Kalender Lengkap */}
-                    <div className="flex flex-col justify-between pr-2 border-r border-gray-200 min-w-[94px]">
+                    <div className="flex flex-col justify-between pr-1.5 border-r border-gray-200 min-w-[84px]">
                       <div className="flex items-center justify-between gap-0.5">
                         <button
                           type="button"
@@ -3483,13 +3483,13 @@ export default function Home() {
                           title="Bulan Sebelumnya"
                           className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[13px] leading-none">chevron_left</span>
+                          <span className="material-symbols-outlined text-[12px] leading-none">chevron_left</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
                           title="Klik untuk membuka Kalender Kontrol Bulanan Penuh"
-                          className="text-[10px] font-black text-teal-950 uppercase tracking-tight hover:text-teal-600 transition-colors cursor-pointer truncate"
+                          className="text-[9.5px] font-black text-teal-950 uppercase tracking-tight hover:text-teal-600 transition-colors cursor-pointer truncate"
                         >
                           {calendarControlData.monthShortLabel}
                         </button>
@@ -3499,24 +3499,24 @@ export default function Home() {
                           title="Bulan Berikutnya"
                           className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[13px] leading-none">chevron_right</span>
+                          <span className="material-symbols-outlined text-[12px] leading-none">chevron_right</span>
                         </button>
                       </div>
                       <button
                         type="button"
                         onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
                         title="Klik untuk melihat detail kalender bulanan"
-                        className={`mt-1 px-1.5 py-0.5 rounded-md border text-[8.5px] font-extrabold flex items-center justify-between gap-1 transition-all cursor-pointer ${
+                        className={`mt-0.5 px-1 py-0.5 rounded-md border text-[8px] font-extrabold flex items-center justify-between gap-1 transition-all cursor-pointer ${
                           isCalendarPopoverOpen
                             ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
                             : 'bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 border-emerald-200/90'
                         }`}
                       >
-                        <span className="flex items-center gap-1 truncate">
+                        <span className="flex items-center gap-0.5 truncate">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
                           <span>{calendarControlData.activeDaysCount} Hari • {calendarControlData.totalReportsInMonth} Lap</span>
                         </span>
-                        <span className="material-symbols-outlined text-[11px] leading-none shrink-0">
+                        <span className="material-symbols-outlined text-[10px] leading-none shrink-0">
                           {isCalendarPopoverOpen ? 'expand_less' : 'calendar_month'}
                         </span>
                       </button>
@@ -3524,7 +3524,7 @@ export default function Home() {
 
                     {/* Kanan: Grid Tanggal 1 s/d Akhir Bulan (2 Baris x 16 Kolom) */}
                     <div
-                      className="grid gap-[2.5px]"
+                      className="grid gap-[2px]"
                       style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
                       onMouseLeave={() => setHoveredCalendarDate(null)}
                     >
@@ -3552,7 +3552,7 @@ export default function Home() {
                             type="button"
                             onMouseEnter={() => setHoveredCalendarDate(dItem.dateIso)}
                             onClick={() => handleSelectCalendarDate(dItem.dateIso, dItem.reports)}
-                            className={`w-[16px] h-[15px] rounded-[4px] border text-[8.5px] leading-none flex items-center justify-center transition-all cursor-pointer relative select-none ${cellStyle} ${
+                            className={`w-[13.5px] h-[13px] sm:w-[14px] sm:h-[13.5px] rounded-[3px] border text-[7.5px] leading-none flex items-center justify-center transition-all cursor-pointer relative select-none ${cellStyle} ${
                               isHovered ? 'z-20 scale-110' : ''
                             }`}
                           >
@@ -3926,13 +3926,13 @@ export default function Home() {
                   </div>
 
                   {/* Card Total Laporan */}
-                  <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3.5 py-2 flex items-center gap-3 shrink-0">
-                    <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
-                      <span className="material-symbols-outlined text-lg">summarize</span>
+                  <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-2.5 sm:px-3 py-1.5 flex items-center gap-2 shrink-0">
+                    <div className="p-1.5 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
+                      <span className="material-symbols-outlined text-base">summarize</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 text-[9.5px] uppercase block font-extrabold tracking-wider">TOTAL LAPORAN</span>
-                      <div className="text-xl text-[#1A1D21] font-black leading-none mt-0.5">{stats.total}</div>
+                      <span className="text-slate-500 text-[8.5px] uppercase block font-extrabold tracking-wider leading-none">TOTAL LAPORAN</span>
+                      <div className="text-lg text-[#1A1D21] font-black leading-none mt-1">{stats.total}</div>
                     </div>
                   </div>
 
@@ -3946,25 +3946,25 @@ export default function Home() {
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}
                     title="Klik untuk filter khusus laporan bulan ini"
-                    className={`bg-white shadow-sm border rounded-2xl px-3.5 py-2 flex items-center gap-3 shrink-0 cursor-pointer transition-all text-left ${
+                    className={`bg-white shadow-sm border rounded-2xl px-2.5 sm:px-3 py-1.5 flex items-center gap-2 shrink-0 cursor-pointer transition-all text-left ${
                       isFilterThisMonthOnly && !selectedRhkTarget
                         ? 'ring-2 ring-purple-500 ring-offset-2 border-purple-500 bg-purple-50/90 shadow-md scale-[1.02]'
                         : 'border-gray-200 hover:border-purple-300 hover:shadow-xs hover:scale-[1.01]'
                     }`}
                   >
-                    <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
-                      <span className="material-symbols-outlined text-lg">calendar_today</span>
+                    <div className="p-1.5 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex-shrink-0 shadow-sm shadow-purple-500/25">
+                      <span className="material-symbols-outlined text-base">calendar_today</span>
                     </div>
                     <div>
                       <div className="flex items-center gap-1">
-                        <span className="text-slate-500 text-[9px] uppercase block font-extrabold tracking-wider">BULAN INI</span>
+                        <span className="text-slate-500 text-[8.5px] uppercase block font-extrabold tracking-wider leading-none">BULAN INI</span>
                         {isFilterThisMonthOnly && !selectedRhkTarget && (
-                          <span className="text-[8px] font-black uppercase text-purple-700 bg-purple-100 px-1 rounded">Filter Aktif ✓</span>
+                          <span className="text-[7.5px] font-black uppercase text-purple-700 bg-purple-100 px-1 rounded leading-none">Filter ✓</span>
                         )}
                       </div>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-xl text-[#1A1D21] font-black leading-none">{stats.month}</span>
-                        <span className="text-[10px] font-bold text-slate-400">/ 28 target</span>
+                      <div className="flex items-baseline gap-1 mt-1">
+                        <span className="text-lg text-[#1A1D21] font-black leading-none">{stats.month}</span>
+                        <span className="text-[9px] font-bold text-slate-400">/ 28 target</span>
                       </div>
                     </div>
                   </button>
