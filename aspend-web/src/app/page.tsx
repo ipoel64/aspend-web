@@ -3448,9 +3448,9 @@ export default function Home() {
             
             {/* Header Title & Stats (2-Row Compact & Balanced Layout) */}
             <div className="mb-3 flex flex-col gap-2.5">
-              {/* Baris Atas: Judul di Kiri & Kartu Total Laporan + Kartu Bulan Ini di Kanan */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="min-w-0">
+              {/* Baris Atas: Judul di Kiri & Kalender + Kartu Total Laporan + Kartu Bulan Ini di Kanan */}
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
+                <div className="min-w-0 shrink-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl sm:text-2xl font-bold text-[#1A1D21] leading-tight font-['Outfit']">
                       Dashboard Laporan RHK
@@ -3470,8 +3470,461 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Kartu Total Laporan & Kartu Bulan Ini (Sejajar di Kanan Atas) */}
-                <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+                {/* Kalender Kontrol Kegiatan + Kartu Total Laporan + Kartu Bulan Ini (Sejajar di Kanan Atas) */}
+                <div className="flex flex-wrap items-center gap-2 self-start xl:self-center shrink-0">
+                  {/* ── KALENDER KONTROL KEGIATAN BULAN BERJALAN (DI SAMPING TOTAL LAPORAN) ── */}
+                  <div className="relative flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-white border border-gray-200 shadow-sm shrink-0 z-40">
+                    {/* Kiri: Navigasi Bulan & Tombol Kalender Lengkap */}
+                    <div className="flex flex-col justify-between pr-2 border-r border-gray-200 min-w-[94px]">
+                      <div className="flex items-center justify-between gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => shiftCalendarMonth(-1)}
+                          title="Bulan Sebelumnya"
+                          className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[13px] leading-none">chevron_left</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
+                          title="Klik untuk membuka Kalender Kontrol Bulanan Penuh"
+                          className="text-[10px] font-black text-teal-950 uppercase tracking-tight hover:text-teal-600 transition-colors cursor-pointer truncate"
+                        >
+                          {calendarControlData.monthShortLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftCalendarMonth(1)}
+                          title="Bulan Berikutnya"
+                          className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[13px] leading-none">chevron_right</span>
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
+                        title="Klik untuk melihat detail kalender bulanan"
+                        className={`mt-1 px-1.5 py-0.5 rounded-md border text-[8.5px] font-extrabold flex items-center justify-between gap-1 transition-all cursor-pointer ${
+                          isCalendarPopoverOpen
+                            ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                            : 'bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 border-emerald-200/90'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1 truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                          <span>{calendarControlData.activeDaysCount} Hari • {calendarControlData.totalReportsInMonth} Lap</span>
+                        </span>
+                        <span className="material-symbols-outlined text-[11px] leading-none shrink-0">
+                          {isCalendarPopoverOpen ? 'expand_less' : 'calendar_month'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Kanan: Grid Tanggal 1 s/d Akhir Bulan (2 Baris x 16 Kolom) */}
+                    <div
+                      className="grid gap-[2.5px]"
+                      style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
+                      onMouseLeave={() => setHoveredCalendarDate(null)}
+                    >
+                      {calendarControlData.daysList.map((dItem) => {
+                        const hasReports = dItem.reports.length > 0;
+                        const isSelectedDate = filterDate === dItem.dateIso;
+                        const isHovered = hoveredCalendarDate === dItem.dateIso;
+
+                        let cellStyle = '';
+                        if (isSelectedDate) {
+                          cellStyle = 'bg-gradient-to-br from-indigo-600 to-blue-600 text-white border-indigo-700 ring-2 ring-indigo-300 scale-110 z-10 shadow-xs font-black';
+                        } else if (hasReports) {
+                          cellStyle = 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-emerald-600 shadow-2xs hover:from-emerald-600 hover:to-teal-700 hover:scale-110 font-black';
+                        } else if (dItem.isToday) {
+                          cellStyle = 'bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-300 font-black hover:bg-amber-200';
+                        } else if (dItem.isWeekend) {
+                          cellStyle = 'bg-rose-50/80 text-rose-400 border-rose-200/70 hover:border-rose-300 hover:bg-rose-100/60 font-bold';
+                        } else {
+                          cellStyle = 'bg-slate-50/70 text-slate-500 border-slate-200/90 hover:border-cyan-400 hover:text-cyan-700 hover:bg-cyan-50/50 font-bold';
+                        }
+
+                        return (
+                          <button
+                            key={dItem.dateIso}
+                            type="button"
+                            onMouseEnter={() => setHoveredCalendarDate(dItem.dateIso)}
+                            onClick={() => handleSelectCalendarDate(dItem.dateIso, dItem.reports)}
+                            className={`w-[16px] h-[15px] rounded-[4px] border text-[8.5px] leading-none flex items-center justify-center transition-all cursor-pointer relative select-none ${cellStyle} ${
+                              isHovered ? 'z-20 scale-110' : ''
+                            }`}
+                          >
+                            <span>{dItem.day}</span>
+                            {/* Indikator multi-kegiatan (>1 laporan pada tanggal ini) */}
+                            {dItem.reports.length > 1 && (
+                              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-300 ring-1 ring-white" />
+                            )}
+                            {/* Indikator hari ini jika sudah ada laporan */}
+                            {dItem.isToday && hasReports && !isSelectedDate && (
+                              <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-2 h-0.5 rounded-full bg-amber-300" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* ── TOOLTIP HOVER TANGGAL (INSTANT PREVIEW KEGIATAN PER TANGGAL) ── */}
+                    {hoveredCalendarDate && !isCalendarPopoverOpen && (() => {
+                      const hoveredItem = calendarControlData.daysList.find(x => x.dateIso === hoveredCalendarDate);
+                      if (!hoveredItem) return null;
+                      const formattedFullDate = new Intl.DateTimeFormat('id-ID', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      }).format(new Date(calendarControlData.year, calendarControlData.monthIndex, hoveredItem.day));
+
+                      return (
+                        <div className="absolute right-0 top-full mt-2 z-50 w-[300px] sm:w-[330px] rounded-2xl bg-slate-900/95 backdrop-blur-md text-white p-3 shadow-2xl border border-white/15 pointer-events-none animate-in fade-in duration-150">
+                          <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-700/80">
+                            <div>
+                              <div className="text-[11px] font-extrabold text-white leading-tight">{formattedFullDate}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {hoveredItem.isToday && (
+                                  <span className="text-[8.5px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                    Hari Ini
+                                  </span>
+                                )}
+                                {hoveredItem.isWeekend && (
+                                  <span className="text-[8.5px] font-bold uppercase px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                                    Akhir Pekan
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {hoveredItem.reports.length > 0 ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9.5px] font-black shrink-0">
+                                ✓ {hoveredItem.reports.length} Kegiatan
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[9.5px] font-bold shrink-0">
+                                Kosong
+                              </span>
+                            )}
+                          </div>
+
+                          {hoveredItem.reports.length > 0 ? (
+                            <div className="space-y-1.5 max-h-[180px] overflow-hidden">
+                              {hoveredItem.reports.slice(0, 3).map((rep, rIdx) => {
+                                const idTxt = rep.IdRHK || rep.JenisRHK || '';
+                                const num = idTxt.replace(/\D/g, '') || '?';
+                                return (
+                                  <div key={rep.ReportId || rIdx} className="p-2 rounded-xl bg-slate-800/90 border border-slate-700/80 flex flex-col gap-1">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <span className="px-1.5 py-0.5 rounded bg-teal-500/25 border border-teal-400/40 text-teal-200 text-[9px] font-black">
+                                        RHK-{num}
+                                      </span>
+                                      <span className="text-[9px] text-slate-300 font-semibold flex items-center gap-0.5">
+                                        <span className="material-symbols-outlined text-[11px] text-cyan-400">schedule</span>
+                                        {rep.Pukul || '14:00'}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] font-bold text-slate-100 line-clamp-2 leading-snug">
+                                      {rep.RencanaAksi || rep.JenisRHK || '-'}
+                                    </div>
+                                    {rep.Lokasi && (
+                                      <div className="text-[9px] text-slate-400 truncate flex items-center gap-0.5">
+                                        <span className="material-symbols-outlined text-[10px] text-slate-400">location_on</span>
+                                        <span className="truncate">{rep.Lokasi}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {hoveredItem.reports.length > 3 && (
+                                <div className="text-[9.5px] text-center text-cyan-300 font-bold pt-0.5">
+                                  +{hoveredItem.reports.length - 3} kegiatan lainnya pada tanggal ini
+                                </div>
+                              )}
+                              <div className="pt-1 text-[9px] text-cyan-300/90 font-semibold text-center border-t border-slate-800">
+                                💡 Klik tanggal untuk memfilter & melihat PDF laporan
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="py-2 text-center text-[10px] text-slate-400">
+                              Belum ada laporan kegiatan yang dikerjakan pada tanggal ini.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── POPOVER KALENDER KONTROL BULANAN PENUH (7 KOLOM SENIN-MINGGU) ── */}
+                    {isCalendarPopoverOpen && (
+                      <div className="absolute right-0 top-full mt-2 z-50 w-[350px] sm:w-[420px] rounded-2xl bg-white shadow-[0_20px_60px_-10px_rgba(0,0,0,0.28)] border border-teal-200 overflow-hidden animate-in fade-in duration-150">
+                        {/* Header Popover */}
+                        <div className="p-3 bg-gradient-to-r from-[#0F3842] via-[#134E5E] to-[#0F3842] text-white flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center text-teal-300">
+                              <span className="material-symbols-outlined text-lg">event_available</span>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-extrabold tracking-wide uppercase text-white leading-none">
+                                Kalender Kontrol Kegiatan
+                              </h4>
+                              <p className="text-[10px] text-teal-200/90 mt-0.5">
+                                Pantau & kendalikan capaian RHK harian Anda
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsCalendarPopoverOpen(false)}
+                            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                            title="Tutup Kalender"
+                          >
+                            <span className="material-symbols-outlined text-base">close</span>
+                          </button>
+                        </div>
+
+                        {/* Navigasi Bulan & Ringkasan Statistik Kontrol */}
+                        <div className="p-3 bg-slate-50 border-b border-slate-200">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <button
+                              type="button"
+                              onClick={() => shiftCalendarMonth(-1)}
+                              className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-slate-700 text-xs font-bold flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-sm">chevron_left</span>
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight">
+                                {calendarControlData.monthFullLabel}
+                              </span>
+                              {!calendarControlData.isCurrentMonth && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const now = new Date();
+                                    setCalendarMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                                  }}
+                                  className="px-2 py-0.5 rounded-full bg-teal-100 hover:bg-teal-200 text-teal-800 text-[9.5px] font-extrabold cursor-pointer"
+                                >
+                                  Bulan Ini
+                                </button>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => shiftCalendarMonth(1)}
+                              className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-slate-700 text-xs font-bold flex items-center gap-0.5 shadow-2xs cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-sm">chevron_right</span>
+                            </button>
+                          </div>
+
+                          {/* 3 Kartu Statistik Kontrol Bulanan */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                              <div className="text-[9px] font-extrabold uppercase text-emerald-700">Hari Terisi</div>
+                              <div className="text-sm font-black text-emerald-900 mt-0.5">
+                                {calendarControlData.activeDaysCount} <span className="text-[9.5px] font-bold text-emerald-600">Hari</span>
+                              </div>
+                            </div>
+                            <div className="p-2 rounded-xl bg-cyan-50 border border-cyan-200 text-center">
+                              <div className="text-[9px] font-extrabold uppercase text-cyan-700">Total Kegiatan</div>
+                              <div className="text-sm font-black text-cyan-900 mt-0.5">
+                                {calendarControlData.totalReportsInMonth} <span className="text-[9.5px] font-bold text-cyan-600">Laporan</span>
+                              </div>
+                            </div>
+                            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                              <div className="text-[9px] font-extrabold uppercase text-amber-800">Hari Kerja Kosong</div>
+                              <div className="text-sm font-black text-amber-900 mt-0.5">
+                                {calendarControlData.missedWorkingDaysCount} <span className="text-[9.5px] font-bold text-amber-700">Hari</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grid Kalender 7 Kolom (Senin s/d Minggu) */}
+                        <div className="p-3 bg-white">
+                          <div className="grid grid-cols-7 gap-1 mb-1.5 text-center">
+                            {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((h, i) => (
+                              <div
+                                key={h}
+                                className={`text-[9.5px] font-extrabold uppercase tracking-wider py-0.5 ${
+                                  i >= 5 ? 'text-rose-500' : 'text-slate-500'
+                                }`}
+                              >
+                                {h}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-7 gap-1.5">
+                            {Array.from({ length: calendarControlData.leadingEmptyCells }).map((_, idx) => (
+                              <div key={`empty_${idx}`} className="h-12 rounded-xl bg-slate-50/60 border border-dashed border-slate-200/60" />
+                            ))}
+
+                            {calendarControlData.daysList.map((dItem) => {
+                              const hasReports = dItem.reports.length > 0;
+                              const isSelectedDate = filterDate === dItem.dateIso;
+
+                              return (
+                                <button
+                                  key={dItem.dateIso}
+                                  type="button"
+                                  onClick={() => handleSelectCalendarDate(dItem.dateIso, dItem.reports)}
+                                  className={`h-12 p-1 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer relative overflow-hidden ${
+                                    isSelectedDate
+                                      ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-300 shadow-md scale-[1.03] z-10'
+                                      : hasReports
+                                      ? 'bg-gradient-to-br from-emerald-50 via-teal-50/90 to-emerald-100/80 border-emerald-300 hover:border-emerald-500 shadow-2xs hover:shadow-xs'
+                                      : dItem.isToday
+                                      ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-300'
+                                      : dItem.isWeekend
+                                      ? 'bg-rose-50/40 border-rose-100 text-rose-400 hover:bg-rose-50'
+                                      : 'bg-white border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/30'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <span
+                                      className={`text-[10px] font-black leading-none ${
+                                        isSelectedDate
+                                          ? 'text-white'
+                                          : hasReports
+                                          ? 'text-emerald-950'
+                                          : dItem.isToday
+                                          ? 'text-amber-900'
+                                          : dItem.isWeekend
+                                          ? 'text-rose-500'
+                                          : 'text-slate-700'
+                                      }`}
+                                    >
+                                      {dItem.day}
+                                    </span>
+                                    {hasReports && (
+                                      <span
+                                        className={`text-[8px] font-black px-1 py-0.2 rounded-full leading-none ${
+                                          isSelectedDate
+                                            ? 'bg-white/25 text-white'
+                                            : 'bg-emerald-600 text-white'
+                                        }`}
+                                      >
+                                        {dItem.reports.length}✓
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Badge RHK di dalam kotak tanggal */}
+                                  {hasReports ? (
+                                    <div className="flex flex-wrap gap-0.5 mt-auto overflow-hidden">
+                                      {dItem.uniqueRhkNums.slice(0, 2).map((num) => (
+                                        <span
+                                          key={num}
+                                          className={`text-[7.5px] font-black px-1 py-0.2 rounded leading-none ${
+                                            isSelectedDate
+                                              ? 'bg-white text-indigo-800'
+                                              : 'bg-teal-700 text-white'
+                                          }`}
+                                        >
+                                          R{num}
+                                        </span>
+                                      ))}
+                                      {dItem.uniqueRhkNums.length > 2 && (
+                                        <span className="text-[7px] font-black text-emerald-800">
+                                          +{dItem.uniqueRhkNums.length - 2}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : dItem.isToday ? (
+                                    <span className="text-[7.5px] font-extrabold text-amber-700 leading-none truncate">
+                                      Hari Ini
+                                    </span>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Legenda Warna */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[9.5px] text-slate-600 font-semibold">
+                            <div className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-emerald-500 to-teal-600 inline-block"></span>
+                              <span>Sudah Dikerjakan</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-400 inline-block"></span>
+                              <span>Hari Ini</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600 inline-block"></span>
+                              <span>Tanggal Difilter</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="w-2.5 h-2.5 rounded-sm bg-rose-100 border border-rose-200 inline-block"></span>
+                              <span>Akhir Pekan</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Daftar Kegiatan pada Tanggal yang Dipilih */}
+                        {filterDate && calendarControlData.reportsByDate[filterDate] && (
+                          <div className="p-3 bg-slate-50 border-t border-slate-200 max-h-[175px] overflow-y-auto">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[10px] font-extrabold text-slate-700 uppercase">
+                                Kegiatan Tanggal {filterDate.split('-').reverse().join('/')}:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setFilterDate("")}
+                                className="text-[9.5px] font-bold text-rose-600 hover:underline cursor-pointer"
+                              >
+                                Hapus Filter Tanggal
+                              </button>
+                            </div>
+                            <div className="space-y-1.5">
+                              {calendarControlData.reportsByDate[filterDate].map((rep, idx) => {
+                                const idTxt = rep.IdRHK || rep.JenisRHK || '';
+                                const num = idTxt.replace(/\D/g, '') || '?';
+                                const isCurrSelected = selectedReport?.ReportId === rep.ReportId;
+                                return (
+                                  <button
+                                    key={rep.ReportId || idx}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedReport(rep);
+                                      setIsCalendarPopoverOpen(false);
+                                    }}
+                                    className={`w-full p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                      isCurrSelected
+                                        ? 'bg-cyan-50 border-cyan-400 shadow-2xs'
+                                        : 'bg-white border-slate-200 hover:border-cyan-300'
+                                    }`}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="px-1.5 py-0.2 rounded bg-teal-600 text-white text-[8.5px] font-black">
+                                          RHK-{num}
+                                        </span>
+                                        <span className="text-[9px] font-bold text-slate-500">
+                                          {rep.Pukul || '14:00'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[10px] font-bold text-slate-800 truncate mt-0.5">
+                                        {rep.RencanaAksi || rep.JenisRHK}
+                                      </p>
+                                    </div>
+                                    <span className="material-symbols-outlined text-cyan-600 text-base shrink-0">
+                                      visibility
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Card Total Laporan */}
                   <div className="bg-white shadow-sm border border-gray-200 rounded-2xl px-3.5 py-2 flex items-center gap-3 shrink-0">
                     <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-500 text-white rounded-xl flex-shrink-0 shadow-sm shadow-cyan-500/25">
@@ -3653,461 +4106,8 @@ export default function Home() {
                   type="date" 
                   value={filterDate}
                   onChange={(e) => setFilterDate(e.target.value)}
-                  className="shrink-0 w-[108px] px-1.5 py-1.5 border border-gray-300 rounded-md text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none bg-white text-gray-700" 
+                  className="shrink-0 w-[112px] px-1.5 py-1.5 border border-gray-300 rounded-md text-xs focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none bg-white text-gray-700" 
                 />
-
-                {/* ── KALENDER KONTROL KEGIATAN BULAN BERJALAN (MEMANJAKAN MATA) ── */}
-                <div className="relative flex items-center gap-2 px-2 py-1 rounded-xl bg-gradient-to-r from-teal-50/90 via-white to-cyan-50/80 border border-teal-200/90 shadow-2xs shrink-0">
-                  {/* Kiri: Navigasi Bulan & Tombol Kalender Lengkap */}
-                  <div className="flex flex-col justify-between pr-1.5 border-r border-teal-200/70 min-w-[92px]">
-                    <div className="flex items-center justify-between gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => shiftCalendarMonth(-1)}
-                        title="Bulan Sebelumnya"
-                        className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[13px] leading-none">chevron_left</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
-                        title="Klik untuk membuka Kalender Kontrol Bulanan Penuh"
-                        className="text-[10px] font-black text-teal-950 uppercase tracking-tight hover:text-teal-600 transition-colors cursor-pointer truncate"
-                      >
-                        {calendarControlData.monthShortLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => shiftCalendarMonth(1)}
-                        title="Bulan Berikutnya"
-                        className="w-4 h-4 rounded hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[13px] leading-none">chevron_right</span>
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsCalendarPopoverOpen(prev => !prev)}
-                      title="Klik untuk melihat detail kalender bulanan"
-                      className={`mt-0.5 px-1.5 py-0.5 rounded-md border text-[8.5px] font-extrabold flex items-center justify-between gap-1 transition-all cursor-pointer ${
-                        isCalendarPopoverOpen
-                          ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                          : 'bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 border-emerald-200/90'
-                      }`}
-                    >
-                      <span className="flex items-center gap-0.5 truncate">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                        <span>{calendarControlData.activeDaysCount} Hari • {calendarControlData.totalReportsInMonth} Lap</span>
-                      </span>
-                      <span className="material-symbols-outlined text-[11px] leading-none shrink-0">
-                        {isCalendarPopoverOpen ? 'expand_less' : 'calendar_month'}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Kanan: Grid Tanggal 1 s/d Akhir Bulan (2 Baris x 16 Kolom) */}
-                  <div
-                    className="grid gap-[2.5px]"
-                    style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
-                    onMouseLeave={() => setHoveredCalendarDate(null)}
-                  >
-                    {calendarControlData.daysList.map((dItem) => {
-                      const hasReports = dItem.reports.length > 0;
-                      const isSelectedDate = filterDate === dItem.dateIso;
-                      const isHovered = hoveredCalendarDate === dItem.dateIso;
-
-                      let cellStyle = '';
-                      if (isSelectedDate) {
-                        cellStyle = 'bg-gradient-to-br from-indigo-600 to-blue-600 text-white border-indigo-700 ring-2 ring-indigo-300 scale-110 z-10 shadow-xs font-black';
-                      } else if (hasReports) {
-                        cellStyle = 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-emerald-600 shadow-2xs hover:from-emerald-600 hover:to-teal-700 hover:scale-110 font-black';
-                      } else if (dItem.isToday) {
-                        cellStyle = 'bg-amber-100 text-amber-900 border-amber-400 ring-1 ring-amber-300 font-black hover:bg-amber-200';
-                      } else if (dItem.isWeekend) {
-                        cellStyle = 'bg-rose-50/80 text-rose-400 border-rose-200/70 hover:border-rose-300 hover:bg-rose-100/60 font-bold';
-                      } else {
-                        cellStyle = 'bg-white text-slate-500 border-slate-200/90 hover:border-cyan-400 hover:text-cyan-700 hover:bg-cyan-50/50 font-bold';
-                      }
-
-                      return (
-                        <button
-                          key={dItem.dateIso}
-                          type="button"
-                          onMouseEnter={() => setHoveredCalendarDate(dItem.dateIso)}
-                          onClick={() => handleSelectCalendarDate(dItem.dateIso, dItem.reports)}
-                          className={`w-[16px] h-[15px] rounded-[4px] border text-[8.5px] leading-none flex items-center justify-center transition-all cursor-pointer relative select-none ${cellStyle} ${
-                            isHovered ? 'z-20 scale-110' : ''
-                          }`}
-                        >
-                          <span>{dItem.day}</span>
-                          {/* Indikator multi-kegiatan (>1 laporan pada tanggal ini) */}
-                          {dItem.reports.length > 1 && (
-                            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-300 ring-1 ring-white" />
-                          )}
-                          {/* Indikator hari ini jika sudah ada laporan */}
-                          {dItem.isToday && hasReports && !isSelectedDate && (
-                            <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-2 h-0.5 rounded-full bg-amber-300" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* ── TOOLTIP HOVER TANGGAL (INSTANT PREVIEW KEGIATAN PER TANGGAL) ── */}
-                  {hoveredCalendarDate && !isCalendarPopoverOpen && (() => {
-                    const hoveredItem = calendarControlData.daysList.find(x => x.dateIso === hoveredCalendarDate);
-                    if (!hoveredItem) return null;
-                    const formattedFullDate = new Intl.DateTimeFormat('id-ID', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    }).format(new Date(calendarControlData.year, calendarControlData.monthIndex, hoveredItem.day));
-
-                    return (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-[300px] sm:w-[330px] rounded-2xl bg-slate-900/95 backdrop-blur-md text-white p-3 shadow-2xl border border-white/15 pointer-events-none animate-in fade-in duration-150">
-                        <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-700/80">
-                          <div>
-                            <div className="text-[11px] font-extrabold text-white leading-tight">{formattedFullDate}</div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {hoveredItem.isToday && (
-                                <span className="text-[8.5px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                                  Hari Ini
-                                </span>
-                              )}
-                              {hoveredItem.isWeekend && (
-                                <span className="text-[8.5px] font-bold uppercase px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-400/30">
-                                  Akhir Pekan
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {hoveredItem.reports.length > 0 ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9.5px] font-black shrink-0">
-                              ✓ {hoveredItem.reports.length} Kegiatan
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[9.5px] font-bold shrink-0">
-                              Kosong
-                            </span>
-                          )}
-                        </div>
-
-                        {hoveredItem.reports.length > 0 ? (
-                          <div className="space-y-1.5 max-h-[180px] overflow-hidden">
-                            {hoveredItem.reports.slice(0, 3).map((rep, rIdx) => {
-                              const idTxt = rep.IdRHK || rep.JenisRHK || '';
-                              const num = idTxt.replace(/\D/g, '') || '?';
-                              return (
-                                <div key={rep.ReportId || rIdx} className="p-2 rounded-xl bg-slate-800/90 border border-slate-700/80 flex flex-col gap-1">
-                                  <div className="flex items-center justify-between gap-1.5">
-                                    <span className="px-1.5 py-0.5 rounded bg-teal-500/25 border border-teal-400/40 text-teal-200 text-[9px] font-black">
-                                      RHK-{num}
-                                    </span>
-                                    <span className="text-[9px] text-slate-300 font-semibold flex items-center gap-0.5">
-                                      <span className="material-symbols-outlined text-[11px] text-cyan-400">schedule</span>
-                                      {rep.Pukul || '14:00'}
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] font-bold text-slate-100 line-clamp-2 leading-snug">
-                                    {rep.RencanaAksi || rep.JenisRHK || '-'}
-                                  </div>
-                                  {rep.Lokasi && (
-                                    <div className="text-[9px] text-slate-400 truncate flex items-center gap-0.5">
-                                      <span className="material-symbols-outlined text-[10px] text-slate-400">location_on</span>
-                                      <span className="truncate">{rep.Lokasi}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {hoveredItem.reports.length > 3 && (
-                              <div className="text-[9.5px] text-center text-cyan-300 font-bold pt-0.5">
-                                +{hoveredItem.reports.length - 3} kegiatan lainnya pada tanggal ini
-                              </div>
-                            )}
-                            <div className="pt-1 text-[9px] text-cyan-300/90 font-semibold text-center border-t border-slate-800">
-                              💡 Klik tanggal untuk memfilter & melihat PDF laporan
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="py-2 text-center text-[10px] text-slate-400">
-                            Belum ada laporan kegiatan yang dikerjakan pada tanggal ini.
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── POPOVER KALENDER KONTROL BULANAN PENUH (7 KOLOM SENIN-MINGGU) ── */}
-                  {isCalendarPopoverOpen && (
-                    <div className="absolute right-0 top-full mt-2 z-50 w-[350px] sm:w-[420px] rounded-2xl bg-white shadow-[0_20px_60px_-10px_rgba(0,0,0,0.28)] border border-teal-200 overflow-hidden animate-in fade-in duration-150">
-                      {/* Header Popover */}
-                      <div className="p-3 bg-gradient-to-r from-[#0F3842] via-[#134E5E] to-[#0F3842] text-white flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center text-teal-300">
-                            <span className="material-symbols-outlined text-lg">event_available</span>
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-extrabold tracking-wide uppercase text-white leading-none">
-                              Kalender Kontrol Kegiatan
-                            </h4>
-                            <p className="text-[10px] text-teal-200/90 mt-0.5">
-                              Pantau & kendalikan capaian RHK harian Anda
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsCalendarPopoverOpen(false)}
-                          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-                          title="Tutup Kalender"
-                        >
-                          <span className="material-symbols-outlined text-base">close</span>
-                        </button>
-                      </div>
-
-                      {/* Navigasi Bulan & Ringkasan Statistik Kontrol */}
-                      <div className="p-3 bg-slate-50 border-b border-slate-200">
-                        <div className="flex items-center justify-between mb-2.5">
-                          <button
-                            type="button"
-                            onClick={() => shiftCalendarMonth(-1)}
-                            className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-slate-700 text-xs font-bold flex items-center gap-0.5 shadow-2xs cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">chevron_left</span>
-                          </button>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight">
-                              {calendarControlData.monthFullLabel}
-                            </span>
-                            {!calendarControlData.isCurrentMonth && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const now = new Date();
-                                  setCalendarMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-                                }}
-                                className="px-2 py-0.5 rounded-full bg-teal-100 hover:bg-teal-200 text-teal-800 text-[9.5px] font-extrabold cursor-pointer"
-                              >
-                                Bulan Ini
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => shiftCalendarMonth(1)}
-                            className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-slate-700 text-xs font-bold flex items-center gap-0.5 shadow-2xs cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">chevron_right</span>
-                          </button>
-                        </div>
-
-                        {/* 3 Kartu Statistik Kontrol Bulanan */}
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                            <div className="text-[9px] font-extrabold uppercase text-emerald-700">Hari Terisi</div>
-                            <div className="text-sm font-black text-emerald-900 mt-0.5">
-                              {calendarControlData.activeDaysCount} <span className="text-[9.5px] font-bold text-emerald-600">Hari</span>
-                            </div>
-                          </div>
-                          <div className="p-2 rounded-xl bg-cyan-50 border border-cyan-200 text-center">
-                            <div className="text-[9px] font-extrabold uppercase text-cyan-700">Total Kegiatan</div>
-                            <div className="text-sm font-black text-cyan-900 mt-0.5">
-                              {calendarControlData.totalReportsInMonth} <span className="text-[9.5px] font-bold text-cyan-600">Laporan</span>
-                            </div>
-                          </div>
-                          <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                            <div className="text-[9px] font-extrabold uppercase text-amber-800">Hari Kerja Kosong</div>
-                            <div className="text-sm font-black text-amber-900 mt-0.5">
-                              {calendarControlData.missedWorkingDaysCount} <span className="text-[9.5px] font-bold text-amber-700">Hari</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Grid Kalender 7 Kolom (Senin s/d Minggu) */}
-                      <div className="p-3 bg-white">
-                        <div className="grid grid-cols-7 gap-1 mb-1.5 text-center">
-                          {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((h, i) => (
-                            <div
-                              key={h}
-                              className={`text-[9.5px] font-extrabold uppercase tracking-wider py-0.5 ${
-                                i >= 5 ? 'text-rose-500' : 'text-slate-500'
-                              }`}
-                            >
-                              {h}
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-1.5">
-                          {Array.from({ length: calendarControlData.leadingEmptyCells }).map((_, idx) => (
-                            <div key={`empty_${idx}`} className="h-12 rounded-xl bg-slate-50/60 border border-dashed border-slate-200/60" />
-                          ))}
-
-                          {calendarControlData.daysList.map((dItem) => {
-                            const hasReports = dItem.reports.length > 0;
-                            const isSelectedDate = filterDate === dItem.dateIso;
-
-                            return (
-                              <button
-                                key={dItem.dateIso}
-                                type="button"
-                                onClick={() => handleSelectCalendarDate(dItem.dateIso, dItem.reports)}
-                                className={`h-12 p-1 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer relative overflow-hidden ${
-                                  isSelectedDate
-                                    ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-indigo-300 shadow-md scale-[1.03] z-10'
-                                    : hasReports
-                                    ? 'bg-gradient-to-br from-emerald-50 via-teal-50/90 to-emerald-100/80 border-emerald-300 hover:border-emerald-500 shadow-2xs hover:shadow-xs'
-                                    : dItem.isToday
-                                    ? 'bg-amber-50 border-amber-400 ring-1 ring-amber-300'
-                                    : dItem.isWeekend
-                                    ? 'bg-rose-50/40 border-rose-100 text-rose-400 hover:bg-rose-50'
-                                    : 'bg-white border-slate-200 hover:border-cyan-400 hover:bg-cyan-50/30'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between w-full">
-                                  <span
-                                    className={`text-[10px] font-black leading-none ${
-                                      isSelectedDate
-                                        ? 'text-white'
-                                        : hasReports
-                                        ? 'text-emerald-950'
-                                        : dItem.isToday
-                                        ? 'text-amber-900'
-                                        : dItem.isWeekend
-                                        ? 'text-rose-500'
-                                        : 'text-slate-700'
-                                    }`}
-                                  >
-                                    {dItem.day}
-                                  </span>
-                                  {hasReports && (
-                                    <span
-                                      className={`text-[8px] font-black px-1 py-0.2 rounded-full leading-none ${
-                                        isSelectedDate
-                                          ? 'bg-white/25 text-white'
-                                          : 'bg-emerald-600 text-white'
-                                      }`}
-                                    >
-                                      {dItem.reports.length}✓
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Badge RHK di dalam kotak tanggal */}
-                                {hasReports ? (
-                                  <div className="flex flex-wrap gap-0.5 mt-auto overflow-hidden">
-                                    {dItem.uniqueRhkNums.slice(0, 2).map((num) => (
-                                      <span
-                                        key={num}
-                                        className={`text-[7.5px] font-black px-1 py-0.2 rounded leading-none ${
-                                          isSelectedDate
-                                            ? 'bg-white text-indigo-800'
-                                            : 'bg-teal-700 text-white'
-                                        }`}
-                                      >
-                                        R{num}
-                                      </span>
-                                    ))}
-                                    {dItem.uniqueRhkNums.length > 2 && (
-                                      <span className="text-[7px] font-black text-emerald-800">
-                                        +{dItem.uniqueRhkNums.length - 2}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : dItem.isToday ? (
-                                  <span className="text-[7.5px] font-extrabold text-amber-700 leading-none truncate">
-                                    Hari Ini
-                                  </span>
-                                ) : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Legenda Warna */}
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[9.5px] text-slate-600 font-semibold">
-                          <div className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-br from-emerald-500 to-teal-600 inline-block"></span>
-                            <span>Sudah Dikerjakan</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-400 inline-block"></span>
-                            <span>Hari Ini</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600 inline-block"></span>
-                            <span>Tanggal Difilter</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-rose-100 border border-rose-200 inline-block"></span>
-                            <span>Akhir Pekan</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Daftar Kegiatan pada Tanggal yang Dipilih */}
-                      {filterDate && calendarControlData.reportsByDate[filterDate] && (
-                        <div className="p-3 bg-slate-50 border-t border-slate-200 max-h-[175px] overflow-y-auto">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[10px] font-extrabold text-slate-700 uppercase">
-                              Kegiatan Tanggal {filterDate.split('-').reverse().join('/')}:
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setFilterDate("")}
-                              className="text-[9.5px] font-bold text-rose-600 hover:underline cursor-pointer"
-                            >
-                              Hapus Filter Tanggal
-                            </button>
-                          </div>
-                          <div className="space-y-1.5">
-                            {calendarControlData.reportsByDate[filterDate].map((rep, idx) => {
-                              const idTxt = rep.IdRHK || rep.JenisRHK || '';
-                              const num = idTxt.replace(/\D/g, '') || '?';
-                              const isCurrSelected = selectedReport?.ReportId === rep.ReportId;
-                              return (
-                                <button
-                                  key={rep.ReportId || idx}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedReport(rep);
-                                    setIsCalendarPopoverOpen(false);
-                                  }}
-                                  className={`w-full p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                                    isCurrSelected
-                                      ? 'bg-cyan-50 border-cyan-400 shadow-2xs'
-                                      : 'bg-white border-slate-200 hover:border-cyan-300'
-                                  }`}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="px-1.5 py-0.2 rounded bg-teal-600 text-white text-[8.5px] font-black">
-                                        RHK-{num}
-                                      </span>
-                                      <span className="text-[9px] font-bold text-slate-500">
-                                        {rep.Pukul || '14:00'}
-                                      </span>
-                                    </div>
-                                    <p className="text-[10px] font-bold text-slate-800 truncate mt-0.5">
-                                      {rep.RencanaAksi || rep.JenisRHK}
-                                    </p>
-                                  </div>
-                                  <span className="material-symbols-outlined text-cyan-600 text-base shrink-0">
-                                    visibility
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
 
                 {/* Filter Bulan Ini Aktif */}
                 {isFilterThisMonthOnly && !selectedRhkTarget && (
@@ -4141,13 +4141,11 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Badge informasi hasil filter menarik dan jelas di tengah */}
+                {/* Badge informasi jumlah hasil filter ringkas tanpa tulisan "Ditemukan:" */}
                 {isFiltered && (
-                  <div className="flex items-center gap-1.5 px-3 py-1 bg-cyan-50 border border-cyan-200 text-cyan-800 rounded-lg text-xs font-bold shadow-xs">
-                    <span className="material-symbols-outlined text-[16px] text-cyan-600">filter_alt</span>
-                    <span>
-                      Ditemukan: <span className="bg-cyan-600 text-white px-2 py-0.5 rounded-full text-xs font-black shadow-xs ml-0.5">{totalFiltered}</span> laporan
-                    </span>
+                  <div className="flex items-center gap-1 px-2 py-1 bg-cyan-50 border border-cyan-200 text-cyan-800 rounded-lg text-xs font-bold shadow-xs shrink-0">
+                    <span className="bg-cyan-600 text-white px-2 py-0.5 rounded-full text-xs font-black shadow-xs">{totalFiltered}</span>
+                    <span>laporan</span>
                   </div>
                 )}
 
