@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import {
   STATUS_KELOMPOK_OPTIONS,
   KOMPONEN_OPTIONS,
@@ -15,6 +16,18 @@ import {
   KpmAnggota,
   KpmAset,
 } from '@/lib/kpm-constants';
+
+const KpmPortalLocationMap = dynamic(() => import('@/components/kpm/KpmPortalLocationMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[270px] bg-slate-100 rounded-2xl border flex items-center justify-center text-gray-500 text-xs">
+      <div className="flex items-center gap-2">
+        <div className="w-4 h-4 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+        <span>Memuat Peta Lokasi Rumah...</span>
+      </div>
+    </div>
+  ),
+});
 
 function KpmPortalContent() {
   const searchParams = useSearchParams();
@@ -86,8 +99,21 @@ function KpmPortalContent() {
   // Blok 4: Pernyataan KPM
   const [pernyataan, setPernyataan] = useState('');
 
-  // Uploading state
+  // Uploading & Local preview states
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
+
+  // GPS Map & Pernyataan Validation states
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [showPernyataanWarningModal, setShowPernyataanWarningModal] = useState(false);
+
+  // Helper mengambil URL gambar (memprioritaskan local preview 0ms, lalu URL proxy Drive dengan token)
+  const getImageSrc = (fieldKey: string, val: string) => {
+    if (localPreviews[fieldKey]) return localPreviews[fieldKey];
+    if (!val) return '';
+    if (val.startsWith('http') || val.startsWith('data:') || val.startsWith('blob:')) return val;
+    return `/api/image-proxy?id=${val}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  };
 
   // Saving / notification state
   const [isSaving, setIsSaving] = useState(false);
@@ -174,6 +200,10 @@ function KpmPortalContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Tampilkan pratinjau thumbnail secara instan (0 ms) agar langsung terlihat oleh user
+    const localUrl = URL.createObjectURL(file);
+    setLocalPreviews((prev) => ({ ...prev, [fieldKey]: localUrl }));
+
     setUploadingField(fieldKey);
     setSubmitError('');
 
@@ -240,15 +270,19 @@ function KpmPortalContent() {
       alert('Browser Anda tidak mendukung deteksi lokasi GPS.');
       return;
     }
+
+    setIsGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setIsGettingLocation(false);
         setLatitude(pos.coords.latitude.toFixed(6));
         setLongitude(pos.coords.longitude.toFixed(6));
       },
       (err) => {
-        alert(`Gagal mengambil titik GPS: ${err.message}`);
+        setIsGettingLocation(false);
+        alert(`Gagal mengambil titik GPS: ${err.message}. Pastikan izin lokasi (GPS) pada browser/HP Anda telah diaktifkan.`);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -316,6 +350,15 @@ function KpmPortalContent() {
     currentBlock: 'keluarga' | 'anggota' | 'aset' | 'pernyataan',
     nextTab?: 'keluarga' | 'anggota' | 'aset' | 'pernyataan' | 'done'
   ) => {
+    // Validasi Blok 4: Pernyataan komitmen resmi wajib dipilih sebelum menyelesaikan formulir
+    if (currentBlock === 'pernyataan' || nextTab === 'done') {
+      const p = (pernyataan || '').trim();
+      if (!p || p.toLowerCase().includes('belum ada pernyataan')) {
+        setShowPernyataanWarningModal(true);
+        return;
+      }
+    }
+
     setIsSaving(true);
     setSubmitError('');
     setSaveSuccessMsg('');
@@ -326,6 +369,7 @@ function KpmPortalContent() {
         nik: kpmData?.NIK || nikInput,
         password: passwordInput,
         step: currentBlock,
+        isFinal: nextTab === 'done',
       };
 
       // Siapkan payload dataKeluarga jika di blok keluarga, pernyataan, atau final
@@ -419,7 +463,11 @@ function KpmPortalContent() {
         >
           <div className="relative max-w-2xl max-h-[90vh] bg-white rounded-2xl overflow-hidden p-2 shadow-2xl">
             <img
-              src={`/api/image-proxy?id=${previewPhoto}`}
+              src={
+                previewPhoto.startsWith('http') || previewPhoto.startsWith('blob:') || previewPhoto.startsWith('data:')
+                  ? previewPhoto
+                  : `/api/image-proxy?id=${previewPhoto}${token ? `&token=${encodeURIComponent(token)}` : ''}`
+              }
               alt="Pratinjau Foto"
               className="max-h-[80vh] w-auto mx-auto object-contain rounded-xl"
             />
@@ -446,7 +494,7 @@ function KpmPortalContent() {
             />
             <div>
               <h1 className="font-bold text-base sm:text-lg font-['Outfit']">PORTAL PENGISIAN MANDIRI KPM PKH</h1>
-              <p className="text-[11px] text-white/80">Kementerian Sosial Republik Indonesia</p>
+              <p className="text-[11px] text-white/80">Keluarga Penerima Manfaat Program Keluarga Harapan</p>
             </div>
           </div>
           {isLoggedIn && (
@@ -740,33 +788,41 @@ function KpmPortalContent() {
                         { label: 'Foto Rumah KPM', fieldKey: 'FotoRumah', val: fotoRumah, setVal: setFotoRumah },
                       ].map(({ label, fieldKey, val, setVal }) => {
                         const isUploading = uploadingField === fieldKey;
+                        const displaySrc = getImageSrc(fieldKey, val);
                         return (
                           <div
                             key={fieldKey}
-                            className="border border-gray-200 rounded-2xl p-3 bg-gray-50 flex flex-col items-center justify-between text-center relative overflow-hidden"
+                            className="border border-gray-200 rounded-2xl p-3 bg-gray-50 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xs"
                           >
                             <p className="font-semibold text-gray-800 text-[11px] mb-2">{label}</p>
-                            {val ? (
-                              <div className="relative w-full h-24 rounded-xl overflow-hidden border border-gray-300 bg-white group">
+                            {displaySrc ? (
+                              <div className="relative w-full h-24 rounded-xl overflow-hidden border border-gray-300 bg-white group shadow-2xs">
                                 <img
-                                  src={`/api/image-proxy?id=${val}`}
+                                  src={displaySrc}
                                   alt={label}
                                   className="w-full h-full object-cover cursor-pointer"
-                                  onClick={() => setPreviewPhoto(val)}
+                                  onClick={() => setPreviewPhoto(displaySrc)}
                                 />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
                                   <button
                                     type="button"
-                                    onClick={() => setPreviewPhoto(val)}
-                                    className="p-1 bg-white rounded-full text-slate-800 shadow"
+                                    onClick={() => setPreviewPhoto(displaySrc)}
+                                    className="p-1 bg-white rounded-full text-slate-800 shadow cursor-pointer"
                                     title="Perbesar"
                                   >
                                     <span className="material-symbols-outlined text-sm">zoom_in</span>
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setVal('')}
-                                    className="p-1 bg-rose-600 rounded-full text-white shadow"
+                                    onClick={() => {
+                                      setVal('');
+                                      setLocalPreviews((prev) => {
+                                        const next = { ...prev };
+                                        delete next[fieldKey];
+                                        return next;
+                                      });
+                                    }}
+                                    className="p-1 bg-rose-600 rounded-full text-white shadow cursor-pointer"
                                     title="Hapus"
                                   >
                                     <span className="material-symbols-outlined text-sm">delete</span>
@@ -1155,42 +1211,52 @@ function KpmPortalContent() {
                           </div>
                           <div>
                             <label className="block font-semibold mb-1">Foto Tempat Usaha</label>
-                            {fotoUsaha ? (
-                              <div className="relative w-full h-24 rounded-xl overflow-hidden border border-gray-300 bg-white group">
-                                <img
-                                  src={`/api/image-proxy?id=${fotoUsaha}`}
-                                  alt="Foto Usaha"
-                                  className="w-full h-full object-cover cursor-pointer"
-                                  onClick={() => setPreviewPhoto(fotoUsaha)}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setFotoUsaha('')}
-                                  className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow"
-                                  title="Hapus Foto"
-                                >
-                                  <span className="material-symbols-outlined text-xs">close</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <label className="w-full h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
-                                {uploadingField === 'FotoUsaha' ? (
-                                  <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                  <>
-                                    <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
-                                    <span className="text-[10px] text-gray-500">Unggah Foto Usaha</span>
-                                  </>
-                                )}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  disabled={uploadingField === 'FotoUsaha'}
-                                  onChange={(e) => handlePhotoUpload(e, 'FotoUsaha')}
-                                  className="hidden"
-                                />
-                              </label>
-                            )}
+                            {(() => {
+                              const usahaSrc = getImageSrc('FotoUsaha', fotoUsaha);
+                              return usahaSrc ? (
+                                <div className="relative w-full h-24 rounded-xl overflow-hidden border border-gray-300 bg-white group shadow-2xs">
+                                  <img
+                                    src={usahaSrc}
+                                    alt="Foto Usaha"
+                                    className="w-full h-full object-cover cursor-pointer"
+                                    onClick={() => setPreviewPhoto(usahaSrc)}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFotoUsaha('');
+                                      setLocalPreviews((prev) => {
+                                        const next = { ...prev };
+                                        delete next['FotoUsaha'];
+                                        return next;
+                                      });
+                                    }}
+                                    className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow cursor-pointer"
+                                    title="Hapus Foto"
+                                  >
+                                    <span className="material-symbols-outlined text-xs">close</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="w-full h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
+                                  {uploadingField === 'FotoUsaha' ? (
+                                    <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <>
+                                      <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
+                                      <span className="text-[10px] text-gray-500">Unggah Foto Usaha</span>
+                                    </>
+                                  )}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    disabled={uploadingField === 'FotoUsaha'}
+                                    onChange={(e) => handlePhotoUpload(e, 'FotoUsaha')}
+                                    className="hidden"
+                                  />
+                                </label>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1203,119 +1269,164 @@ function KpmPortalContent() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Foto Rumah Tampak Depan / Luar</label>
-                        {fotoRumahLuar ? (
-                          <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-300 bg-white group">
-                            <img
-                              src={`/api/image-proxy?id=${fotoRumahLuar}`}
-                              alt="Foto Rumah Luar"
-                              className="w-full h-full object-cover cursor-pointer"
-                              onClick={() => setPreviewPhoto(fotoRumahLuar)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setFotoRumahLuar('')}
-                              className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow"
-                              title="Hapus"
-                            >
-                              <span className="material-symbols-outlined text-xs">close</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="w-full h-28 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
-                            {uploadingField === 'FotoRumahLuar' ? (
-                              <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <>
-                                <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
-                                <span className="text-[10px] text-gray-500">Unggah Foto Rumah Luar</span>
-                              </>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              disabled={uploadingField === 'FotoRumahLuar'}
-                              onChange={(e) => handlePhotoUpload(e, 'FotoRumahLuar')}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
+                        {(() => {
+                          const luarSrc = getImageSrc('FotoRumahLuar', fotoRumahLuar);
+                          return luarSrc ? (
+                            <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-300 bg-white group shadow-2xs">
+                              <img
+                                src={luarSrc}
+                                alt="Foto Rumah Luar"
+                                className="w-full h-full object-cover cursor-pointer"
+                                onClick={() => setPreviewPhoto(luarSrc)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFotoRumahLuar('');
+                                  setLocalPreviews((prev) => {
+                                    const next = { ...prev };
+                                    delete next['FotoRumahLuar'];
+                                    return next;
+                                  });
+                                }}
+                                className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow cursor-pointer"
+                                title="Hapus"
+                              >
+                                <span className="material-symbols-outlined text-xs">close</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="w-full h-28 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
+                              {uploadingField === 'FotoRumahLuar' ? (
+                                <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
+                                  <span className="text-[10px] text-gray-500">Unggah Foto Rumah Luar</span>
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadingField === 'FotoRumahLuar'}
+                                onChange={(e) => handlePhotoUpload(e, 'FotoRumahLuar')}
+                                className="hidden"
+                              />
+                            </label>
+                          );
+                        })()}
                       </div>
 
                       <div>
                         <label className="block font-semibold mb-1">Foto Rumah Tampak Dalam (Ruang Tengah/Dapur)</label>
-                        {fotoRumahDalam ? (
-                          <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-300 bg-white group">
-                            <img
-                              src={`/api/image-proxy?id=${fotoRumahDalam}`}
-                              alt="Foto Rumah Dalam"
-                              className="w-full h-full object-cover cursor-pointer"
-                              onClick={() => setPreviewPhoto(fotoRumahDalam)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setFotoRumahDalam('')}
-                              className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow"
-                              title="Hapus"
-                            >
-                              <span className="material-symbols-outlined text-xs">close</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="w-full h-28 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
-                            {uploadingField === 'FotoRumahDalam' ? (
-                              <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <>
-                                <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
-                                <span className="text-[10px] text-gray-500">Unggah Foto Rumah Dalam</span>
-                              </>
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              disabled={uploadingField === 'FotoRumahDalam'}
-                              onChange={(e) => handlePhotoUpload(e, 'FotoRumahDalam')}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
+                        {(() => {
+                          const dalamSrc = getImageSrc('FotoRumahDalam', fotoRumahDalam);
+                          return dalamSrc ? (
+                            <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-300 bg-white group shadow-2xs">
+                              <img
+                                src={dalamSrc}
+                                alt="Foto Rumah Dalam"
+                                className="w-full h-full object-cover cursor-pointer"
+                                onClick={() => setPreviewPhoto(dalamSrc)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFotoRumahDalam('');
+                                  setLocalPreviews((prev) => {
+                                    const next = { ...prev };
+                                    delete next['FotoRumahDalam'];
+                                    return next;
+                                  });
+                                }}
+                                className="absolute top-1 right-1 p-1 bg-rose-600 rounded-full text-white shadow cursor-pointer"
+                                title="Hapus"
+                              >
+                                <span className="material-symbols-outlined text-xs">close</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="w-full h-28 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500 hover:bg-cyan-50/50 transition-colors">
+                              {uploadingField === 'FotoRumahDalam' ? (
+                                <div className="w-5 h-5 border-2 border-cyan-600 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-gray-400 text-2xl mb-1">add_a_photo</span>
+                                  <span className="text-[10px] text-gray-500">Unggah Foto Rumah Dalam</span>
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadingField === 'FotoRumahDalam'}
+                                onChange={(e) => handlePhotoUpload(e, 'FotoRumahDalam')}
+                                className="hidden"
+                              />
+                            </label>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
 
-                  {/* Titik Lokasi GPS & Bansos */}
+                  {/* Titik Lokasi GPS & Peta Interaktif */}
                   <div className="border-t pt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="block font-semibold">Titik Lokasi Rumah (Koordinat GPS)</label>
                       <button
                         type="button"
                         onClick={handleGetLocation}
-                        className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        disabled={isGettingLocation}
+                        className="px-3 py-1 bg-amber-100 hover:bg-amber-200 active:scale-95 text-amber-900 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 text-xs shadow-2xs"
                       >
-                        <span className="material-symbols-outlined text-sm">my_location</span>
-                        <span>Ambil Lokasi Saya</span>
+                        {isGettingLocation ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-amber-900 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Mendeteksi GPS...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">my_location</span>
+                            <span>Ambil Lokasi Saya</span>
+                          </>
+                        )}
                       </button>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
+                        <label className="text-[10px] text-gray-500 font-medium mb-0.5 block">Latitude</label>
                         <input
                           type="text"
                           value={latitude}
                           onChange={(e) => setLatitude(e.target.value)}
-                          placeholder="Latitude (Contoh: -6.2088)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono outline-none"
+                          placeholder="Latitude (Contoh: 3.6040)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono outline-none text-xs"
                         />
                       </div>
                       <div>
+                        <label className="text-[10px] text-gray-500 font-medium mb-0.5 block">Longitude</label>
                         <input
                           type="text"
                           value={longitude}
                           onChange={(e) => setLongitude(e.target.value)}
-                          placeholder="Longitude (Contoh: 106.8456)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono outline-none"
+                          placeholder="Longitude (Contoh: 98.4850)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-xl font-mono outline-none text-xs"
                         />
                       </div>
                     </div>
+
+                    {/* Interactive Leaflet Map View with Draggable Pin */}
+                    <KpmPortalLocationMap
+                      latitude={latitude}
+                      longitude={longitude}
+                      onChange={(lat, lng) => {
+                        setLatitude(lat);
+                        setLongitude(lng);
+                      }}
+                      onGetLocation={handleGetLocation}
+                      isGettingLocation={isGettingLocation}
+                    />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                       <div>
@@ -1415,9 +1526,12 @@ function KpmPortalContent() {
                         className="accent-amber-600 mt-0.5"
                       />
                       <div>
-                        <span className="font-bold text-gray-900 text-xs">Belum Ada Pernyataan Resmi</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 text-xs">Belum Ada Pernyataan Resmi</span>
+                          <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-1.5 py-0.5 rounded-md">Default (Wajib Dipilih)</span>
+                        </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                          Saya belum membuat atau belum memilih surat pernyataan komitmen saat ini.
+                          Saya belum membuat atau belum memilih surat pernyataan komitmen saat ini. (Silakan pilih salah satu opsi resmi di bawah untuk menyelesaikan).
                         </p>
                       </div>
                     </label>
@@ -1477,6 +1591,40 @@ function KpmPortalContent() {
           </div>
         )}
       </main>
+
+      {/* Modal Peringatan: Wajib Memilih Pernyataan Komitmen Resmi */}
+      {showPernyataanWarningModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-rose-100 flex flex-col items-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-4 ring-8 ring-rose-50 shadow-inner">
+              <span className="material-symbols-outlined text-3xl animate-bounce">warning</span>
+            </div>
+
+            <h3 className="text-lg font-bold text-gray-900 font-['Outfit'] mb-2">
+              Pernyataan Komitmen Wajib Dipilih!
+            </h3>
+
+            <p className="text-xs text-gray-600 leading-relaxed mb-6">
+              Mohon maaf, Anda belum memilih salah satu surat pernyataan komitmen resmi. Sebagai Keluarga Penerima Manfaat PKH, Anda <strong>wajib memilih salah satu pernyataan resmi</strong> yang sesuai dengan kondisi keluarga sebelum formulir dapat disimpan & diselesaikan.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowPernyataanWarningModal(false);
+                setActiveTab('pernyataan');
+                const targetEl = document.querySelector('input[name="pernyataan_portal"]');
+                if (targetEl) {
+                  targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }}
+              className="w-full py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl font-bold shadow-md transition-all active:scale-95 cursor-pointer text-xs"
+            >
+              Saya Mengerti, Pilih Pernyataan Sekarang
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="py-4 text-center text-[11px] text-gray-400 border-t border-gray-200 mt-auto">

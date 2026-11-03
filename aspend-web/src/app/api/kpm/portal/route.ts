@@ -311,6 +311,16 @@ export async function POST(request: Request) {
       let statusKepesertaan = existing.StatusKepesertaan || 'Aktif';
       let statusGraduasi = existing.StatusGraduasi || 'Belum Graduasi';
 
+      if (body.isFinal) {
+        const p = (dataKeluarga?.Pernyataan || existing.Pernyataan || '').trim();
+        if (!p || p.toLowerCase().includes('belum ada pernyataan')) {
+          return NextResponse.json(
+            { error: 'Pernyataan komitmen resmi wajib dipilih sebelum menyelesaikan formulir.' },
+            { status: 400 }
+          );
+        }
+      }
+
       if (dataKeluarga?.Pernyataan) {
         const p = dataKeluarga.Pernyataan.toLowerCase();
         if (p.includes('keluar dari kepesertaan pkh')) {

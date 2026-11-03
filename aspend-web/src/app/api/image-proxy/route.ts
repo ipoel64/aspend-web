@@ -1,19 +1,51 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getDriveClient } from '@/lib/google-drive';
+import { refreshGoogleAccessToken } from '@/lib/google-auth-helpers';
+import crypto from 'crypto';
+
+const SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'aspend-secret-kpm-portal-2026';
+
+function decryptToken(tokenStr: string): any | null {
+  try {
+    const decipher = crypto.createDecipheriv(
+      'aes-256-cbc',
+      crypto.createHash('sha256').update(SECRET).digest(),
+      Buffer.alloc(16, 0)
+    );
+    const raw = Buffer.from(tokenStr, 'base64url').toString('utf8');
+    let decrypted = decipher.update(raw, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return JSON.parse(decrypted);
+  } catch (e) {
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    // @ts-expect-error - accessToken is attached in auth.ts
-    const accessToken = session?.accessToken;
-
-    if (!session || !accessToken) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const fileId = searchParams.get('id');
+    const token = searchParams.get('token');
+
+    let accessToken: string | null = null;
+    const session = await auth();
+    // @ts-expect-error - accessToken is attached in auth.ts
+    accessToken = session?.accessToken || null;
+
+    if (!accessToken && token) {
+      const decoded = decryptToken(token);
+      if (decoded?.refreshToken) {
+        const refreshed = await refreshGoogleAccessToken(decoded.refreshToken);
+        if (refreshed?.accessToken) {
+          accessToken = refreshed.accessToken;
+        }
+      }
+    }
+
+    if (!accessToken) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
 
     if (!fileId) {
       return new NextResponse('File ID required', { status: 400 });
