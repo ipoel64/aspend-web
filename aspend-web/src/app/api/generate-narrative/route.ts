@@ -353,16 +353,20 @@ Tambahan: Cantumkan di baris paling akhir laporan dengan format XML: <lokasi>${t
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
+    const isMobileClient = request.headers.get('x-aspend-client') === 'aspend-mobile-v1';
+    const session = isMobileClient ? null : await auth();
     // @ts-expect-error - accessToken is attached in auth.ts
     const accessToken = session?.accessToken;
 
-    if (!session || !accessToken) {
+    if (!isMobileClient && (!session || !accessToken)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
     const {
+      rawPrompt,
+      model: requestedModel,
+      images,
       jenisRHK,
       idRHK,
       rencanaAksi,
@@ -378,97 +382,130 @@ export async function POST(request: Request) {
       jabatanPetugas
     } = body;
 
-    if (!jenisRHK || !rencanaAksi || !poinKegiatan) {
-      return NextResponse.json({ error: 'Data laporan belum lengkap.' }, { status: 400 });
-    }
-
-    const checkP2K2 = isP2K2(idRHK || '') || isP2K2(jenisRHK || '') || isP2K2(rencanaAksi || '') || Boolean(p2k2Data && (p2k2Data.modul || p2k2Data.sesi || p2k2Data.namaKelompok));
-    const isSupervisi = p2k2Data?.isSupervisi || rencanaAksi?.toLowerCase().includes('supervisi pelaksanaan p2k2');
-
     let prompt = '';
-    if (checkP2K2 && isSupervisi) {
-      prompt = buildP2K2SupervisiReportPrompt({
-        jenisRHK,
-        rencanaAksi,
-        tanggal: tanggal || new Date().toISOString().substring(0, 10),
-        pukul: pukul || '14:00',
-        poinKegiatan,
-        p2k2Data,
-        kecamatan,
-        kabupatenKota,
-        provinsi,
-        namaPetugas: namaPetugas || session.user?.name || '',
-        jabatanPetugas: jabatanPetugas || 'Katim Kab/Kota',
-      });
-    } else if (checkP2K2) {
-      prompt = buildP2K2ReportPrompt({
-        jenisRHK,
-        rencanaAksi,
-        tanggal: tanggal || new Date().toISOString().substring(0, 10),
-        pukul: pukul || '14:00',
-        poinKegiatan,
-        p2k2Data,
-        kecamatan,
-        kabupatenKota,
-        provinsi,
-        namaPetugas: namaPetugas || session.user?.name || '',
-        jabatanPetugas: jabatanPetugas || 'Pendamping PKH',
-      });
+    if (typeof rawPrompt === 'string' && rawPrompt.trim().length > 0) {
+      prompt = rawPrompt.trim();
     } else {
-      prompt = buildReportPrompt({
-        jenisRHK,
-        rencanaAksi,
-        tanggal: tanggal || new Date().toISOString().substring(0, 10),
-        pukul: pukul || '14:00',
-        poinKegiatan,
-        lokasi,
-        kecamatan,
-        kabupatenKota,
-        provinsi,
-        namaPetugas: namaPetugas || session.user?.name || '',
-        jabatanPetugas: jabatanPetugas || 'Pendamping Sosial',
-      });
+      if (!jenisRHK || !rencanaAksi || !poinKegiatan) {
+        return NextResponse.json({ error: 'Data laporan belum lengkap.' }, { status: 400 });
+      }
+
+      const checkP2K2 = isP2K2(idRHK || '') || isP2K2(jenisRHK || '') || isP2K2(rencanaAksi || '') || Boolean(p2k2Data && (p2k2Data.modul || p2k2Data.sesi || p2k2Data.namaKelompok));
+      const isSupervisi = p2k2Data?.isSupervisi || rencanaAksi?.toLowerCase().includes('supervisi pelaksanaan p2k2');
+
+      if (checkP2K2 && isSupervisi) {
+        prompt = buildP2K2SupervisiReportPrompt({
+          jenisRHK,
+          rencanaAksi,
+          tanggal: tanggal || new Date().toISOString().substring(0, 10),
+          pukul: pukul || '14:00',
+          poinKegiatan,
+          p2k2Data,
+          kecamatan,
+          kabupatenKota,
+          provinsi,
+          namaPetugas: namaPetugas || session?.user?.name || '',
+          jabatanPetugas: jabatanPetugas || 'Katim Kab/Kota',
+        });
+      } else if (checkP2K2) {
+        prompt = buildP2K2ReportPrompt({
+          jenisRHK,
+          rencanaAksi,
+          tanggal: tanggal || new Date().toISOString().substring(0, 10),
+          pukul: pukul || '14:00',
+          poinKegiatan,
+          p2k2Data,
+          kecamatan,
+          kabupatenKota,
+          provinsi,
+          namaPetugas: namaPetugas || session?.user?.name || '',
+          jabatanPetugas: jabatanPetugas || 'Pendamping PKH',
+        });
+      } else {
+        prompt = buildReportPrompt({
+          jenisRHK,
+          rencanaAksi,
+          tanggal: tanggal || new Date().toISOString().substring(0, 10),
+          pukul: pukul || '14:00',
+          poinKegiatan,
+          lokasi,
+          kecamatan,
+          kabupatenKota,
+          provinsi,
+          namaPetugas: namaPetugas || session?.user?.name || '',
+          jabatanPetugas: jabatanPetugas || 'Pendamping Sosial',
+        });
+      }
     }
 
     let generatedText = '';
-    const openRouterKey = process.env.OPENROUTER_API_KEY || OPENROUTER_DEFAULT_KEY;
+    const candidateKeys = Array.from(
+      new Set(
+        [OPENROUTER_DEFAULT_KEY, process.env.OPENROUTER_API_KEY || '']
+          .map((k) => k.trim())
+          .filter((k) => k.startsWith('sk-or-') && !k.includes('031257') && !k.includes('61f329'))
+      )
+    );
     const geminiKey = process.env.GEMINI_API_KEY || '';
     const groqKey = process.env.GROQ_API_KEY || '';
 
     // 1. Coba OpenRouter API dengan model Gemini 2.5 Flash-Lite tanpa reasoning tokens (super cepat & akurat)
-    if (!generatedText && openRouterKey) {
-      const routerModels = [
-        OPENROUTER_DEFAULT_MODEL,
-        'google/gemini-2.5-flash',
-        'google/gemini-2.0-flash-001',
-      ];
-      for (const rModel of routerModels) {
-        try {
-          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openRouterKey}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'https://aspend-web.vercel.app',
-              'X-Title': 'ASPEND Web',
-            },
-            body: JSON.stringify({
-              model: rModel,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.7,
-              max_tokens: 8192,
-              reasoning: { effort: 'none' },
-            }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            generatedText = data.choices?.[0]?.message?.content || '';
-            if (generatedText) break;
-          } else {
-            console.warn(`OpenRouter (${rModel}) response not ok:`, response.status, await response.text());
+    if (!generatedText && candidateKeys.length > 0) {
+      const routerModels = Array.from(
+        new Set(
+          [
+            requestedModel && typeof requestedModel === 'string' ? requestedModel : '',
+            OPENROUTER_DEFAULT_MODEL,
+            'google/gemini-2.5-flash',
+            'google/gemini-2.0-flash-001',
+          ].filter(Boolean)
+        )
+      );
+
+      let userMessageContent: any = prompt;
+      if (Array.isArray(images) && images.length > 0) {
+        userMessageContent = [
+          { type: 'text', text: prompt },
+          ...images.slice(0, 3).map((b64: string) => ({
+            type: 'image_url',
+            image_url: { url: b64.startsWith('data:') ? b64 : `data:image/jpeg;base64,${b64}` },
+          })),
+        ];
+      }
+
+      outerLoop: for (const activeKey of candidateKeys) {
+        for (const rModel of routerModels) {
+          try {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${activeKey}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://aspend-web.vercel.app',
+                'X-Title': 'ASPEND Web & Mobile',
+              },
+              body: JSON.stringify({
+                model: rModel,
+                messages: [{ role: 'user', content: userMessageContent }],
+                temperature: 0.7,
+                max_tokens: 8192,
+                reasoning: { effort: 'none' },
+              }),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              generatedText = data.choices?.[0]?.message?.content || '';
+              if (generatedText) break outerLoop;
+            } else {
+              const status = response.status;
+              console.warn(`OpenRouter (${rModel}) response not ok:`, status, await response.text());
+              if (status === 401 || status === 402 || status === 403) {
+                break; // Try next key
+              }
+            }
+          } catch (err) {
+            console.warn(`OpenRouter error (${rModel}):`, err);
           }
-        } catch (err) {
-          console.warn(`OpenRouter error (${rModel}):`, err);
         }
       }
     }

@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { MASTER_P2K2_DATA, isP2K2 as isP2K2Rhk } from './master-rhk';
 import { capitalizeEachWord } from './format-utils';
+import { applyWatermarkToPdfBuffer, formatWatermarkText } from './pdf-watermark';
 
 /**
  * Mendapatkan dimensi asli (width & height) dari buffer gambar (PNG / JPEG)
@@ -1505,6 +1506,15 @@ export async function generateReportPDF(
 
   const pdfBuffer = Buffer.from(pdfExportRes.data as ArrayBuffer);
 
+  // 10b. Terapkan Watermark Halus Diagonal (NIP  Nama  Tanggal) persis seperti Aspend Mobile
+  let finalPdfBuffer = pdfBuffer;
+  try {
+    const wmText = formatWatermarkText(userProfile, validDate);
+    finalPdfBuffer = await applyWatermarkToPdfBuffer(pdfBuffer, wmText);
+  } catch (wmErr) {
+    console.warn('Gagal membubuhkan watermark ke PDF laporan RHK:', wmErr);
+  }
+
   // 11. Hapus Dokumen Google Doc Sementara
   try {
     await drive.files.delete({ fileId: tempDoc.data.id });
@@ -1524,7 +1534,7 @@ export async function generateReportPDF(
         },
         media: {
           mimeType: 'application/pdf',
-          body: Readable.from(pdfBuffer),
+          body: Readable.from(finalPdfBuffer),
         },
       });
     } catch (updateErr) {
@@ -1539,7 +1549,7 @@ export async function generateReportPDF(
       accessToken,
       `${docTitle}.pdf`,
       'application/pdf',
-      pdfBuffer,
+      finalPdfBuffer,
       outputFolderId || undefined
     );
     targetPdfId = newFile?.id || '';

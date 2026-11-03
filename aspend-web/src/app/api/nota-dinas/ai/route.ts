@@ -48,35 +48,44 @@ Aturan Penulisan:
 5. Format teks yang dihasilkan harus berupa paragraf-paragraf bersih tanpa formatting markdown seperti **bold** atau bullet points, agar rapi saat dicetak ke PDF.
 `;
 
-    const openRouterKey = process.env.OPENROUTER_API_KEY || OPENROUTER_DEFAULT_KEY;
+    const candidateKeys = Array.from(
+      new Set(
+        [OPENROUTER_DEFAULT_KEY, process.env.OPENROUTER_API_KEY || '']
+          .map((k) => k.trim())
+          .filter((k) => k.startsWith('sk-or-') && !k.includes('031257') && !k.includes('61f329'))
+      )
+    );
     const model = process.env.OPENROUTER_MODEL || OPENROUTER_DEFAULT_MODEL;
 
     let generatedText = '';
 
     // 1. Call OpenRouter
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://aspend-web.vercel.app',
-          'X-Title': 'ASPEND Web - Nota Dinas AI',
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 4000,
-        }),
-      });
+    for (const activeKey of candidateKeys) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${activeKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://aspend-web.vercel.app',
+            'X-Title': 'ASPEND Web - Nota Dinas AI',
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.7,
+            max_tokens: 4000,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        generatedText = data.choices?.[0]?.message?.content || '';
+        if (response.ok) {
+          const data = await response.json();
+          generatedText = data.choices?.[0]?.message?.content || '';
+          if (generatedText) break;
+        }
+      } catch (err) {
+        console.warn('OpenRouter API error in Nota Dinas:', err);
       }
-    } catch (err) {
-      console.warn('OpenRouter API error in Nota Dinas:', err);
     }
 
     // 2. Fallback Groq jika OpenRouter gagal

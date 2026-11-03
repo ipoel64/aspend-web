@@ -121,6 +121,39 @@ export async function GET(request: Request) {
       return NextResponse.json({ token, nik });
     }
 
+    // Action 1B: Pendamping Mobile membuat link portal untuk KPM
+    if (action === 'generate-link-mobile') {
+      const spreadsheetId = searchParams.get('spreadsheetId') || '';
+      const nik = searchParams.get('nik') || '';
+      const accessToken = searchParams.get('accessToken') || '';
+      const refreshToken = searchParams.get('refreshToken') || '';
+      const pendampingEmail = searchParams.get('pendampingEmail') || '';
+
+      if (!spreadsheetId || !nik) {
+        return NextResponse.json({ error: 'SpreadsheetId dan NIK wajib diisi' }, { status: 400 });
+      }
+
+      if (accessToken) {
+        try {
+          await ensureAllKpmSheets(accessToken, spreadsheetId);
+        } catch (e) {
+          console.warn('Mobile portal sheet check skipped:', e);
+        }
+      }
+
+      const payload = {
+        spreadsheetId,
+        nik,
+        refreshToken,
+        accessToken,
+        pendampingEmail,
+        generatedAt: Date.now(),
+      };
+
+      const token = encryptToken(payload);
+      return NextResponse.json({ token, nik });
+    }
+
     // Action 2: KPM mengambil data awal setelah memasukkan NIK & Password
     if (action === 'kpm-data') {
       const token = searchParams.get('token');
@@ -136,6 +169,9 @@ export async function GET(request: Request) {
           spreadsheetId = decoded.spreadsheetId;
           if (decoded.refreshToken) {
             activeToken = (await getAccessTokenFromRefreshToken(decoded.refreshToken)) || '';
+          }
+          if (!activeToken && decoded.accessToken) {
+            activeToken = decoded.accessToken;
           }
         }
       }
@@ -247,6 +283,9 @@ export async function POST(request: Request) {
         pendampingEmail = decoded.pendampingEmail || '';
         if (decoded.refreshToken) {
           activeToken = (await getAccessTokenFromRefreshToken(decoded.refreshToken)) || '';
+        }
+        if (!activeToken && decoded.accessToken) {
+          activeToken = decoded.accessToken;
         }
       }
     }

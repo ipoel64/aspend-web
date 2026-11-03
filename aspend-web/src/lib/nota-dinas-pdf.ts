@@ -1,12 +1,39 @@
 import { jsPDF } from 'jspdf';
 import { NotaDinasItem } from './nota-dinas-constants';
+import { capitalizeEachWord } from './format-utils';
+import { applyWatermarkToJsPdf, formatWatermarkText } from './pdf-watermark';
 
 export interface NotaDinasUserProfile {
   nama: string;
   nip?: string;
   jabatan?: string;
+  kabupaten?: string;
+  provinsi?: string;
+  kecamatan?: string;
   signatureUrl?: string;
   signatureBase64?: string;
+}
+
+/**
+ * Konversi URL gambar (misal /api/image-proxy?id=...) menjadi Base64 Data URL
+ */
+export async function urlToBase64(url: string): Promise<string | null> {
+  if (!url) return null;
+  if (url.startsWith('data:image/')) return url;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn('Gagal mengubah url gambar ke base64:', err);
+    return null;
+  }
 }
 
 export function buildNotaDinasPdf(
@@ -116,7 +143,7 @@ export function buildNotaDinasPdf(
   }
 
   // 5. BLOK TANDA TANGAN DI SEBELAH KANAN
-  const ttdBlockHeight = 45;
+  const ttdBlockHeight = 48;
   if (currentY + ttdBlockHeight > pageHeight - 20) {
     doc.addPage();
     currentY = 25;
@@ -126,24 +153,43 @@ export function buildNotaDinasPdf(
 
   const ttdCenterX = pageWidth - marginX - 35; // Center of signature block
 
+  const kotaText = userProfile?.kabupaten?.trim() ? capitalizeEachWord(userProfile.kabupaten) : '';
+  const dateText = notaDinas.tanggal?.trim() || '-';
   const jabatanText = userProfile?.jabatan?.trim() || notaDinas.dari || 'Pendamping Sosial';
   const namaText = (userProfile?.nama?.trim() || 'SYAIFUL KHOLIFAH').toUpperCase();
   const nipText = userProfile?.nip?.trim() ? `NIP. ${userProfile.nip.trim()}` : '';
+
+  // Dibuat di & Pada tanggal (sesuai tata naskah dinas Kemensos & Aspend Mobile)
+  const ttdLeftX = pageWidth - marginX - 68;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.text('Dibuat di', ttdLeftX, currentY);
+  doc.text(`: ${kotaText || '-'}`, ttdLeftX + 22, currentY);
+  currentY += 4.5;
+
+  doc.text('Pada tanggal', ttdLeftX, currentY);
+  doc.text(`: ${dateText}`, ttdLeftX + 22, currentY);
+  currentY += 5.5;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text(jabatanText, ttdCenterX, currentY, { align: 'center' });
 
-  currentY += 5;
+  currentY += 3.5;
 
-  // Jika ada tanda tangan digital
+  // Jika ada tanda tangan digital (Base64)
   let hasDrawnSignature = false;
   if (userProfile?.signatureBase64) {
     try {
-      doc.addImage(userProfile.signatureBase64, 'PNG', ttdCenterX - 18, currentY, 36, 18);
-      currentY += 20;
+      const isJpeg =
+        userProfile.signatureBase64.includes('image/jpeg') ||
+        userProfile.signatureBase64.includes('image/jpg');
+      const format = isJpeg ? 'JPEG' : 'PNG';
+      doc.addImage(userProfile.signatureBase64, format, ttdCenterX - 18, currentY, 36, 18, undefined, 'FAST');
+      currentY += 19.5;
       hasDrawnSignature = true;
-    } catch {
+    } catch (err) {
+      console.warn('Gagal menyematkan tanda tangan ke PDF:', err);
       hasDrawnSignature = false;
     }
   }
@@ -198,15 +244,34 @@ export function buildNotaDinasPdf(
     }
   }
 
+  // 7. TERAPKAN WATERMARK DIAGONAL PERSIS SEPERTI ASPEND MOBILE
+  // Format: "(NIP)  (Nama User)  (DD-MM-YYYY)"
+  const wmText = formatWatermarkText(userProfile, notaDinas.tanggal);
+  applyWatermarkToJsPdf(doc, wmText);
+
   return doc;
 }
 
-export function downloadNotaDinasPdf(
+export async function downloadNotaDinasPdf(
   notaDinas: NotaDinasItem,
   userProfile?: NotaDinasUserProfile,
   buktiDukungImages?: string[]
-): void {
-  const doc = buildNotaDinasPdf(notaDinas, userProfile, buktiDukungImages);
+): Promise<void> {
+  let effectiveProfile = userProfile;
+
+  // Jika belum ada base64 tetapi ada signatureUrl, unduh dan ubah ke base64
+  if (userProfile && !userProfile.signatureBase64 && userProfile.signatureUrl) {
+    try {
+      const sigBase64 = await urlToBase64(userProfile.signatureUrl);
+      if (sigBase64) {
+        effectiveProfile = { ...userProfile, signatureBase64: sigBase64 };
+      }
+    } catch (e) {
+      console.warn('Tidak dapat mengubah signatureUrl ke base64:', e);
+    }
+  }
+
+  const doc = buildNotaDinasPdf(notaDinas, effectiveProfile, buktiDukungImages);
   const cleanNomor = (notaDinas.nomor || 'Nota_Dinas').replace(/[\\/:*?"<>|\s]/g, '_');
   const fileName = `Nota_Dinas_${cleanNomor}.pdf`;
   doc.save(fileName);

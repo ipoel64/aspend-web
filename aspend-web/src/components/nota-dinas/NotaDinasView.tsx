@@ -19,6 +19,8 @@ interface NotaDinasViewProps {
     provinsi?: string;
     kabupaten?: string;
     kecamatan?: string;
+    signatureFileId?: string;
+    signatureUrl?: string;
   } | null;
 }
 
@@ -212,8 +214,11 @@ export default function NotaDinasView({ profile }: NotaDinasViewProps) {
           nama: profile?.nama || 'SYAIFUL KHOLIFAH',
           nip: profile?.nip || '',
           jabatan: profile?.jabatan || data.item.dari,
+          kabupaten: profile?.kabupaten || '',
+          provinsi: profile?.provinsi || '',
+          signatureUrl: profile?.signatureUrl || (profile?.signatureFileId ? `/api/image-proxy?id=${profile.signatureFileId}` : ''),
         };
-        downloadNotaDinasPdf(data.item, userProf, photoBase64List);
+        await downloadNotaDinasPdf(data.item, userProf, photoBase64List);
       } else {
         alert(data.error || 'Gagal menyimpan Nota Dinas ke database.');
       }
@@ -280,13 +285,16 @@ export default function NotaDinasView({ profile }: NotaDinasViewProps) {
   };
 
   // Trigger Download
-  const handleDownloadItem = (item: NotaDinasItem) => {
+  const handleDownloadItem = async (item: NotaDinasItem) => {
     const userProf: NotaDinasUserProfile = {
       nama: profile?.nama || 'SYAIFUL KHOLIFAH',
       nip: profile?.nip || '',
       jabatan: profile?.jabatan || item.dari,
+      kabupaten: profile?.kabupaten || '',
+      provinsi: profile?.provinsi || '',
+      signatureUrl: profile?.signatureUrl || (profile?.signatureFileId ? `/api/image-proxy?id=${profile.signatureFileId}` : ''),
     };
-    downloadNotaDinasPdf(item, userProf);
+    await downloadNotaDinasPdf(item, userProf);
   };
 
   return (
@@ -812,8 +820,22 @@ export default function NotaDinasView({ profile }: NotaDinasViewProps) {
               {/* Signature Block */}
               <div className="mt-10 flex justify-end text-xs">
                 <div className="w-64 text-center">
+                  <div className="text-left text-[11px] mb-2 pl-4 text-slate-600">
+                    <p>Dibuat di : {profile?.kabupaten ? profile.kabupaten : '-'}</p>
+                    <p>Pada tanggal : {selectedItem.tanggal || '-'}</p>
+                  </div>
                   <p>{profile?.jabatan || selectedItem.dari}</p>
-                  <div className="h-16"></div>
+                  <div className="h-16 flex items-center justify-center my-1">
+                    {profile?.signatureUrl || profile?.signatureFileId ? (
+                      <img
+                        src={profile.signatureUrl || `/api/image-proxy?id=${profile.signatureFileId}`}
+                        alt="Tanda Tangan"
+                        className="max-h-16 max-w-[140px] object-contain"
+                      />
+                    ) : (
+                      <div className="h-16"></div>
+                    )}
+                  </div>
                   <p className="font-bold underline uppercase">
                     {profile?.nama || 'SYAIFUL KHOLIFAH'}
                   </p>
