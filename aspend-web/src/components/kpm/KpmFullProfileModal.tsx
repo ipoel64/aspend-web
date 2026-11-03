@@ -115,12 +115,11 @@ export default function KpmFullProfileModal({
   const graduasi = profileData?.graduasi;
   const masalahList = profileData?.permasalahan || [];
 
-  const fotoRumahUtama =
+  const fotoProfilUtama =
+    keluarga?.FotoSelfie ||
+    keluarga?.FotoKTP ||
     keluarga?.FotoRumah ||
     aset?.FotoRumahLuar ||
-    keluarga?.FotoRumahLuar ||
-    aset?.FotoRumahDalam ||
-    keluarga?.FotoRumahDalam ||
     null;
 
   const cleanLat = parseCleanCoordinate(aset?.Latitude);
@@ -302,86 +301,86 @@ export default function KpmFullProfileModal({
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-                  {/* SISI KIRI: Foto Rumah Berukuran Cukup Besar (4 kolom di desktop) */}
+                  {/* SISI KIRI: Foto Profil Pengurus KPM (4 kolom di desktop) */}
                   <div className="lg:col-span-4 flex flex-col">
                     <div className="relative w-full h-64 sm:h-72 lg:h-full min-h-[250px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 flex flex-col group shadow-2xs">
-                      {fotoRumahUtama ? (
+                      {fotoProfilUtama ? (
                         <>
                           <img
-                            src={`/api/image-proxy?id=${fotoRumahUtama}`}
-                            alt="Foto Rumah KPM"
+                            src={`/api/image-proxy?id=${fotoProfilUtama}`}
+                            alt="Foto Profil KPM"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
-                            onClick={() => setPreviewPhoto(fotoRumahUtama)}
+                            onClick={() => setPreviewPhoto(fotoProfilUtama)}
                           />
                           <div
-                            onClick={() => setPreviewPhoto(fotoRumahUtama)}
+                            onClick={() => setPreviewPhoto(fotoProfilUtama)}
                             className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent flex flex-col justify-between p-3.5 cursor-pointer opacity-90 group-hover:opacity-100 transition-opacity"
                           >
                             <div className="flex items-center justify-between">
                               <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold flex items-center gap-1 shadow-xs">
-                                <span className="material-symbols-outlined text-xs">roofing</span>
-                                <span>Foto Fisik Rumah</span>
+                                <span className="material-symbols-outlined text-xs text-cyan-300">account_circle</span>
+                                <span>Foto Profil KPM</span>
                               </span>
                               <span className="w-7 h-7 rounded-full bg-white/25 hover:bg-white/40 backdrop-blur-xs text-white flex items-center justify-center transition-colors">
                                 <span className="material-symbols-outlined text-sm">zoom_in</span>
                               </span>
                             </div>
                             <div>
-                              <p className="text-white text-xs font-bold drop-shadow-sm">
-                                {aset?.StatusRumah ? `Status: ${aset.StatusRumah}` : 'Rumah Tinggal KPM'}
+                              <p className="text-white text-xs font-bold drop-shadow-sm truncate">
+                                {keluarga?.NamaPengurus || 'Pengurus KPM'}
                               </p>
                               <p className="text-slate-300 text-[10px] mt-0.5">
-                                Klik untuk melihat ukuran penuh
+                                {keluarga?.StatusKelompok ? `${keluarga.StatusKelompok} • ` : ''}Klik untuk memperbesar
                               </p>
                             </div>
                           </div>
                         </>
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center p-6 text-slate-400 text-center gap-2">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-200/70 flex items-center justify-center text-slate-400">
-                            <span className="material-symbols-outlined text-3xl">home</span>
+                          <div className="w-14 h-14 rounded-2xl bg-cyan-100/80 flex items-center justify-center text-cyan-600">
+                            <span className="material-symbols-outlined text-3xl">account_circle</span>
                           </div>
-                          <p className="font-bold text-xs text-slate-700">Belum Ada Foto Rumah</p>
+                          <p className="font-bold text-xs text-slate-700">Belum Ada Foto Profil</p>
                           <p className="text-[10px] text-slate-400 max-w-[200px]">
-                            Foto fisik rumah tinggal KPM belum diunggah
+                            Foto profil atau selfie pengurus KPM belum diunggah
                           </p>
                         </div>
                       )}
                     </div>
 
-                    {/* Sub-thumbnails Tampak Luar & Dalam jika tersedia */}
-                    {((aset?.FotoRumahLuar && aset?.FotoRumahDalam) || aset?.FotoUsaha) && (
+                    {/* Sub-thumbnails Dokumen Pendukung Kependudukan (Foto KTP & KK) */}
+                    {(keluarga?.FotoKTP || keluarga?.FotoKK || keluarga?.FotoBukuTabungan) && (
                       <div className="grid grid-cols-2 gap-2 mt-2">
-                        {aset?.FotoRumahLuar && aset.FotoRumahLuar !== fotoRumahUtama && (
+                        {keluarga?.FotoKTP && keluarga.FotoKTP !== fotoProfilUtama && (
                           <button
                             type="button"
-                            onClick={() => setPreviewPhoto(aset.FotoRumahLuar!)}
+                            onClick={() => setPreviewPhoto(keluarga.FotoKTP!)}
                             className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center gap-2 text-left transition-colors cursor-pointer"
                           >
                             <img
-                              src={`/api/image-proxy?id=${aset.FotoRumahLuar}`}
-                              alt="Tampak Luar"
+                              src={`/api/image-proxy?id=${keluarga.FotoKTP}`}
+                              alt="Foto KTP"
                               className="w-8 h-8 rounded-lg object-cover shrink-0"
                             />
                             <div className="min-w-0 flex-1">
-                              <span className="text-[9px] font-bold text-slate-800 block truncate">Tampak Luar</span>
+                              <span className="text-[9px] font-bold text-slate-800 block truncate">Foto KTP</span>
                               <span className="text-[8px] text-cyan-700 font-semibold block">Pratinjau</span>
                             </div>
                           </button>
                         )}
-                        {aset?.FotoRumahDalam && (
+                        {keluarga?.FotoKK && (
                           <button
                             type="button"
-                            onClick={() => setPreviewPhoto(aset.FotoRumahDalam!)}
+                            onClick={() => setPreviewPhoto(keluarga.FotoKK!)}
                             className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center gap-2 text-left transition-colors cursor-pointer"
                           >
                             <img
-                              src={`/api/image-proxy?id=${aset.FotoRumahDalam}`}
-                              alt="Tampak Dalam"
+                              src={`/api/image-proxy?id=${keluarga.FotoKK}`}
+                              alt="Foto KK"
                               className="w-8 h-8 rounded-lg object-cover shrink-0"
                             />
                             <div className="min-w-0 flex-1">
-                              <span className="text-[9px] font-bold text-slate-800 block truncate">Tampak Dalam</span>
+                              <span className="text-[9px] font-bold text-slate-800 block truncate">Foto KK</span>
                               <span className="text-[8px] text-cyan-700 font-semibold block">Pratinjau</span>
                             </div>
                           </button>

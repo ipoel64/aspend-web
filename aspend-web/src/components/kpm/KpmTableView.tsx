@@ -42,6 +42,7 @@ export default function KpmTableView({
   const [recentlyUpdatedNik, setRecentlyUpdatedNik] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKelompok, setSelectedKelompok] = useState('');
+  const [selectedKelurahan, setSelectedKelurahan] = useState('');
   const [selectedStatusKelompok, setSelectedStatusKelompok] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTahapFilter, setSelectedTahapFilter] = useState('');
@@ -241,6 +242,16 @@ export default function KpmTableView({
     return Array.from(set);
   }, [dataList]);
 
+  // Filter kelurahan options
+  const kelurahanOptions = useMemo(() => {
+    const set = new Set<string>();
+    dataList.forEach((k) => {
+      const kel = (k.Kelurahan || '').trim();
+      if (kel) set.add(kel);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [dataList]);
+
   // Analisis Duplikasi NIK dan No. KK KPM serta NIK Anggota (Hanya hitung nilai 16 digit valid, abaikan string ilmiah)
   const duplicateInfo = useMemo(() => {
     const kpmNikCounts = new Map<string, number>();
@@ -327,6 +338,7 @@ export default function KpmTableView({
         item.Kecamatan?.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchKelompok = !selectedKelompok || item.Kelompok === selectedKelompok;
+      const matchKelurahan = !selectedKelurahan || (item.Kelurahan || '').trim().toLowerCase() === selectedKelurahan.trim().toLowerCase();
       const matchStatusKelompok = !selectedStatusKelompok || item.StatusKelompok === selectedStatusKelompok;
 
       let matchStatus = true;
@@ -599,6 +611,7 @@ export default function KpmTableView({
   const isAnyFilterActive = Boolean(
     searchQuery ||
     selectedKelompok ||
+    selectedKelurahan ||
     selectedStatusKelompok ||
     selectedStatus ||
     selectedTahapFilter ||
@@ -609,27 +622,26 @@ export default function KpmTableView({
 
   return (
     <div className="space-y-4">
-      {/* Top Header & Actions Bar */}
-      {/* Top Header & Actions Bar (1 Baris Hemat Tempat) */}
-      <div className="bg-white rounded-2xl border border-gray-200 px-4 py-2.5 shadow-xs flex items-center justify-between gap-3 flex-nowrap overflow-x-auto">
-        <div className="flex items-center gap-2.5 shrink-0">
-          <h2 className="text-base sm:text-lg font-bold text-[#1A1D21] font-['Outfit'] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <span className="material-symbols-outlined text-cyan-600 text-xl">family_restroom</span>
-            Data KPM PKH
+      {/* Top Header & Actions Bar (1 Baris Hemat Tempat & Ramping) */}
+      <div className="bg-white rounded-2xl border border-gray-200 px-3 py-1.5 shadow-xs flex items-center justify-between gap-2 flex-nowrap overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0">
+          <h2 className="text-sm font-bold text-[#1A1D21] font-['Outfit'] flex items-center gap-1 shrink-0 whitespace-nowrap">
+            <span className="material-symbols-outlined text-cyan-600 text-lg">family_restroom</span>
+            <span>Data KPM PKH</span>
           </h2>
           {/* Live Real-Time Auto-Sync Badge */}
           <div
-            className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-semibold tracking-tight shadow-2xs"
+            className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9.5px] font-semibold tracking-tight shadow-2xs"
             title="Auto-Refresh Aktif: Perubahan data dari formulir mandiri KPM langsung diperbarui secara otomatis tanpa refresh halaman"
           >
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
             </span>
             <span>Live Auto-Sync</span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Filter Total: klik untuk reset filter */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Filter Total */}
             <button
               type="button"
               onClick={() => {
@@ -638,14 +650,14 @@ export default function KpmTableView({
                 setDuplicateFilterMode('none');
                 setCurrentPage(1);
               }}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
                 !selectedKepesertaanFilter && !showOnlyCatatan && duplicateFilterMode === 'none'
-                  ? 'bg-cyan-600 text-white border border-cyan-700 ring-2 ring-cyan-200'
+                  ? 'bg-cyan-600 text-white border border-cyan-700 ring-1 ring-cyan-200'
                   : 'bg-cyan-50 text-cyan-900 border border-cyan-300 hover:bg-cyan-100'
               }`}
               title="Klik untuk menampilkan seluruh KPM (Reset filter status & catatan)"
             >
-              <span className="material-symbols-outlined text-[13px]">groups</span>
+              <span className="material-symbols-outlined text-[11px]">groups</span>
               Total: {statsOverview.total}
             </button>
 
@@ -657,9 +669,9 @@ export default function KpmTableView({
                 setShowOnlyCatatan(false);
                 setCurrentPage(1);
               }}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
                 selectedKepesertaanFilter === 'Aktif'
-                  ? 'bg-emerald-600 text-white border border-emerald-700 ring-2 ring-emerald-200'
+                  ? 'bg-emerald-600 text-white border border-emerald-700 ring-1 ring-emerald-200'
                   : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
               }`}
               title="Klik untuk memfilter data KPM Aktif saja"
@@ -676,9 +688,9 @@ export default function KpmTableView({
                 setShowOnlyCatatan(false);
                 setCurrentPage(1);
               }}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
                 selectedKepesertaanFilter === 'Tidak Aktif'
-                  ? 'bg-purple-600 text-white border border-purple-700 ring-2 ring-purple-200'
+                  ? 'bg-purple-600 text-white border border-purple-700 ring-1 ring-purple-200'
                   : statsOverview.tidakAktif > 0
                   ? 'bg-purple-100 text-purple-900 border border-purple-300 hover:bg-purple-200'
                   : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
@@ -702,41 +714,41 @@ export default function KpmTableView({
                   setSelectedKepesertaanFilter('');
                   setCurrentPage(1);
                 }}
-                className={`px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5 shadow-2xs whitespace-nowrap cursor-pointer transition-all ${
                   showOnlyCatatan
-                    ? 'bg-amber-600 text-white border border-amber-700 ring-2 ring-amber-200'
+                    ? 'bg-amber-600 text-white border border-amber-700 ring-1 ring-amber-200'
                     : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
                 }`}
                 title="Klik untuk memfilter data KPM yang memiliki catatan temuan"
               >
-                <span className={`material-symbols-outlined text-[13px] ${showOnlyCatatan ? 'text-white' : 'text-amber-600'}`}>report</span>
+                <span className={`material-symbols-outlined text-[11px] ${showOnlyCatatan ? 'text-white' : 'text-amber-600'}`}>report</span>
                 Catatan: {statsOverview.catatan}
               </button>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Badge & Tombol KPM Ganda (Hanya jika kepala keluarga ada yang ganda) */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Badge & Tombol KPM Ganda */}
           {duplicateInfo.totalKpmDup > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => {
                   setDuplicateFilterMode(duplicateFilterMode === 'kpm' ? 'none' : 'kpm');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5 border shadow-xs whitespace-nowrap ${
                   duplicateFilterMode === 'kpm'
                     ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 shadow-rose-200'
                     : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
                 }`}
                 title="Filter tabel untuk hanya menampilkan data KPM yang NIK/KK kepalanya ganda"
               >
-                <span className="material-symbols-outlined text-[14px] text-rose-600">warning</span>
+                <span className="material-symbols-outlined text-[13px] text-rose-600">warning</span>
                 <span>
                   {duplicateFilterMode === 'kpm'
-                    ? 'Semua Data'
+                    ? 'Semua'
                     : `${duplicateInfo.totalKpmDup} KPM Ganda`}
                 </span>
               </button>
@@ -745,40 +757,40 @@ export default function KpmTableView({
                 type="button"
                 onClick={handleDeduplicateKpm}
                 disabled={isDeduplicating}
-                className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
+                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-0.5 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
                 title="Bersihkan seluruh data KPM duplikat di Google Sheets secara otomatis"
               >
                 {isDeduplicating ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                  <span className="material-symbols-outlined text-[13px]">cleaning_services</span>
                 )}
                 <span className="hidden sm:inline">Bersihkan KPM</span>
               </button>
             </div>
           )}
 
-          {/* Badge & Tombol ART Ganda (Jika ada anggota keluarga yang NIK-nya ganda di sheet KPM_Anggota) */}
+          {/* Badge & Tombol ART Ganda */}
           {duplicateInfo.totalAnggotaDup > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => {
                   setDuplicateFilterMode(duplicateFilterMode === 'anggota' ? 'none' : 'anggota');
                   setCurrentPage(1);
                 }}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border shadow-xs whitespace-nowrap ${
+                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-0.5 border shadow-xs whitespace-nowrap ${
                   duplicateFilterMode === 'anggota'
                     ? 'bg-amber-600 text-white border-amber-700 hover:bg-amber-700 shadow-amber-200'
                     : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
                 }`}
                 title="Filter tabel untuk melihat KPM yang memiliki NIK Anggota (ART) ganda di database Google Sheets"
               >
-                <span className="material-symbols-outlined text-[14px] text-amber-600">group</span>
+                <span className="material-symbols-outlined text-[13px] text-amber-600">group</span>
                 <span>
                   {duplicateFilterMode === 'anggota'
-                    ? 'Semua Data'
-                    : `${duplicateInfo.totalAnggotaDup} Ada ART Ganda`}
+                    ? 'Semua'
+                    : `${duplicateInfo.totalAnggotaDup} ART Ganda`}
                 </span>
               </button>
 
@@ -786,49 +798,49 @@ export default function KpmTableView({
                 type="button"
                 onClick={handleDeduplicateAnggota}
                 disabled={isDeduplicatingAnggota}
-                className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
+                className="px-2 py-1 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg text-[10.5px] font-bold transition-all flex items-center gap-0.5 shadow-xs cursor-pointer whitespace-nowrap disabled:opacity-50"
                 title="Bersihkan baris anggota keluarga (ART) yang terdaftar ganda di sheet KPM_Anggota Google Sheets"
               >
                 {isDeduplicatingAnggota ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <span className="material-symbols-outlined text-[14px]">cleaning_services</span>
+                  <span className="material-symbols-outlined text-[13px]">cleaning_services</span>
                 )}
-                <span className="hidden sm:inline">Bersihkan ART Ganda</span>
+                <span className="hidden sm:inline">Bersihkan ART</span>
               </button>
             </div>
           )}
           <button
             onClick={() => setIsAbsensiModalOpen(true)}
-            className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+            className="px-2 py-1 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer whitespace-nowrap"
             title="Cetak Lembar Presensi / Absensi Pertemuan P2K2 Resmi"
           >
-            <span className="material-symbols-outlined text-[15px] text-indigo-600">print</span>
+            <span className="material-symbols-outlined text-[13.5px] text-indigo-600">print</span>
             <span>Cetak Absensi</span>
           </button>
           <button
             onClick={handleOpenAdd}
-            className="px-3 py-1.5 bg-gradient-to-r from-[#005B94] to-[#00838F] hover:from-[#004b7a] hover:to-[#006f7a] text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md flex items-center justify-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
+            className="px-2.5 py-1 bg-gradient-to-r from-[#005B94] to-[#00838F] hover:from-[#004b7a] hover:to-[#006f7a] text-white rounded-lg text-[11px] font-bold transition-all shadow-2xs hover:shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
           >
-            <span className="material-symbols-outlined text-[15px]">person_add</span>
+            <span className="material-symbols-outlined text-[13.5px]">person_add</span>
             <span>Tambah KPM</span>
           </button>
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="px-2.5 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+            className="px-2 py-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer whitespace-nowrap"
             title="Impor Data KPM dari Excel"
           >
-            <span className="material-symbols-outlined text-[15px] text-teal-600">upload_file</span>
+            <span className="material-symbols-outlined text-[13.5px] text-teal-600">upload_file</span>
             <span>Impor</span>
           </button>
           <a
             href="/api/kpm/export?type=excel-all"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-2.5 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
+            className="px-2 py-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer whitespace-nowrap"
             title="Ekspor Seluruh Data KPM ke Excel"
           >
-            <span className="material-symbols-outlined text-[15px] text-emerald-600">file_download</span>
+            <span className="material-symbols-outlined text-[13.5px] text-emerald-600">file_download</span>
             <span>Ekspor</span>
           </a>
           <button
@@ -836,10 +848,10 @@ export default function KpmTableView({
               setClearAllConfirmText('');
               setIsClearAllModalOpen(true);
             }}
-            className="p-1.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-xl transition-all flex items-center justify-center shadow-xs cursor-pointer shrink-0"
+            className="p-1 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-lg transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
             title="Hapus Bersih Seluruh Data KPM PKH"
           >
-            <span className="material-symbols-outlined text-[17px] text-rose-600">delete</span>
+            <span className="material-symbols-outlined text-[15px] text-rose-600">delete</span>
           </button>
         </div>
       </div>
@@ -957,12 +969,12 @@ export default function KpmTableView({
         </div>
       )}
 
-      {/* Filter & Search Bar (1 Baris Penuh, Ringkas & Pas di 100% Zoom) */}
-      <div className="bg-white rounded-2xl border border-gray-200 px-3 py-2 shadow-xs">
+      {/* Filter & Search Bar (1 Baris Ramping & Lengkap dengan Filter Kelurahan) */}
+      <div className="bg-white rounded-2xl border border-gray-200 px-2.5 py-1.5 shadow-xs">
         <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
           {/* Field Pencarian Ringkas */}
-          <div className="relative w-28 sm:w-32 lg:w-36 shrink-0">
-            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[14px]">
+          <div className="relative w-24 sm:w-28 lg:w-32 shrink-0">
+            <span className="material-symbols-outlined absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[13px]">
               search
             </span>
             <input
@@ -973,25 +985,27 @@ export default function KpmTableView({
                 setCurrentPage(1);
               }}
               placeholder="Cari NIK, KK..."
-              className="w-full pl-6 pr-5 py-1 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-cyan-500 outline-none bg-white"
+              className="w-full pl-5 pr-4 py-1 border border-gray-300 rounded-lg text-[11px] focus:ring-1 focus:ring-cyan-500 outline-none bg-white"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
               >
                 ✕
               </button>
             )}
           </div>
 
+          {/* Filter Kelompok */}
           <select
             value={selectedKelompok}
             onChange={(e) => {
               setSelectedKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[130px]"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[115px] truncate"
+            title="Filter Kelompok"
           >
             <option value="">Semua Kelompok</option>
             {kelompokOptions.map((kel) => (
@@ -1001,26 +1015,46 @@ export default function KpmTableView({
             ))}
           </select>
 
+          {/* Filter Kelurahan (Permintaan User: Ramping & Muat 1 Baris) */}
+          <select
+            value={selectedKelurahan}
+            onChange={(e) => {
+              setSelectedKelurahan(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[115px] truncate"
+            title="Filter Kelurahan / Desa"
+          >
+            <option value="">Semua Kelurahan</option>
+            {kelurahanOptions.map((kel) => (
+              <option key={kel} value={kel}>
+                {kel}
+              </option>
+            ))}
+          </select>
+
+          {/* Filter Peran / Status Kelompok */}
           <select
             value={selectedStatusKelompok}
             onChange={(e) => {
               setSelectedStatusKelompok(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[95px] truncate"
           >
             <option value="">Peran: Semua</option>
             <option value="Ketua Kelompok">⭐ Ketua</option>
             <option value="Anggota">👤 Anggota</option>
           </select>
 
+          {/* Filter Kelengkapan Data */}
           <select
             value={selectedStatus}
             onChange={(e) => {
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[95px] truncate"
           >
             <option value="">Data: Semua</option>
             <option value="Lengkap">✅ Lengkap</option>
@@ -1028,38 +1062,41 @@ export default function KpmTableView({
             <option value="Verifikasi">🔍 Verifikasi</option>
           </select>
 
+          {/* Filter Tahap */}
           <select
             value={selectedTahapFilter}
             onChange={(e) => {
               setSelectedTahapFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[90px] truncate"
           >
             <option value="">Tahap: Semua</option>
-            <option value="Tahap 1">Thp-1 (2026)</option>
-            <option value="Tahap 2">Thp-2 (2026)</option>
-            <option value="Tahap 3">Thp-3 (2026)</option>
-            <option value="Tahap 4">Thp-4 (2026)</option>
+            <option value="Tahap 1">Thp-1 2026</option>
+            <option value="Tahap 2">Thp-2 2026</option>
+            <option value="Tahap 3">Thp-3 2026</option>
+            <option value="Tahap 4">Thp-4 2026</option>
           </select>
 
+          {/* Filter Kepesertaan */}
           <select
             value={selectedKepesertaanFilter}
             onChange={(e) => {
               setSelectedKepesertaanFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-1.5 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 focus:ring-2 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0"
+            className="px-1.5 py-1 border border-gray-300 rounded-lg text-[11px] text-gray-700 focus:ring-1 focus:ring-cyan-500 outline-none bg-white cursor-pointer shrink-0 max-w-[90px] truncate"
           >
             <option value="">Status: Semua</option>
             <option value="Aktif">🟢 Aktif</option>
-            <option value="Tidak Aktif">⚪ Non-Aktif / Graduasi</option>
+            <option value="Tidak Aktif">⚪ Non-Aktif</option>
           </select>
 
           <button
             onClick={() => {
               setSearchQuery('');
               setSelectedKelompok('');
+              setSelectedKelurahan('');
               setSelectedStatusKelompok('');
               setSelectedStatus('');
               setSelectedTahapFilter('');
@@ -1067,23 +1104,23 @@ export default function KpmTableView({
               setShowOnlyDuplicates(false);
               setCurrentPage(1);
             }}
-            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 ${
+            className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer shrink-0 ${
               isAnyFilterActive
-                ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-xs font-bold active:scale-95'
+                ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-700 shadow-2xs font-bold active:scale-95'
                 : 'border border-gray-300 hover:bg-gray-100 text-gray-600'
             }`}
-            title="Reset Filter"
+            title="Reset Seluruh Filter"
           >
             Reset
           </button>
 
-          {/* Angka Hasil Filter Cukup Angka Saja yang Mencolok & Ukuran Sedikit Besar */}
+          {/* Angka Hasil Filter Ringkas & Pas */}
           <div
-            className="ml-auto shrink-0 flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-cyan-600 to-teal-600 text-white rounded-xl shadow-xs"
+            className="ml-auto shrink-0 flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-teal-600 text-white rounded-lg shadow-2xs"
             title={`Total ${filteredData.length} KPM ditemukan`}
           >
-            <span className="material-symbols-outlined text-[15px] opacity-85">groups</span>
-            <span className="font-black text-sm font-mono tracking-tight leading-none">{filteredData.length}</span>
+            <span className="material-symbols-outlined text-[13px] opacity-85">groups</span>
+            <span className="font-black text-xs font-mono tracking-tight leading-none">{filteredData.length}</span>
           </div>
         </div>
       </div>
