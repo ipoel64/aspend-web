@@ -113,6 +113,7 @@ export async function GET(request: Request) {
         spreadsheetId,
         nik,
         refreshToken,
+        pendampingEmail: session?.user?.email || '',
         generatedAt: Date.now(),
       };
 
@@ -237,11 +238,13 @@ export async function POST(request: Request) {
 
     let spreadsheetId = '';
     let activeToken = '';
+    let pendampingEmail = '';
 
     if (token) {
       const decoded = decryptToken(token);
       if (decoded) {
         spreadsheetId = decoded.spreadsheetId;
+        pendampingEmail = decoded.pendampingEmail || '';
         if (decoded.refreshToken) {
           activeToken = (await getAccessTokenFromRefreshToken(decoded.refreshToken)) || '';
         }
@@ -252,6 +255,9 @@ export async function POST(request: Request) {
       const session = await auth();
       // @ts-expect-error
       activeToken = session?.accessToken || '';
+      if (!pendampingEmail && session?.user?.email) {
+        pendampingEmail = session.user.email;
+      }
       if (activeToken && !spreadsheetId) {
         spreadsheetId = (await findAspendSpreadsheet(activeToken)) || '';
       }
@@ -542,6 +548,40 @@ export async function POST(request: Request) {
       } catch (err) {
         console.warn('Fetch fresh anggota error:', err);
       }
+    }
+
+    // Broadcast pembaruan mandiri KPM ke web pendamping secara real-time via Cloud Relay
+    try {
+      const notifyPayload = {
+        action: 'KPM_SUBMITTED',
+        nik: cleanTargetNik || updatedKeluarga?.NIK || '',
+        noKK: targetNoKK,
+        nama: updatedKeluarga?.NamaPengurus || cleanTargetNik,
+        timestamp: Date.now(),
+      };
+
+      const broadcastUrls = new Set<string>();
+      if (spreadsheetId) {
+        broadcastUrls.add(`https://ntfy.sh/aspend_kpm_${encodeURIComponent(spreadsheetId)}`);
+      }
+      if (pendampingEmail) {
+        const cleanEmail = pendampingEmail.replaceAll('@', '_').replaceAll('.', '_');
+        broadcastUrls.add(`https://ntfy.sh/aspend_user_${encodeURIComponent(cleanEmail)}`);
+        broadcastUrls.add(`https://ntfy.sh/aspend_kpm_${encodeURIComponent(cleanEmail)}`);
+      }
+
+      // Kirim sinyal non-blocking agar respon tetap instan
+      Promise.allSettled(
+        Array.from(broadcastUrls).map((url) =>
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notifyPayload),
+          })
+        )
+      ).catch((err) => console.warn('KPM Portal real-time broadcast warning:', err));
+    } catch (broadcastErr) {
+      console.warn('Real-time notify error:', broadcastErr);
     }
 
     return NextResponse.json({

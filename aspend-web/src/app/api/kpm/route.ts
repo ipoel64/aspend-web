@@ -314,7 +314,7 @@ export async function GET(request: Request) {
       data = data.filter(item => item.StatusData === status);
     }
 
-    return NextResponse.json({ data, total: data.length });
+    return NextResponse.json({ data, total: data.length, spreadsheetId });
   } catch (error: any) {
     console.error('KPM GET error:', error);
     if (isGoogleAuthError(error) || error?.status === 401 || error?.code === 401) {

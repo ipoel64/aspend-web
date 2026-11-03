@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   KpmKeluarga,
   isKpmDataLengkap,
   getKpmCompletenessDetails,
   formatIndonesianPhone,
+  cleanTextCell,
 } from '@/lib/kpm-constants';
 import KpmFormModal from './KpmFormModal';
 import KpmAnggotaModal from './KpmAnggotaModal';
@@ -28,8 +30,16 @@ export default function KpmTableView({
   onNavigateHome,
   onNavigateToKpmDashboard,
 }: KpmTableViewProps) {
+  const { data: session } = useSession();
   const [dataList, setDataList] = useState<KpmKeluarga[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [spreadsheetId, setSpreadsheetId] = useState<string>('');
+  const [realtimeNotification, setRealtimeNotification] = useState<{
+    nama: string;
+    nik: string;
+    time: string;
+  } | null>(null);
+  const [recentlyUpdatedNik, setRecentlyUpdatedNik] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedKelompok, setSelectedKelompok] = useState('');
   const [selectedStatusKelompok, setSelectedStatusKelompok] = useState('');
@@ -111,9 +121,9 @@ export default function KpmTableView({
   const [isClearingAll, setIsClearingAll] = useState(false);
   const [clearAllConfirmText, setClearAllConfirmText] = useState('');
 
-  // Fetch KPM data
-  const fetchData = async () => {
-    setIsLoading(true);
+  // Fetch KPM data (isSilent: true untuk auto-refresh latar belakang tanpa memblokir UI)
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const res = await fetch('/api/kpm');
       if (res.status === 401) {
@@ -126,15 +136,100 @@ export default function KpmTableView({
       if (json.data) {
         setDataList(json.data);
       }
+      if (json.spreadsheetId) {
+        setSpreadsheetId(json.spreadsheetId);
+      }
     } catch (err) {
       console.error('Error fetching KPM list:', err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Real-time synchronization listener (ntfy.sh Cloud Relay)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('EventSource' in window)) return;
+
+    const sources: EventSource[] = [];
+    const topics = new Set<string>();
+
+    if (spreadsheetId) {
+      topics.add(`aspend_kpm_${spreadsheetId}`);
+    }
+    const email = session?.user?.email;
+    if (email) {
+      const cleanEmail = email.replaceAll('@', '_').replaceAll('.', '_');
+      topics.add(`aspend_user_${cleanEmail}`);
+      topics.add(`aspend_kpm_${cleanEmail}`);
+    }
+
+    topics.forEach((topic) => {
+      try {
+        const es = new EventSource(`https://ntfy.sh/${encodeURIComponent(topic)}/sse`);
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && (data.action === 'KPM_SUBMITTED' || data.action === 'KPM_UPDATED')) {
+              // 1. Refresh data secara hening (silent) di latar belakang
+              fetchData(true);
+              if (onDataChange) onDataChange();
+
+              // 2. Munculkan toast notifikasi pembaruan data KPM
+              setRealtimeNotification({
+                nama: data.nama || 'KPM',
+                nik: data.nik || '',
+                time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              });
+
+              // 3. Berikan highlight visual pada baris KPM yang baru diperbarui
+              if (data.nik) {
+                setRecentlyUpdatedNik(data.nik);
+                setTimeout(() => setRecentlyUpdatedNik(null), 12000);
+              }
+
+              // Otomatis sembunyikan toast setelah 8 detik
+              setTimeout(() => setRealtimeNotification(null), 8000);
+            }
+          } catch (_) {}
+        };
+        sources.push(es);
+      } catch (_) {}
+    });
+
+    return () => {
+      sources.forEach((s) => {
+        try {
+          s.close();
+        } catch (_) {}
+      });
+    };
+  }, [spreadsheetId, session?.user?.email, onDataChange]);
+
+  // Tab visibility change: auto silent refresh saat pendamping kembali membuka tab browser
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Background polling berkala setiap 60 detik saat tab aktif (fail-safe)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchData(true);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   // Filter kelompok options
@@ -522,6 +617,17 @@ export default function KpmTableView({
             <span className="material-symbols-outlined text-cyan-600 text-xl">family_restroom</span>
             Data KPM PKH
           </h2>
+          {/* Live Real-Time Auto-Sync Badge */}
+          <div
+            className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-semibold tracking-tight shadow-2xs"
+            title="Auto-Refresh Aktif: Perubahan data dari formulir mandiri KPM langsung diperbarui secara otomatis tanpa refresh halaman"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Live Auto-Sync</span>
+          </div>
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Filter Total: klik untuk reset filter */}
             <button
@@ -1034,6 +1140,11 @@ export default function KpmTableView({
                     kpm.CatatanTemuan?.includes('Sudah Graduasi');
                   const isGraduasiOrInactive = isGraduasi || kpm.StatusKepesertaan === 'Tidak Aktif';
                   const rowActionId = kpm.KpmId || kpm.NIK || kpm.NoKK || `kpm-${idx}`;
+                  const isJustUpdated = Boolean(
+                    recentlyUpdatedNik &&
+                      (cleanTextCell(kpm.NIK) === cleanTextCell(recentlyUpdatedNik) ||
+                        cleanTextCell(kpm.NoKK) === cleanTextCell(recentlyUpdatedNik))
+                  );
 
                   return (
                     <React.Fragment key={`kpm-row-${rowActionId}-${idx}`}>
@@ -1076,7 +1187,9 @@ export default function KpmTableView({
 
                       <tr
                         className={`transition-all border-b border-slate-300 ${
-                          isGraduasiOrInactive
+                          isJustUpdated
+                            ? 'bg-emerald-50/90 border-l-4 border-l-emerald-600 shadow-sm ring-1 ring-emerald-400/80 animate-in fade-in duration-500'
+                            : isGraduasiOrInactive
                             ? 'bg-slate-100/80 text-slate-400 opacity-60 border-l-4 border-l-slate-400 hover:bg-slate-100'
                             : isDupNik || isDupKK
                             ? 'bg-rose-50/40 hover:bg-rose-100/50 border-l-4 border-l-rose-500'
@@ -1147,6 +1260,15 @@ export default function KpmTableView({
                                 >
                                   {kpm.NamaPengurus}
                                 </p>
+                                {isJustUpdated && (
+                                  <span
+                                    title="Data KPM ini baru saja berhasil diperbarui secara mandiri!"
+                                    className="inline-flex items-center gap-1 text-[9.5px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-full shrink-0 shadow-2xs animate-pulse"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                                    Baru Diperbarui
+                                  </span>
+                                )}
                                 {(() => {
                                   const hasCatatan = Boolean(kpm.CatatanTemuan && kpm.CatatanTemuan !== '[]' && kpm.CatatanTemuan.trim() !== '');
                                   if (!hasCatatan) return null;
@@ -2251,6 +2373,31 @@ export default function KpmTableView({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notifikasi Real-Time Pembaruan Mandiri KPM */}
+      {realtimeNotification && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-4 py-3 rounded-2xl shadow-2xl border border-emerald-400/40 animate-in fade-in slide-in-from-bottom-5 duration-300 max-w-md">
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+            <span className="material-symbols-outlined text-2xl text-emerald-100 animate-bounce">published_with_changes</span>
+          </div>
+          <div className="text-xs min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 font-bold text-sm leading-tight text-white">
+              <span>Pembaruan Mandiri KPM!</span>
+              <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-mono">{realtimeNotification.time}</span>
+            </div>
+            <p className="text-emerald-100 text-[11.5px] mt-0.5 leading-snug line-clamp-2">
+              KPM <strong className="text-white underline">{realtimeNotification.nama}</strong> baru saja melengkapi/memperbarui datanya via Portal KPM. Tabel otomatis diperbarui!
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRealtimeNotification(null)}
+            className="w-7 h-7 rounded-lg hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-1"
+          >
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
         </div>
       )}
     </div>
