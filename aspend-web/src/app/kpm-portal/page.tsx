@@ -264,25 +264,35 @@ function KpmPortalContent() {
     }
   };
 
-  // GPS handler
+  // GPS handler dengan 2-step fallback (High accuracy -> Network fallback)
   const handleGetLocation = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       alert('Browser Anda tidak mendukung deteksi lokasi GPS.');
       return;
     }
 
     setIsGettingLocation(true);
+
+    const onLocationSuccess = (pos: GeolocationPosition) => {
+      setIsGettingLocation(false);
+      setLatitude(pos.coords.latitude.toFixed(6));
+      setLongitude(pos.coords.longitude.toFixed(6));
+    };
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsGettingLocation(false);
-        setLatitude(pos.coords.latitude.toFixed(6));
-        setLongitude(pos.coords.longitude.toFixed(6));
-      },
+      onLocationSuccess,
       (err) => {
-        setIsGettingLocation(false);
-        alert(`Gagal mengambil titik GPS: ${err.message}. Pastikan izin lokasi (GPS) pada browser/HP Anda telah diaktifkan.`);
+        console.warn('GPS akurasi tinggi lambat/gagal, beralih ke lokasi jaringan:', err.message);
+        navigator.geolocation.getCurrentPosition(
+          onLocationSuccess,
+          (fallbackErr) => {
+            setIsGettingLocation(false);
+            alert(`Gagal mengambil titik GPS: ${fallbackErr.message || err.message}. Pastikan izin lokasi (GPS) pada browser/HP Anda telah diaktifkan.`);
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
     );
   };
 
@@ -1371,26 +1381,11 @@ function KpmPortalContent() {
 
                   {/* Titik Lokasi GPS & Peta Interaktif */}
                   <div className="border-t pt-4 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div>
                       <label className="block font-semibold">Titik Lokasi Rumah (Koordinat GPS)</label>
-                      <button
-                        type="button"
-                        onClick={handleGetLocation}
-                        disabled={isGettingLocation}
-                        className="px-3 py-1 bg-amber-100 hover:bg-amber-200 active:scale-95 text-amber-900 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 text-xs shadow-2xs"
-                      >
-                        {isGettingLocation ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-amber-900 border-t-transparent rounded-full animate-spin"></div>
-                            <span>Mendeteksi GPS...</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-sm">my_location</span>
-                            <span>Ambil Lokasi Saya</span>
-                          </>
-                        )}
-                      </button>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Gunakan tombol &quot;Ambil Lokasi Saya&quot; di atas peta untuk menaruh pin GPS otomatis, atau geser pin merah tepat di atas posisi atap rumah Anda.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">

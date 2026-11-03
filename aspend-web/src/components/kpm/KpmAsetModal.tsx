@@ -88,27 +88,36 @@ export default function KpmAsetModal({
   const isUsahaActive = formData.Usaha === 'Memiliki Usaha';
 
   const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       setErrorMsg('Browser Anda tidak mendukung deteksi lokasi (Geolocation).');
       return;
     }
     setIsGettingLocation(true);
     setErrorMsg('');
 
+    const onLocationSuccess = (pos: GeolocationPosition) => {
+      setFormData((prev) => ({
+        ...prev,
+        Latitude: pos.coords.latitude.toFixed(6),
+        Longitude: pos.coords.longitude.toFixed(6),
+      }));
+      setIsGettingLocation(false);
+    };
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setFormData((prev) => ({
-          ...prev,
-          Latitude: pos.coords.latitude.toFixed(6),
-          Longitude: pos.coords.longitude.toFixed(6),
-        }));
-        setIsGettingLocation(false);
-      },
+      onLocationSuccess,
       (err) => {
-        setIsGettingLocation(false);
-        setErrorMsg(`Gagal mengambil koordinat: ${err.message}`);
+        console.warn('GPS akurasi tinggi lambat/gagal, beralih ke lokasi jaringan:', err.message);
+        navigator.geolocation.getCurrentPosition(
+          onLocationSuccess,
+          (fallbackErr) => {
+            setIsGettingLocation(false);
+            setErrorMsg(`Gagal mengambil koordinat: ${fallbackErr.message || err.message}`);
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
     );
   };
 
