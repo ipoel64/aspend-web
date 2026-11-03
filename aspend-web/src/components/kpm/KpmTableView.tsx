@@ -246,7 +246,7 @@ export default function KpmTableView({
   const kelurahanOptions = useMemo(() => {
     const set = new Set<string>();
     dataList.forEach((k) => {
-      const kel = (k.Kelurahan || '').trim();
+      const kel = (k.Kelurahan || (k as any).DesaKelurahan || '').trim();
       if (kel) set.add(kel);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
@@ -338,7 +338,12 @@ export default function KpmTableView({
         item.Kecamatan?.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchKelompok = !selectedKelompok || item.Kelompok === selectedKelompok;
-      const matchKelurahan = !selectedKelurahan || (item.Kelurahan || '').trim().toLowerCase() === selectedKelurahan.trim().toLowerCase();
+      const itemKel = (item.Kelurahan || (item as any).DesaKelurahan || '').trim().toLowerCase();
+      const selKel = selectedKelurahan.trim().toLowerCase();
+      const matchKelurahan =
+        !selectedKelurahan ||
+        itemKel === selKel ||
+        itemKel.replace(/^(kelurahan|desa)\s+/i, '') === selKel.replace(/^(kelurahan|desa)\s+/i, '');
       const matchStatusKelompok = !selectedStatusKelompok || item.StatusKelompok === selectedStatusKelompok;
 
       let matchStatus = true;
@@ -398,7 +403,17 @@ export default function KpmTableView({
         matchCatatan = Boolean(item.CatatanTemuan && item.CatatanTemuan !== '[]' && item.CatatanTemuan.trim() !== '');
       }
 
-      return matchSearch && matchKelompok && matchStatusKelompok && matchStatus && matchTahap && matchKepesertaan && matchDuplicate && matchCatatan;
+      return (
+        matchSearch &&
+        matchKelompok &&
+        matchKelurahan &&
+        matchStatusKelompok &&
+        matchStatus &&
+        matchTahap &&
+        matchKepesertaan &&
+        matchDuplicate &&
+        matchCatatan
+      );
     });
 
     // Urutkan:
@@ -425,7 +440,19 @@ export default function KpmTableView({
       // Jika status sama, urutkan berdasarkan Nama Pengurus
       return (a.NamaPengurus || '').localeCompare(b.NamaPengurus || '', undefined, { sensitivity: 'base' });
     });
-  }, [dataList, searchQuery, selectedKelompok, selectedStatusKelompok, selectedStatus, selectedTahapFilter, selectedKepesertaanFilter, duplicateFilterMode, showOnlyCatatan, duplicateInfo]);
+  }, [
+    dataList,
+    searchQuery,
+    selectedKelompok,
+    selectedKelurahan,
+    selectedStatusKelompok,
+    selectedStatus,
+    selectedTahapFilter,
+    selectedKepesertaanFilter,
+    duplicateFilterMode,
+    showOnlyCatatan,
+    duplicateInfo,
+  ]);
 
   // Ringkasan jumlah KPM per kelompok (untuk header kelompok: Total, Aktif, Tidak Aktif)
   const kelompokSummaryMap = useMemo(() => {
