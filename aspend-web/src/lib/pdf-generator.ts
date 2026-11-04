@@ -1507,7 +1507,7 @@ export async function generateReportPDF(
   const pdfBuffer = Buffer.from(pdfExportRes.data as ArrayBuffer);
 
   // 10b. Terapkan Watermark Halus Diagonal (NIP  Nama  Tanggal) persis seperti Aspend Mobile
-  let finalPdfBuffer = pdfBuffer;
+  let finalPdfBuffer: any = pdfBuffer;
   try {
     const wmText = formatWatermarkText(userProfile, validDate);
     finalPdfBuffer = await applyWatermarkToPdfBuffer(pdfBuffer, wmText);

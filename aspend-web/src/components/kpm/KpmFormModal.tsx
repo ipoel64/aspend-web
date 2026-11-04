@@ -6,6 +6,7 @@ import {
   STATUS_KELOMPOK_OPTIONS,
   CATATAN_TEMUAN_OPTIONS,
   PERNYATAAN_OPTIONS,
+  normalizePernyataan,
   isKpmDataLengkap,
   formatIndonesianPhone,
   normalizeKK,
@@ -272,7 +273,7 @@ export default function KpmFormModal({
         ...editData,
         NoKK: normalizeKK(editData.NoKK) || editData.NoKK || '',
         NoHP: formatIndonesianPhone(editData.NoHP) || editData.NoHP || '',
-        Pernyataan: editData.Pernyataan || '',
+        Pernyataan: normalizePernyataan(editData.Pernyataan || ''),
       });
       try {
         const parsed = JSON.parse(editData.CatatanTemuan || '[]');

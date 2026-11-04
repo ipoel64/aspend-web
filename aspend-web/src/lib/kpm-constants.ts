@@ -188,6 +188,9 @@ export const PRIORITAS_OPTIONS = ['Rendah', 'Sedang', 'Tinggi', 'Kritis'];
 export const STATUS_MASALAH_OPTIONS = ['Terbuka', 'Dalam Proses', 'Ditindaklanjuti', 'Selesai'];
 export const STATUS_DATA_OPTIONS = ['Lengkap', 'Belum Lengkap', 'Verifikasi'];
 
+export const OLD_PERNYATAAN_MISKIN =
+  'Saya dengan penuh kesadaran menyatakan masih tergolong keluarga miskin dan bersedia mengikuti kewajiban sebagai penerima PKH serta pelabelan status keluarga miskin pada dinding rumah';
+
 export const PERNYATAAN_OPTIONS = [
   'Saya dengan penuh kesadaran menyatakan masih tergolong keluarga tidak mampu dan bersedia mengikuti kewajiban sebagai penerima PKH serta pelabelan status keluarga miskin pada dinding rumah',
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena ekonomi saya sudah baik dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH',
@@ -195,6 +198,18 @@ export const PERNYATAAN_OPTIONS = [
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena Penghasilan saya sudah diatas UMK dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH',
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena saya atau anggota keluarga saya ada yang berstatus ASN/TNI/POLRI/BUMN/BUMD dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH'
 ];
+
+/**
+ * Otomatis memetakan pernyataan versi lama (keluarga miskin) ke versi resmi terbaru (keluarga tidak mampu)
+ */
+export function normalizePernyataan(val: any): string {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (str === OLD_PERNYATAAN_MISKIN || str.includes('masih tergolong keluarga miskin')) {
+    return PERNYATAAN_OPTIONS[0];
+  }
+  return str;
+}
 
 // ==========================================
 // 4. Helper Functions
@@ -339,7 +354,7 @@ export function parseKeluargaRow(row: string[]): KpmKeluarga {
     FotoBukuTabungan: cleanTextCell(row[15]),
     FotoKKS: cleanTextCell(row[16]),
     CatatanTemuan: cleanTextCell(row[17]),
-    Pernyataan: cleanTextCell(row[18]),
+    Pernyataan: normalizePernyataan(cleanTextCell(row[18])),
     Password: cleanTextCell(row[19]),
     StatusData: cleanTextCell(row[20]),
     CreatedAt: cleanTextCell(row[21]),

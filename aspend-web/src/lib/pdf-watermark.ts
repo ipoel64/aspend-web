@@ -69,9 +69,9 @@ export function applyWatermarkToJsPdf(doc: any, watermarkText: string): void {
  * Terapkan watermark diagonal halus berulang ke Buffer PDF (Server Side - pdf-lib)
  */
 export async function applyWatermarkToPdfBuffer(
-  pdfBuffer: Buffer,
+  pdfBuffer: any,
   watermarkText: string
-): Promise<Buffer> {
+): Promise<any> {
   if (!watermarkText || !watermarkText.trim()) return pdfBuffer;
 
   try {
@@ -99,7 +99,7 @@ export async function applyWatermarkToPdfBuffer(
     }
 
     const modifiedBytes = await pdfDoc.save();
-    return Buffer.from(modifiedBytes);
+    return Buffer.from(modifiedBytes.buffer, modifiedBytes.byteOffset, modifiedBytes.byteLength);
   } catch (err) {
     console.warn('Gagal menambahkan watermark pada PDF Buffer:', err);
     return pdfBuffer;

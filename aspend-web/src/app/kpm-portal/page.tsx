@@ -11,6 +11,7 @@ import {
   STATUS_RUMAH_OPTIONS,
   USAHA_OPTIONS,
   PERNYATAAN_OPTIONS,
+  normalizePernyataan,
   JENIS_KELAMIN_OPTIONS,
   KpmKeluarga,
   KpmAnggota,
@@ -160,7 +161,7 @@ function KpmPortalContent() {
       setFotoBukuTabungan(keluarga.FotoBukuTabungan || '');
       setFotoKKS(keluarga.FotoKKS || '');
       setFotoRumah(keluarga.FotoRumah || '');
-      setPernyataan(keluarga.Pernyataan || '');
+      setPernyataan(normalizePernyataan(keluarga.Pernyataan || ''));
 
       const rawAnggota: KpmAnggota[] = json.data?.anggota || [];
       const uniqueAnggota: KpmAnggota[] = [];
