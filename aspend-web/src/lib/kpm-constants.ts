@@ -189,7 +189,7 @@ export const STATUS_MASALAH_OPTIONS = ['Terbuka', 'Dalam Proses', 'Ditindaklanju
 export const STATUS_DATA_OPTIONS = ['Lengkap', 'Belum Lengkap', 'Verifikasi'];
 
 export const PERNYATAAN_OPTIONS = [
-  'Saya dengan penuh kesadaran menyatakan masih tergolong keluarga miskin dan bersedia mengikuti kewajiban sebagai penerima PKH serta pelabelan status keluarga miskin pada dinding rumah',
+  'Saya dengan penuh kesadaran menyatakan masih tergolong keluarga tidak mampu dan bersedia mengikuti kewajiban sebagai penerima PKH serta pelabelan status keluarga miskin pada dinding rumah',
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena ekonomi saya sudah baik dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH',
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena saya sudah menjadi peserta PKH lebih dari 5 Tahun dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH',
   'Saya dengan penuh kesadaran menyatakan keluar dari kepesertaan PKH karena Penghasilan saya sudah diatas UMK dan bersedia menandatangani surat pengunduran diri dari kepesertaan PKH',

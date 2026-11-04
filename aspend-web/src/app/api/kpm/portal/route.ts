@@ -365,7 +365,7 @@ export async function POST(request: Request) {
         if (p.includes('keluar dari kepesertaan pkh')) {
           statusKepesertaan = 'Graduasi';
           statusGraduasi = 'Graduasi Mandiri';
-        } else if (p.includes('masih tergolong keluarga miskin')) {
+        } else if (p.includes('keluarga tidak mampu') || p.includes('masih tergolong keluarga miskin')) {
           statusKepesertaan = 'Aktif';
           statusGraduasi = 'Belum Graduasi';
         }
